@@ -8,14 +8,48 @@ body,
   background: #080b10;
 }
 
+html.privacy-mode,
+html.privacy-mode body,
+html.privacy-mode #app {
+  background: transparent !important;
+}
+
+html.privacy-mode body {
+  cursor: none;
+  opacity: 0 !important;
+}
+
 body {
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
+  touch-action: none;
+  user-select: none;
 }
 
 canvas {
   display: block;
+  touch-action: none;
+}
+
+.summon-button {
+  position: fixed;
+  left: 24px;
+  bottom: 24px;
+  z-index: 18;
+  height: 42px;
+  border: 1px solid rgba(255, 209, 102, 0.82);
+  border-radius: 6px;
+  background: rgba(17, 26, 31, 0.94);
+  color: #fff2bf;
+  padding: 0 16px;
+  font: 800 14px Inter, "Segoe UI", sans-serif;
+  cursor: pointer;
+}
+
+.summon-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
 }
 
 .lobby-overlay {
@@ -67,6 +101,13 @@ canvas {
 }
 
 .lobby-row {
+  padding: 0 24px 16px;
+}
+
+.lobby-team {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
   padding: 0 24px 16px;
 }
 
@@ -122,6 +163,22 @@ canvas {
   background: #17252a;
 }
 
+.lobby-overlay button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.lobby-overlay .lobby-team-option {
+  border-color: color-mix(in srgb, var(--team-color, #36f0d2) 72%, transparent);
+}
+
+.lobby-overlay .lobby-team-option.is-active {
+  background: color-mix(in srgb, var(--team-color, #36f0d2) 22%, #111a1f);
+  box-shadow: inset 0 0 0 1px var(--team-color, #36f0d2);
+  color: #ffffff;
+  font-weight: 800;
+}
+
 .lobby-overlay .lobby-quick {
   min-width: 116px;
   border-color: rgba(255, 209, 102, 0.95);
@@ -132,4 +189,52 @@ canvas {
 
 .lobby-overlay .lobby-quick:hover {
   background: #3a3018;
+}
+
+@media (max-width: 680px) {
+  .lobby-overlay {
+    align-items: stretch;
+    padding: 10px;
+  }
+
+  .lobby-panel {
+    max-height: calc(100vh - 20px);
+  }
+
+  .lobby-head,
+  .lobby-row,
+  .lobby-room {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .lobby-head,
+  .lobby-row,
+  .lobby-team,
+  .lobby-status,
+  .lobby-rooms {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .lobby-team {
+    grid-template-columns: 1fr;
+  }
+
+  .lobby-overlay button,
+  .lobby-name {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .lobby-rooms {
+    max-height: none;
+  }
+
+  .summon-button {
+    left: 12px;
+    bottom: 12px;
+    min-width: 112px;
+    height: 46px;
+  }
 }

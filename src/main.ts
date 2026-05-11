@@ -2,10 +2,28 @@ import Phaser from 'phaser';
 import { io, Socket } from 'socket.io-client';
 import './styles.css';
 
+const PRIVACY_MODE_CLASS = 'privacy-mode';
+
+function installPrivacyModeToggle() {
+  window.addEventListener(
+    'keydown',
+    (event) => {
+      if (event.code !== 'KeyX' || event.repeat || event.ctrlKey || event.altKey || event.metaKey) {
+        return;
+      }
+
+      document.documentElement.classList.toggle(PRIVACY_MODE_CLASS);
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    },
+    { capture: true },
+  );
+}
+
 const GAME_WIDTH = 1280;
 const GAME_HEIGHT = 720;
-const WORLD_WIDTH = 3000;
-const WORLD_HEIGHT = 2000;
+const WORLD_WIDTH = 5200;
+const WORLD_HEIGHT = 3600;
 
 type VehicleKey =
   | 'mech'
@@ -15,9 +33,13 @@ type VehicleKey =
   | 'hovercraft'
   | 'railgun'
   | 'walker'
-  | 'artillery';
-type EnemyKind = 'drone' | 'stalker' | 'warden' | 'crusher';
+  | 'artillery'
+  | 'buggy'
+  | 'laserVan'
+  | 'flameRig';
+type EnemyKind = 'drone' | 'stalker' | 'warden' | 'crusher' | 'mender' | 'sniper' | 'bomber' | 'boss';
 type EnemyTier = 'white' | 'green' | 'blue' | 'purple' | 'red';
+type TeamKey = 'A' | 'B' | 'C';
 type UpgradeKey = 'damage' | 'rate' | 'speed' | 'armor' | 'magnet';
 type BuffKey = 'overclock' | 'rapid' | 'barrier' | 'regen';
 type WeaponKey =
@@ -25,7 +47,9 @@ type WeaponKey =
   | 'healDrone'
   | 'rocketLauncher'
   | 'grenadeLauncher'
-  | 'teslaEmitter';
+  | 'teslaEmitter'
+  | 'beamCannon'
+  | 'orbitalBeacon';
 type ArcadeOverlapObject =
   | Phaser.Types.Physics.Arcade.GameObjectWithBody
   | Phaser.Physics.Arcade.Body
@@ -45,6 +69,7 @@ interface VehicleSpec {
   noise: number;
   noiseRadius: number;
   damageTaken: number;
+  shield: number;
   bodyWidth: number;
   bodyHeight: number;
   projectileTexture: string;
@@ -116,11 +141,15 @@ interface RangeKeys {
 interface PublicRoom {
   id: string;
   name: string;
+  round: number;
   players: number;
   maxPlayers: number;
+  unlimitedPlayers?: boolean;
+  teamCounts: Record<string, number>;
   remainingMs: number;
   nextInvasionMs: number;
   scores: Record<string, number>;
+  joinLocked?: boolean;
   ended: boolean;
 }
 
@@ -131,6 +160,10 @@ interface NetworkPlayer {
   teamKey: string;
   teamName: string;
   color: string;
+  crown?: number;
+  teamLeader?: boolean;
+  hp?: number;
+  maxHp?: number;
   x: number;
   y: number;
   angle: number;
@@ -143,6 +176,27 @@ interface RoomState {
   scores: Record<string, number>;
   remainingMs: number;
   nextInvasionMs: number;
+}
+
+interface TeamInfo {
+  key: TeamKey;
+  name: string;
+  color: string;
+  spawnX: number;
+  spawnY: number;
+}
+
+interface BossTarget {
+  id: string;
+  x: number;
+  y: number;
+  isLocal: boolean;
+}
+
+interface RemotePlayerView {
+  sprite: Phaser.Physics.Arcade.Sprite;
+  label: Phaser.GameObjects.Text;
+  crown: Phaser.GameObjects.Text;
 }
 
 const VEHICLES: Record<VehicleKey, VehicleSpec> = {
@@ -159,6 +213,7 @@ const VEHICLES: Record<VehicleKey, VehicleSpec> = {
     noise: 15,
     noiseRadius: 430,
     damageTaken: 1,
+    shield: 0,
     bodyWidth: 34,
     bodyHeight: 34,
     projectileTexture: 'shot-pulse',
@@ -178,6 +233,7 @@ const VEHICLES: Record<VehicleKey, VehicleSpec> = {
     noise: 24,
     noiseRadius: 520,
     damageTaken: 1.12,
+    shield: 95,
     bodyWidth: 46,
     bodyHeight: 24,
     projectileTexture: 'shot-pulse',
@@ -197,6 +253,7 @@ const VEHICLES: Record<VehicleKey, VehicleSpec> = {
     noise: 48,
     noiseRadius: 700,
     damageTaken: 0.55,
+    shield: 210,
     bodyWidth: 54,
     bodyHeight: 42,
     projectileTexture: 'shot-shell',
@@ -216,6 +273,7 @@ const VEHICLES: Record<VehicleKey, VehicleSpec> = {
     noise: 40,
     noiseRadius: 640,
     damageTaken: 0.82,
+    shield: 135,
     bodyWidth: 48,
     bodyHeight: 36,
     projectileTexture: 'shot-missile',
@@ -235,6 +293,7 @@ const VEHICLES: Record<VehicleKey, VehicleSpec> = {
     noise: 28,
     noiseRadius: 560,
     damageTaken: 0.92,
+    shield: 120,
     bodyWidth: 50,
     bodyHeight: 30,
     projectileTexture: 'shot-pulse',
@@ -254,6 +313,7 @@ const VEHICLES: Record<VehicleKey, VehicleSpec> = {
     noise: 46,
     noiseRadius: 680,
     damageTaken: 0.78,
+    shield: 150,
     bodyWidth: 56,
     bodyHeight: 34,
     projectileTexture: 'shot-rail',
@@ -273,6 +333,7 @@ const VEHICLES: Record<VehicleKey, VehicleSpec> = {
     noise: 34,
     noiseRadius: 580,
     damageTaken: 0.72,
+    shield: 170,
     bodyWidth: 48,
     bodyHeight: 44,
     projectileTexture: 'shot-pulse',
@@ -292,11 +353,72 @@ const VEHICLES: Record<VehicleKey, VehicleSpec> = {
     noise: 56,
     noiseRadius: 760,
     damageTaken: 0.64,
+    shield: 185,
     bodyWidth: 58,
     bodyHeight: 38,
     projectileTexture: 'shot-missile',
     projectileScale: 1.08,
     aoe: 76,
+  },
+  buggy: {
+    name: '突击越野车',
+    texture: 'unit-buggy',
+    speed: 365,
+    fireDelay: 185,
+    damage: 16,
+    projectileSpeed: 780,
+    range: 640,
+    shots: 3,
+    spread: 0.22,
+    noise: 30,
+    noiseRadius: 570,
+    damageTaken: 0.98,
+    shield: 105,
+    bodyWidth: 52,
+    bodyHeight: 30,
+    projectileTexture: 'shot-pulse',
+    projectileScale: 0.86,
+    aoe: 0,
+  },
+  laserVan: {
+    name: '棱镜装甲车',
+    texture: 'unit-laser-van',
+    speed: 220,
+    fireDelay: 430,
+    damage: 54,
+    projectileSpeed: 980,
+    range: 900,
+    shots: 2,
+    spread: 0.06,
+    noise: 38,
+    noiseRadius: 650,
+    damageTaken: 0.7,
+    shield: 155,
+    bodyWidth: 56,
+    bodyHeight: 36,
+    projectileTexture: 'shot-rail',
+    projectileScale: 0.98,
+    aoe: 30,
+  },
+  flameRig: {
+    name: '焚烧工程车',
+    texture: 'unit-flame-rig',
+    speed: 190,
+    fireDelay: 155,
+    damage: 21,
+    projectileSpeed: 430,
+    range: 430,
+    shots: 5,
+    spread: 0.48,
+    noise: 58,
+    noiseRadius: 720,
+    damageTaken: 0.62,
+    shield: 190,
+    bodyWidth: 60,
+    bodyHeight: 40,
+    projectileTexture: 'shot-flame',
+    projectileScale: 1,
+    aoe: 34,
   },
 };
 
@@ -369,6 +491,74 @@ const ENEMIES: Record<EnemyKind, EnemySpec> = {
     decay: 4,
     patrolRadius: 190,
     tint: 0xff6961,
+  },
+  mender: {
+    name: '修复蜂群',
+    texture: 'enemy-mender',
+    hp: 92,
+    speed: 88,
+    damage: 8,
+    xp: 13,
+    noticeRadius: 390,
+    chaseThreshold: 48,
+    attackRange: 36,
+    attackDelay: 880,
+    proximityGain: 14,
+    noiseMultiplier: 0.62,
+    decay: 6,
+    patrolRadius: 300,
+    tint: 0xa7e65d,
+  },
+  sniper: {
+    name: '长距狙击塔',
+    texture: 'enemy-sniper',
+    hp: 82,
+    speed: 64,
+    damage: 20,
+    xp: 16,
+    noticeRadius: 560,
+    chaseThreshold: 40,
+    attackRange: 64,
+    attackDelay: 1050,
+    proximityGain: 16,
+    noiseMultiplier: 0.76,
+    decay: 5,
+    patrolRadius: 240,
+    tint: 0x5bc0ff,
+  },
+  bomber: {
+    name: '爆破机雷',
+    texture: 'enemy-bomber',
+    hp: 110,
+    speed: 106,
+    damage: 26,
+    xp: 18,
+    noticeRadius: 420,
+    chaseThreshold: 42,
+    attackRange: 58,
+    attackDelay: 1120,
+    proximityGain: 24,
+    noiseMultiplier: 0.9,
+    decay: 5,
+    patrolRadius: 280,
+    tint: 0xffd166,
+  },
+  boss: {
+    name: '橙色歼灭者',
+    texture: 'enemy-boss',
+    hp: 1450,
+    speed: 116,
+    damage: 34,
+    xp: 190,
+    noticeRadius: 1550,
+    chaseThreshold: 1,
+    attackRange: 72,
+    attackDelay: 620,
+    proximityGain: 0,
+    noiseMultiplier: 1,
+    decay: 0,
+    patrolRadius: 520,
+    tint: 0xff9f1c,
   },
 };
 
@@ -474,6 +664,20 @@ const WEAPONS: Record<WeaponKey, WeaponSpec> = {
     maxLevel: 5,
     color: 0xba7cff,
   },
+  beamCannon: {
+    name: '聚束光炮',
+    detail: '周期发射穿透光束，远距离打击直线目标',
+    texture: 'shot-rail',
+    maxLevel: 5,
+    color: 0x5bc0ff,
+  },
+  orbitalBeacon: {
+    name: '轨道信标',
+    detail: '锁定目标区域后落下范围打击',
+    texture: 'buff-core',
+    maxLevel: 5,
+    color: 0xff9f1c,
+  },
 };
 
 const VEHICLE_ORDER: VehicleKey[] = [
@@ -484,6 +688,9 @@ const VEHICLE_ORDER: VehicleKey[] = [
   'railgun',
   'walker',
   'artillery',
+  'buggy',
+  'laserVan',
+  'flameRig',
 ];
 const BUFF_ORDER: BuffKey[] = ['overclock', 'rapid', 'barrier', 'regen'];
 const WEAPON_ORDER: WeaponKey[] = [
@@ -492,11 +699,33 @@ const WEAPON_ORDER: WeaponKey[] = [
   'rocketLauncher',
   'grenadeLauncher',
   'teslaEmitter',
+  'beamCannon',
+  'orbitalBeacon',
+];
+const TEAM_OPTIONS: TeamInfo[] = [
+  { key: 'A', name: 'A 阵营', color: '#36f0d2', spawnX: 850, spawnY: 820 },
+  { key: 'B', name: 'B 阵营', color: '#ff6961', spawnX: 4350, spawnY: 820 },
+  { key: 'C', name: 'C 阵营', color: '#ffd166', spawnX: 2600, spawnY: 2850 },
 ];
 const MAX_WEAPON_SLOTS = 3;
+const LEVEL_CAP = 18;
 const TARGET_RANGE_MIN = 220;
 const TARGET_RANGE_MAX = 980;
 const TARGET_RANGE_STEP = 60;
+const BOSS_MINIMAP_COLOR = 0xff9f1c;
+const MIN_BOSS_COUNT = 5;
+const BOSS_START_MS = 5 * 60 * 1000;
+const BOSS_FIXATION_MS = 13000;
+const BOSS_FLEE_MS = 4200;
+const BOSS_HEAL_RATE = 0.055;
+const BOSS_HEAL_COOLDOWN_MS = 3600;
+const BOSS_SPAWNS = [
+  { x: 820, y: 720 },
+  { x: WORLD_WIDTH - 820, y: 720 },
+  { x: WORLD_WIDTH / 2, y: WORLD_HEIGHT / 2 },
+  { x: 940, y: WORLD_HEIGHT - 760 },
+  { x: WORLD_WIDTH - 940, y: WORLD_HEIGHT - 760 },
+];
 
 const clamp = (value: number, min: number, max: number) =>
   Math.max(min, Math.min(max, value));
@@ -532,10 +761,18 @@ class MainScene extends Phaser.Scene {
   private localTeamName = '';
   private localTeamColorCss = '#36f0d2';
   private localTeamTint = 0x36f0d2;
+  private selectedTeamKey: TeamKey = 'A';
   private latestRoomState?: RoomState;
+  private remotePlayers = new Map<string, RemotePlayerView>();
   private lastNetworkSendAt = 0;
   private invasionMessageUntil = 0;
   private invasionMessage = '';
+  private localCrown = 0;
+  private isTeamLeader = false;
+  private summonReadyAt = 0;
+  private summonButton?: HTMLButtonElement;
+  private moveTarget?: Phaser.Math.Vector2;
+  private lastDefeatedBy = '未知单位';
   private weaponSlots: WeaponKey[] = [];
   private weaponLevels: Record<WeaponKey, number> = {
     attackDrone: 0,
@@ -543,6 +780,8 @@ class MainScene extends Phaser.Scene {
     rocketLauncher: 0,
     grenadeLauncher: 0,
     teslaEmitter: 0,
+    beamCannon: 0,
+    orbitalBeacon: 0,
   };
   private weaponCooldowns: Record<WeaponKey, number> = {
     attackDrone: 0,
@@ -550,8 +789,11 @@ class MainScene extends Phaser.Scene {
     rocketLauncher: 0,
     grenadeLauncher: 0,
     teslaEmitter: 0,
+    beamCannon: 0,
+    orbitalBeacon: 0,
   };
   private weaponVisuals: Partial<Record<WeaponKey, Phaser.GameObjects.Image>> = {};
+  private healDroneBusyUntil = 0;
 
   public damageMultiplier = 1;
   public fireRateMultiplier = 1;
@@ -562,7 +804,7 @@ class MainScene extends Phaser.Scene {
   private maxHp = 120;
   private xp = 0;
   private level = 1;
-  private xpToNext = 28;
+  private xpToNext = 42;
   private kills = 0;
   private elapsedMs = 0;
   private nextShotAt = 0;
@@ -578,6 +820,22 @@ class MainScene extends Phaser.Scene {
     railgun: 0,
     walker: 0,
     artillery: 0,
+    buggy: 0,
+    laserVan: 0,
+    flameRig: 0,
+  };
+  private permanentVehicleRanks: Record<VehicleKey, number> = {
+    mech: 1,
+    motorcycle: 0,
+    tank: 0,
+    fighter: 0,
+    hovercraft: 0,
+    railgun: 0,
+    walker: 0,
+    artillery: 0,
+    buggy: 0,
+    laserVan: 0,
+    flameRig: 0,
   };
   private activeBuffs: Record<BuffKey, number> = {
     overclock: 0,
@@ -586,6 +844,8 @@ class MainScene extends Phaser.Scene {
     regen: 0,
   };
   private vehicleExpiresAt = 0;
+  private vehicleShield = 0;
+  private maxVehicleShield = 0;
   private targetRange = 560;
   private areaAlert = 0;
   private isChoosingUpgrade = false;
@@ -636,6 +896,19 @@ class MainScene extends Phaser.Scene {
       Phaser.Input.Keyboard.KeyCodes.NUMPAD_THREE,
     ].map((keyCode) => this.input.keyboard!.addKey(keyCode));
 
+    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      if (this.isChoosingUpgrade || this.isGameOver || !this.isInMultiplayerRoom) {
+        return;
+      }
+      this.moveTarget = new Phaser.Math.Vector2(pointer.worldX, pointer.worldY);
+    });
+    this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+      if (!pointer.isDown || this.isChoosingUpgrade || this.isGameOver || !this.isInMultiplayerRoom) {
+        return;
+      }
+      this.moveTarget = new Phaser.Math.Vector2(pointer.worldX, pointer.worldY);
+    });
+
     this.physics.add.overlap(
       this.projectiles,
       this.enemies,
@@ -671,7 +944,10 @@ class MainScene extends Phaser.Scene {
     this.showLobbyOverlay();
   }
 
-  private resetRunState() {
+  private resetRunState(preservePermanentVehicles = false) {
+    const savedPermanentVehicleRanks = preservePermanentVehicles
+      ? { ...this.permanentVehicleRanks }
+      : undefined;
     this.damageMultiplier = 1;
     this.fireRateMultiplier = 1;
     this.speedBonus = 0;
@@ -680,7 +956,7 @@ class MainScene extends Phaser.Scene {
     this.maxHp = 120;
     this.xp = 0;
     this.level = 1;
-    this.xpToNext = 28;
+    this.xpToNext = 42;
     this.kills = 0;
     this.elapsedMs = 0;
     this.nextShotAt = 0;
@@ -696,7 +972,30 @@ class MainScene extends Phaser.Scene {
       railgun: 0,
       walker: 0,
       artillery: 0,
+      buggy: 0,
+      laserVan: 0,
+      flameRig: 0,
     };
+    if (savedPermanentVehicleRanks) {
+      this.permanentVehicleRanks = savedPermanentVehicleRanks;
+      VEHICLE_ORDER.forEach((vehicle) => {
+        this.vehicleRanks[vehicle] = Math.max(this.vehicleRanks[vehicle], this.permanentVehicleRanks[vehicle]);
+      });
+    } else {
+      this.permanentVehicleRanks = {
+        mech: 1,
+        motorcycle: 0,
+        tank: 0,
+        fighter: 0,
+        hovercraft: 0,
+        railgun: 0,
+        walker: 0,
+        artillery: 0,
+        buggy: 0,
+        laserVan: 0,
+        flameRig: 0,
+      };
+    }
     this.activeBuffs = {
       overclock: 0,
       rapid: 0,
@@ -704,12 +1003,16 @@ class MainScene extends Phaser.Scene {
       regen: 0,
     };
     this.vehicleExpiresAt = 0;
+    this.vehicleShield = 0;
+    this.maxVehicleShield = 0;
     this.targetRange = 560;
     this.areaAlert = 0;
     this.isChoosingUpgrade = false;
     this.isGameOver = false;
     this.lastAimAngle = 0;
     this.nextEngineTrailAt = 0;
+    this.moveTarget = undefined;
+    this.lastDefeatedBy = '未知单位';
     this.currentUpgradeChoices = [];
     this.weaponSlots = [];
     this.weaponLevels = {
@@ -718,6 +1021,8 @@ class MainScene extends Phaser.Scene {
       rocketLauncher: 0,
       grenadeLauncher: 0,
       teslaEmitter: 0,
+      beamCannon: 0,
+      orbitalBeacon: 0,
     };
     this.weaponCooldowns = {
       attackDrone: 0,
@@ -725,8 +1030,11 @@ class MainScene extends Phaser.Scene {
       rocketLauncher: 0,
       grenadeLauncher: 0,
       teslaEmitter: 0,
+      beamCannon: 0,
+      orbitalBeacon: 0,
     };
     this.weaponVisuals = {};
+    this.healDroneBusyUntil = 0;
   }
 
   private connectLobby() {
@@ -757,9 +1065,31 @@ class MainScene extends Phaser.Scene {
     });
     this.socket.on('room:state', (state: RoomState) => {
       this.latestRoomState = state;
+      this.syncRemotePlayers(state.players);
+      const localPlayer = state.players.find((player) => player.socketId === this.localSocketId);
+      if (localPlayer) {
+        this.localCrown = localPlayer.crown ?? 0;
+        this.isTeamLeader = Boolean(localPlayer.teamLeader);
+        this.syncSummonButton();
+      }
     });
     this.socket.on('room:invasion', (payload: { wave: number }) => {
       this.handleInvasionWave(payload.wave);
+    });
+    this.socket.on('room:player-joined', (payload: { message?: string; player?: NetworkPlayer }) => {
+      this.showJoinMessage(payload);
+    });
+    this.socket.on('room:player-defeated', (payload: { message?: string; defeatedBy?: string }) => {
+      this.showAnnouncement(payload.message || `有玩家被 ${payload.defeatedBy || '中立单位'} 击败`, 4200);
+    });
+    this.socket.on(
+      'team:summon',
+      (payload: { teamKey: string; leaderSocketId: string; leaderName: string; x: number; y: number; cooldownMs: number; message?: string }) => {
+        this.handleTeamSummon(payload);
+      },
+    );
+    this.socket.on('team:heal-applied', (payload: { amount: number; healerName?: string }) => {
+      this.applyTeamHeal(payload.amount, payload.healerName);
     });
     this.socket.on(
       'room:end',
@@ -782,14 +1112,18 @@ class MainScene extends Phaser.Scene {
         <div class="lobby-head">
           <div>
             <div class="lobby-title">机械战区</div>
-            <div class="lobby-subtitle">输入名字，马上开战。10 分钟一局，积分最高阵营获胜。</div>
+            <div class="lobby-subtitle">固定 5 个战区。选择 A / B / C 阵营，10 分钟结算后自动开新局。</div>
           </div>
           <button class="lobby-refresh" type="button">刷新</button>
+        </div>
+        <div class="lobby-team" aria-label="选择阵营">
+          <button class="lobby-team-option" type="button" data-team="A">A 阵营</button>
+          <button class="lobby-team-option" type="button" data-team="B">B 阵营</button>
+          <button class="lobby-team-option" type="button" data-team="C">C 阵营</button>
         </div>
         <div class="lobby-row">
           <input class="lobby-name" maxlength="18" />
           <button class="lobby-quick" type="button">马上开战</button>
-          <button class="lobby-create" type="button">开新房</button>
         </div>
         <div class="lobby-status">连接中...</div>
         <div class="lobby-rooms"></div>
@@ -802,14 +1136,22 @@ class MainScene extends Phaser.Scene {
     this.lobbyStatusEl = overlay.querySelector('.lobby-status') as HTMLDivElement;
     this.playerNameInput = overlay.querySelector('.lobby-name') as HTMLInputElement;
     const savedName = window.localStorage.getItem('mech-harvest-player-name') || '';
+    const savedTeam = window.localStorage.getItem('mech-harvest-team-key');
+    this.selectedTeamKey = this.normalizeTeamKey(savedTeam);
     this.playerNameInput.placeholder = '输入昵称';
     this.playerNameInput.value = savedName || `机兵${this.localUserId.slice(0, 4)}`;
 
+    overlay.querySelectorAll<HTMLButtonElement>('.lobby-team-option').forEach((button) => {
+      button.addEventListener('click', () => {
+        this.selectedTeamKey = this.normalizeTeamKey(button.dataset.team);
+        window.localStorage.setItem('mech-harvest-team-key', this.selectedTeamKey);
+        this.syncTeamButtons();
+      });
+    });
+    this.syncTeamButtons();
+
     overlay.querySelector('.lobby-refresh')?.addEventListener('click', () => {
       this.socket?.emit('rooms:list');
-    });
-    overlay.querySelector('.lobby-create')?.addEventListener('click', () => {
-      this.createRoom();
     });
     overlay.querySelector('.lobby-quick')?.addEventListener('click', () => {
       this.quickJoinRoom();
@@ -825,6 +1167,17 @@ class MainScene extends Phaser.Scene {
     if (this.lobbyStatusEl) {
       this.lobbyStatusEl.textContent = text;
     }
+  }
+
+  private syncTeamButtons() {
+    this.lobbyOverlay?.querySelectorAll<HTMLButtonElement>('.lobby-team-option').forEach((button) => {
+      const selected = button.dataset.team === this.selectedTeamKey;
+      button.classList.toggle('is-active', selected);
+      const team = TEAM_OPTIONS.find((entry) => entry.key === button.dataset.team);
+      if (team) {
+        button.style.setProperty('--team-color', team.color);
+      }
+    });
   }
 
   private renderRoomList(rooms: PublicRoom[]) {
@@ -851,34 +1204,22 @@ class MainScene extends Phaser.Scene {
       title.textContent = room.name;
       const meta = document.createElement('div');
       meta.className = 'lobby-room-meta';
-      meta.textContent = `${room.players}/${room.maxPlayers} 人   剩余 ${this.formatClock(
+      const scores = TEAM_OPTIONS.map((team) => `${team.key}:${room.scores[team.key] ?? 0}`).join('  ');
+      const teams = TEAM_OPTIONS.map((team) => `${team.key}${room.teamCounts?.[team.key] ?? 0}`).join(' / ');
+      const capacityText = room.unlimitedPlayers ? `${room.players}/不限` : `${room.players}/${room.maxPlayers}`;
+      meta.textContent = `第 ${room.round} 局   真人 ${capacityText}   剩余 ${this.formatClock(
         room.remainingMs,
-      )}   入侵 ${this.formatClock(room.nextInvasionMs)}`;
+      )}   入侵 ${this.formatClock(room.nextInvasionMs)}   ${teams}   ${scores}`;
       info.append(title, meta);
 
       const join = document.createElement('button');
       join.type = 'button';
-      join.textContent = '进入';
+      join.textContent = room.joinLocked ? '已锁定' : '进入';
+      join.disabled = Boolean(room.joinLocked);
       join.addEventListener('click', () => this.joinRoom(room.id));
 
       item.append(info, join);
       this.lobbyRoomsEl?.appendChild(item);
-    });
-  }
-
-  private createRoom() {
-    if (!this.socket?.connected) {
-      this.setLobbyStatus('还没有连接到房间服务器');
-      return;
-    }
-
-    this.socket.emit('room:create', { name: this.getPlayerName() }, (response: any) => {
-      if (!response?.ok) {
-        this.setLobbyStatus(response?.error || '创建房间失败');
-        return;
-      }
-
-      this.joinRoom(response.room.id);
     });
   }
 
@@ -896,6 +1237,7 @@ class MainScene extends Phaser.Scene {
       {
         userId: this.localUserId,
         name,
+        teamKey: this.selectedTeamKey,
       },
       (response: any) => {
         if (!response?.ok) {
@@ -923,6 +1265,7 @@ class MainScene extends Phaser.Scene {
         roomId,
         userId: this.localUserId,
         name,
+        teamKey: this.selectedTeamKey,
       },
       (response: any) => {
         if (!response?.ok) {
@@ -939,6 +1282,10 @@ class MainScene extends Phaser.Scene {
     return (this.playerNameInput?.value || `机兵${this.localUserId.slice(0, 4)}`).trim().slice(0, 18);
   }
 
+  private normalizeTeamKey(value: string | null | undefined): TeamKey {
+    return value === 'B' || value === 'C' ? value : 'A';
+  }
+
   private beginRoom(room: PublicRoom, player: NetworkPlayer) {
     this.clearRunObjects();
     this.resetRunState();
@@ -950,6 +1297,11 @@ class MainScene extends Phaser.Scene {
     this.localTeamName = player.teamName;
     this.localTeamColorCss = player.color;
     this.localTeamTint = this.cssColorToNumber(player.color);
+    this.localCrown = player.crown ?? 0;
+    this.isTeamLeader = Boolean(player.teamLeader);
+    this.summonReadyAt = 0;
+    this.selectedTeamKey = this.normalizeTeamKey(player.teamKey);
+    window.localStorage.setItem('mech-harvest-team-key', this.selectedTeamKey);
     this.latestRoomState = undefined;
 
     this.player.setPosition(player.x, player.y);
@@ -959,6 +1311,7 @@ class MainScene extends Phaser.Scene {
     this.spawnInitialWorld();
     this.lobbyOverlay?.remove();
     this.lobbyOverlay = undefined;
+    this.syncSummonButton();
     this.physics.resume();
   }
 
@@ -967,25 +1320,41 @@ class MainScene extends Phaser.Scene {
       group?.clear(true, true);
     });
     Object.values(this.weaponVisuals).forEach((visual) => visual?.destroy());
+    this.remotePlayers.forEach((view) => {
+      view.sprite.destroy();
+      view.label.destroy();
+      view.crown.destroy();
+    });
+    this.remotePlayers.clear();
     this.enemyHud?.clear();
     this.targetRing?.clear();
   }
 
   private spawnInitialWorld() {
-    for (let i = 0; i < 11; i += 1) {
-      this.spawnEnemy(i < 6 ? 'drone' : 'stalker');
+    for (let i = 0; i < 18; i += 1) {
+      const starter: EnemyKind[] = ['drone', 'stalker', 'sniper', 'mender', 'bomber', 'warden'];
+      this.spawnEnemy(starter[i % starter.length]);
     }
 
-    for (let i = 0; i < 4; i += 1) {
+    for (let i = 0; i < 6; i += 1) {
       this.spawnChestNearPlayer(360 + i * 130);
     }
 
+    this.ensureBossCount();
     this.nextEnemySpawnAt = 900;
     this.nextChestAt = 10500;
   }
 
   private cssColorToNumber(color: string) {
     return Number.parseInt(color.replace('#', ''), 16);
+  }
+
+  private getTeamSpawnPosition(teamKey = this.localTeamKey || this.selectedTeamKey) {
+    const team = TEAM_OPTIONS.find((entry) => entry.key === this.normalizeTeamKey(teamKey)) ?? TEAM_OPTIONS[0];
+    return {
+      x: clamp(team.spawnX + Phaser.Math.Between(-160, 160), 80, WORLD_WIDTH - 80),
+      y: clamp(team.spawnY + Phaser.Math.Between(-160, 160), 80, WORLD_HEIGHT - 80),
+    };
   }
 
   private formatClock(ms: number) {
@@ -1012,6 +1381,8 @@ class MainScene extends Phaser.Scene {
       y: this.player.y,
       angle: this.player.rotation,
       alive: !this.isGameOver,
+      hp: this.hp,
+      maxHp: this.maxHp,
     });
   }
 
@@ -1044,6 +1415,191 @@ class MainScene extends Phaser.Scene {
     this.addThreatNoise(this.player.x, this.player.y, 90, 1000);
   }
 
+  private showJoinMessage(payload: { message?: string; player?: NetworkPlayer; name?: string; teamKey?: string; teamName?: string }) {
+    if (!this.isInMultiplayerRoom) {
+      return;
+    }
+
+    const name = payload.player?.name || payload.name?.trim() || '真人玩家';
+    const teamName = payload.player?.teamName || payload.teamName || `${payload.player?.teamKey || payload.teamKey || ''} 阵营`;
+    this.showAnnouncement(payload.message || `真人加入：${name} 加入 ${teamName}`, 3500);
+  }
+
+  private showAnnouncement(message: string, durationMs = 3500) {
+    this.invasionMessage = message;
+    this.invasionMessageUntil = this.elapsedMs + durationMs;
+  }
+
+  private syncRemotePlayers(players: NetworkPlayer[]) {
+    if (!this.isInMultiplayerRoom) {
+      return;
+    }
+
+    const seen = new Set<string>();
+    players.forEach((player) => {
+      if (player.socketId === this.localSocketId) {
+        return;
+      }
+
+      seen.add(player.socketId);
+      let view = this.remotePlayers.get(player.socketId);
+      if (!view) {
+        const sprite = this.physics.add.sprite(player.x, player.y, VEHICLES.mech.texture);
+        sprite.setDepth(19);
+        sprite.setCollideWorldBounds(false);
+        const body = sprite.body as Phaser.Physics.Arcade.Body;
+        body.setAllowGravity(false);
+        body.enable = false;
+
+        const label = this.add
+          .text(player.x, player.y - 42, player.name, {
+            fontFamily: 'Inter, "Segoe UI", sans-serif',
+            fontSize: '13px',
+            color: '#e8f7f4',
+            backgroundColor: 'rgba(5,7,9,0.58)',
+            padding: { x: 5, y: 2 },
+          })
+          .setOrigin(0.5)
+          .setDepth(22);
+        const crown = this.add
+          .text(player.x, player.y - 62, '', {
+            fontFamily: 'Inter, "Segoe UI", sans-serif',
+            fontSize: '12px',
+            color: '#ffd166',
+          })
+          .setOrigin(0.5)
+          .setDepth(23);
+
+        view = { sprite, label, crown };
+        this.remotePlayers.set(player.socketId, view);
+      }
+
+      const tint = player.teamKey === this.localTeamKey ? this.localTeamTint : this.cssColorToNumber(player.color);
+      view.sprite.setPosition(player.x, player.y);
+      view.sprite.setRotation(player.angle);
+      view.sprite.setTint(tint);
+      view.sprite.setAlpha(player.alive ? 0.86 : 0.18);
+      view.sprite.setVisible(player.alive);
+      view.label.setText(player.name);
+      view.label.setPosition(player.x, player.y - 42);
+      view.label.setColor(player.teamKey === this.localTeamKey ? '#9fffe0' : '#ffb4ae');
+      view.label.setVisible(player.alive);
+      view.crown.setText(player.crown ? `皇冠${Math.min(9, player.crown)}` : '');
+      view.crown.setPosition(player.x, player.y - 62);
+      view.crown.setVisible(player.alive && Boolean(player.crown));
+    });
+
+    this.remotePlayers.forEach((view, socketId) => {
+      if (seen.has(socketId)) {
+        return;
+      }
+
+      view.sprite.destroy();
+      view.label.destroy();
+      view.crown.destroy();
+      this.remotePlayers.delete(socketId);
+    });
+  }
+
+  private updateRemotePlayerViews() {
+    if (!this.latestRoomState) {
+      return;
+    }
+
+    this.syncRemotePlayers(this.latestRoomState.players);
+  }
+
+  private updateLocalCrownView() {
+    const existing = this.children.getByName('local-crown-readout') as Phaser.GameObjects.Text | null;
+    if (this.localCrown <= 0 || !this.player?.active || !this.isInMultiplayerRoom) {
+      existing?.setVisible(false);
+      return;
+    }
+
+    const text = `皇冠${Math.min(9, this.localCrown)}`;
+    if (existing) {
+      existing.setText(text);
+      existing.setPosition(this.player.x, this.player.y - 58);
+      existing.setVisible(true);
+      return;
+    }
+
+    this.add
+      .text(this.player.x, this.player.y - 58, text, {
+        fontFamily: 'Inter, "Segoe UI", sans-serif',
+        fontSize: '14px',
+        color: '#ffda8a',
+        stroke: '#050709',
+        strokeThickness: 3,
+      })
+      .setName('local-crown-readout')
+      .setOrigin(0.5)
+      .setDepth(68);
+  }
+
+  private syncSummonButton() {
+    if (!this.isInMultiplayerRoom || !this.isTeamLeader) {
+      this.summonButton?.remove();
+      this.summonButton = undefined;
+      return;
+    }
+
+    if (!this.summonButton) {
+      const button = document.createElement('button');
+      button.className = 'summon-button';
+      button.type = 'button';
+      button.addEventListener('click', () => {
+        if (!this.socket?.connected || this.elapsedMs < this.summonReadyAt) {
+          return;
+        }
+
+        this.socket.emit('team:summon', {}, (response: { ok?: boolean; error?: string; cooldownMs?: number }) => {
+          if (!response?.ok) {
+            this.showAnnouncement(response?.error || '召集失败', 3000);
+            return;
+          }
+
+          this.summonReadyAt = this.elapsedMs + (response.cooldownMs ?? 0);
+          this.syncSummonButton();
+        });
+      });
+      document.body.appendChild(button);
+      this.summonButton = button;
+    }
+
+    const remaining = Math.max(0, Math.ceil((this.summonReadyAt - this.elapsedMs) / 1000));
+    this.summonButton.disabled = remaining > 0;
+    this.summonButton.textContent = remaining > 0 ? `召集 ${remaining}s` : '召集队友';
+  }
+
+  private handleTeamSummon(payload: {
+    teamKey: string;
+    leaderSocketId: string;
+    leaderName: string;
+    x: number;
+    y: number;
+    cooldownMs: number;
+    message?: string;
+  }) {
+    if (payload.teamKey !== this.localTeamKey) {
+      return;
+    }
+
+    this.summonReadyAt = this.elapsedMs + payload.cooldownMs;
+    this.showAnnouncement(payload.message || `${payload.leaderName} 召集了队友`, 4200);
+    this.flashAt(payload.x, payload.y, this.localTeamTint || 0x36f0d2, 18);
+    if (payload.leaderSocketId !== this.localSocketId) {
+      this.player.setPosition(
+        clamp(payload.x + Phaser.Math.Between(-72, 72), 60, WORLD_WIDTH - 60),
+        clamp(payload.y + Phaser.Math.Between(-72, 72), 60, WORLD_HEIGHT - 60),
+      );
+      this.moveTarget = undefined;
+      this.flashAt(this.player.x, this.player.y, this.localTeamTint || 0x36f0d2, 18);
+      this.sendNetworkState();
+    }
+    this.syncSummonButton();
+  }
+
   private handleRoomEnd(payload: {
     winner: { key: string; name: string; color: string; score: number };
     scores: Record<string, number>;
@@ -1054,6 +1610,8 @@ class MainScene extends Phaser.Scene {
 
     this.isGameOver = true;
     this.physics.pause();
+    this.gameOverLayer?.destroy(true);
+    this.gameOverLayer = undefined;
 
     const width = this.scale.width;
     const height = this.scale.height;
@@ -1071,7 +1629,7 @@ class MainScene extends Phaser.Scene {
       .text(
         width / 2,
         height / 2 - 22,
-        `${payload.winner.name} 获胜   ${payload.winner.score} 分`,
+        `${payload.winner.name} 获胜   ${payload.winner.score} 分   3 秒后进入下一局`,
         {
           fontFamily: 'Inter, "Segoe UI", sans-serif',
           fontSize: '18px',
@@ -1084,20 +1642,46 @@ class MainScene extends Phaser.Scene {
       .setStrokeStyle(2, 0x36f0d2)
       .setInteractive({ useHandCursor: true });
     const label = this.add
-      .text(width / 2, height / 2 + 58, '返回房间列表', {
+      .text(width / 2, height / 2 + 58, '继续下一局', {
         fontFamily: 'Inter, "Segoe UI", sans-serif',
         fontSize: '18px',
         color: '#e8f7f4',
       })
       .setOrigin(0.5);
-    button.on('pointerdown', () => window.location.reload());
+    let resumed = false;
+    const startNextRound = () => {
+      if (resumed || !this.isInMultiplayerRoom) {
+        return;
+      }
+      resumed = true;
+      container.destroy(true);
+      if (this.gameOverLayer === container) {
+        this.gameOverLayer = undefined;
+      }
+      this.clearRunObjects();
+      this.resetRunState(true);
+      const statePlayer = this.latestRoomState?.players.find((player) => player.socketId === this.localSocketId);
+      const spawn = statePlayer ?? this.getTeamSpawnPosition();
+      this.player.setPosition(spawn.x, spawn.y);
+      this.applyVehicle('mech', false);
+      this.player.setTint(this.localTeamTint || 0xffffff);
+      this.spawnInitialWorld();
+      this.physics.resume();
+      this.sendNetworkState();
+    };
+    button.on('pointerover', () => button.setFillStyle(0x17252a, 1));
+    button.on('pointerout', () => button.setFillStyle(0x111a1f, 1));
+    button.on('pointerdown', startNextRound);
+    label.setInteractive({ useHandCursor: true }).on('pointerdown', startNextRound);
     container.add([overlay, title, detail, button, label]);
     this.gameOverLayer = container;
+    this.time.delayedCall(3000, startNextRound);
   }
 
   update(_time: number, delta: number) {
     this.drawHud();
     this.drawTargetRing();
+    this.syncSummonButton();
 
     if (!this.isInMultiplayerRoom) {
       return;
@@ -1112,7 +1696,7 @@ class MainScene extends Phaser.Scene {
     const deltaSeconds = delta / 1000;
 
     if (this.currentVehicle !== 'mech' && this.elapsedMs >= this.vehicleExpiresAt) {
-      this.applyVehicle('mech', true);
+      this.timeoutVehicle();
     }
 
     this.updateBuffs(deltaSeconds);
@@ -1123,6 +1707,8 @@ class MainScene extends Phaser.Scene {
     this.updateSpawns();
     this.autoFire();
     this.updateWeaponSystems(deltaSeconds);
+    this.updateRemotePlayerViews();
+    this.updateLocalCrownView();
     this.sendNetworkState();
     this.drawEnemyBars();
   }
@@ -1259,6 +1845,47 @@ class MainScene extends Phaser.Scene {
       g.fillCircle(50, 39, 4);
     });
 
+    this.makeTexture('unit-buggy', 74, 42, (g) => {
+      g.fillStyle(0x10181e, 1);
+      g.fillRoundedRect(10, 13, 46, 18, 5);
+      g.lineStyle(2, 0x36f0d2, 1);
+      g.strokeRoundedRect(10, 13, 46, 18, 5);
+      g.fillStyle(0xffd166, 1);
+      g.fillTriangle(54, 14, 70, 22, 54, 30);
+      g.fillStyle(0x0a0f12, 1);
+      g.fillCircle(19, 33, 6);
+      g.fillCircle(50, 33, 6);
+      g.fillStyle(0x9fffe0, 1);
+      g.fillRect(31, 8, 14, 6);
+    });
+
+    this.makeTexture('unit-laser-van', 80, 48, (g) => {
+      g.fillStyle(0x111923, 1);
+      g.fillRoundedRect(9, 11, 54, 28, 6);
+      g.lineStyle(2, 0x5bc0ff, 1);
+      g.strokeRoundedRect(9, 11, 54, 28, 6);
+      g.fillStyle(0x263238, 1);
+      g.fillRect(20, 17, 30, 16);
+      g.fillStyle(0x5bc0ff, 1);
+      g.fillRect(48, 22, 29, 5);
+      g.fillStyle(0xba7cff, 1);
+      g.fillCircle(36, 25, 6);
+    });
+
+    this.makeTexture('unit-flame-rig', 84, 50, (g) => {
+      g.fillStyle(0x211612, 1);
+      g.fillRoundedRect(8, 12, 56, 28, 6);
+      g.lineStyle(2, 0xff9f1c, 1);
+      g.strokeRoundedRect(8, 12, 56, 28, 6);
+      g.fillStyle(0xff6961, 1);
+      g.fillRect(50, 20, 29, 7);
+      g.fillStyle(0xffd166, 1);
+      g.fillTriangle(72, 16, 83, 23, 72, 31);
+      g.fillStyle(0x0a0f12, 1);
+      g.fillCircle(22, 41, 4);
+      g.fillCircle(54, 41, 4);
+    });
+
     this.makeTexture('enemy-drone', 38, 38, (g) => {
       g.fillStyle(0x142022, 1);
       g.fillCircle(19, 19, 13);
@@ -1308,6 +1935,57 @@ class MainScene extends Phaser.Scene {
       g.fillCircle(22, 35, 4);
     });
 
+    this.makeTexture('enemy-mender', 54, 44, (g) => {
+      g.fillStyle(0x102015, 1);
+      g.fillRoundedRect(10, 9, 32, 24, 5);
+      g.lineStyle(2, 0xa7e65d, 1);
+      g.strokeRoundedRect(10, 9, 32, 24, 5);
+      g.fillStyle(0xa7e65d, 1);
+      g.fillRect(24, 13, 5, 16);
+      g.fillRect(18, 18, 17, 5);
+      g.lineStyle(2, 0x9fffe0, 0.9);
+      g.strokeCircle(26, 22, 18);
+    });
+
+    this.makeTexture('enemy-sniper', 62, 38, (g) => {
+      g.fillStyle(0x101923, 1);
+      g.fillRoundedRect(8, 10, 32, 18, 4);
+      g.lineStyle(2, 0x5bc0ff, 1);
+      g.strokeRoundedRect(8, 10, 32, 18, 4);
+      g.fillStyle(0x5bc0ff, 1);
+      g.fillRect(35, 16, 24, 5);
+      g.fillStyle(0xffd166, 1);
+      g.fillCircle(18, 19, 4);
+    });
+
+    this.makeTexture('enemy-bomber', 58, 48, (g) => {
+      g.fillStyle(0x241d10, 1);
+      g.fillCircle(25, 24, 17);
+      g.lineStyle(3, 0xffd166, 1);
+      g.strokeCircle(25, 24, 17);
+      g.fillStyle(0xff6961, 1);
+      g.fillTriangle(37, 17, 55, 24, 37, 31);
+      g.fillStyle(0xe8f7f4, 1);
+      g.fillCircle(25, 24, 5);
+    });
+
+    this.makeTexture('enemy-boss', 96, 84, (g) => {
+      g.fillStyle(0x241013, 1);
+      g.fillRoundedRect(14, 12, 58, 56, 8);
+      g.lineStyle(4, 0xff4d4d, 1);
+      g.strokeRoundedRect(14, 12, 58, 56, 8);
+      g.fillStyle(0x0a0f12, 1);
+      g.fillCircle(34, 34, 8);
+      g.fillCircle(54, 34, 8);
+      g.fillStyle(0xffd166, 1);
+      g.fillRect(66, 36, 25, 10);
+      g.lineStyle(3, 0xba7cff, 0.95);
+      g.lineBetween(24, 12, 8, 2);
+      g.lineBetween(62, 12, 82, 2);
+      g.lineBetween(24, 68, 8, 82);
+      g.lineBetween(62, 68, 82, 82);
+    });
+
     this.makeTexture('shot-pulse', 18, 8, (g) => {
       g.fillStyle(0x9fffe0, 1);
       g.fillRoundedRect(0, 2, 15, 4, 2);
@@ -1349,6 +2027,15 @@ class MainScene extends Phaser.Scene {
       g.fillRect(7, 2, 5, 5);
       g.fillStyle(0x9fffe0, 1);
       g.fillCircle(12, 8, 2);
+    });
+
+    this.makeTexture('shot-flame', 22, 14, (g) => {
+      g.fillStyle(0xffd166, 1);
+      g.fillEllipse(9, 7, 18, 10);
+      g.fillStyle(0xff6961, 0.9);
+      g.fillEllipse(6, 7, 12, 8);
+      g.fillStyle(0xe8f7f4, 0.85);
+      g.fillEllipse(13, 7, 7, 4);
     });
 
     this.makeTexture('weapon-attack-drone', 34, 34, (g) => {
@@ -1440,7 +2127,7 @@ class MainScene extends Phaser.Scene {
     circuits.lineStyle(2, 0x36f0d2, 0.22);
     circuits.fillStyle(0xffd166, 0.38);
 
-    for (let i = 0; i < 80; i += 1) {
+    for (let i = 0; i < 150; i += 1) {
       const x = Phaser.Math.Between(80, WORLD_WIDTH - 160);
       const y = Phaser.Math.Between(80, WORLD_HEIGHT - 160);
       const w = Phaser.Math.Between(80, 260);
@@ -1456,12 +2143,29 @@ class MainScene extends Phaser.Scene {
 
   private updatePlayer(deltaSeconds: number) {
     const vehicle = this.getCurrentVehicleSpec();
-    const moveX =
+    let moveX =
       (this.keys.D.isDown || this.cursors.right?.isDown ? 1 : 0) -
       (this.keys.A.isDown || this.cursors.left?.isDown ? 1 : 0);
-    const moveY =
+    let moveY =
       (this.keys.S.isDown || this.cursors.down?.isDown ? 1 : 0) -
       (this.keys.W.isDown || this.cursors.up?.isDown ? 1 : 0);
+    const keyboardMoving = moveX !== 0 || moveY !== 0;
+    if (keyboardMoving) {
+      this.moveTarget = undefined;
+    } else if (this.moveTarget) {
+      const distanceToTarget = Phaser.Math.Distance.Between(
+        this.player.x,
+        this.player.y,
+        this.moveTarget.x,
+        this.moveTarget.y,
+      );
+      if (distanceToTarget < 18) {
+        this.moveTarget = undefined;
+      } else {
+        moveX = this.moveTarget.x - this.player.x;
+        moveY = this.moveTarget.y - this.player.y;
+      }
+    }
 
     const length = Math.hypot(moveX, moveY);
     const speed = vehicle.speed + this.speedBonus + this.getBuffSpeedBonus();
@@ -1590,6 +2294,12 @@ class MainScene extends Phaser.Scene {
         case 'teslaEmitter':
           this.updateTeslaEmitter();
           break;
+        case 'beamCannon':
+          this.updateBeamCannon();
+          break;
+        case 'orbitalBeacon':
+          this.updateOrbitalBeacon();
+          break;
       }
     });
   }
@@ -1600,6 +2310,10 @@ class MainScene extends Phaser.Scene {
     );
 
     droneWeapons.forEach((weapon, index) => {
+      if (weapon === 'healDrone' && this.elapsedMs < this.healDroneBusyUntil) {
+        return;
+      }
+
       const spec = WEAPONS[weapon];
       const visual = this.getWeaponVisual(weapon);
       const angle = this.elapsedMs / 760 + (index / Math.max(1, droneWeapons.length)) * Math.PI * 2;
@@ -1673,18 +2387,145 @@ class MainScene extends Phaser.Scene {
 
     if (level >= 4) {
       this.hp = clamp(this.hp + 1.8 * deltaSeconds, 0, this.maxHp);
+      if (this.currentVehicle !== 'mech' && this.maxVehicleShield > 0) {
+        this.vehicleShield = clamp(this.vehicleShield + 2.4 * deltaSeconds, 0, this.maxVehicleShield);
+      }
     }
 
-    if (this.elapsedMs < this.weaponCooldowns.healDrone) {
+    if (this.elapsedMs < this.weaponCooldowns.healDrone || this.elapsedMs < this.healDroneBusyUntil) {
       return;
     }
 
     const heal = 7 + level * 6;
-    this.hp = clamp(this.hp + heal, 0, this.maxHp);
+    const target = this.pickHealDroneTarget();
+    if (!target || target.percent >= 0.995) {
+      return;
+    }
+
     const visual = this.getWeaponVisual('healDrone');
-    this.flashAt(visual.x, visual.y, WEAPONS.healDrone.color, 10 + level * 2);
-    this.healPulse(visual.x, visual.y, 46 + level * 8);
-    this.weaponCooldowns.healDrone = this.elapsedMs + Math.max(1900, 5200 - level * 420);
+    const cooldown = Math.max(2400, 6200 - level * 360);
+    this.weaponCooldowns.healDrone = this.elapsedMs + cooldown;
+
+    if (target.self) {
+      this.animateSelfHealDrone(visual, heal, level);
+      return;
+    }
+
+    this.animateAllyHealDrone(visual, target, heal, level);
+  }
+
+  private pickHealDroneTarget():
+    | { self: true; percent: number; x: number; y: number }
+    | { self: false; percent: number; socketId: string; x: number; y: number; name: string }
+    | undefined {
+    const candidates: Array<
+      | { self: true; percent: number; x: number; y: number }
+      | { self: false; percent: number; socketId: string; x: number; y: number; name: string }
+    > = [
+      {
+        self: true,
+        percent: this.maxHp > 0 ? this.hp / this.maxHp : 1,
+        x: this.player.x,
+        y: this.player.y,
+      },
+    ];
+
+    this.latestRoomState?.players.forEach((player) => {
+      if (
+        !player.alive ||
+        player.socketId === this.localSocketId ||
+        player.teamKey !== this.localTeamKey
+      ) {
+        return;
+      }
+
+      const distance = Phaser.Math.Distance.Between(this.player.x, this.player.y, player.x, player.y);
+      if (distance > this.targetRange) {
+        return;
+      }
+
+      const maxHp = Math.max(1, player.maxHp ?? 1);
+      candidates.push({
+        self: false,
+        percent: clamp((player.hp ?? maxHp) / maxHp, 0, 1),
+        socketId: player.socketId,
+        x: player.x,
+        y: player.y,
+        name: player.name,
+      });
+    });
+
+    return candidates.sort((a, b) => a.percent - b.percent)[0];
+  }
+
+  private animateSelfHealDrone(visual: Phaser.GameObjects.Image, heal: number, level: number) {
+    this.healDroneBusyUntil = this.elapsedMs + 640;
+    this.tweens.addCounter({
+      from: 0,
+      to: Math.PI * 2,
+      duration: 560,
+      ease: 'Sine.easeInOut',
+      onUpdate: (tween) => {
+        const angle = tween.getValue() ?? 0;
+        visual.setPosition(this.player.x + Math.cos(angle) * 54, this.player.y + Math.sin(angle) * 54);
+        visual.setRotation(angle + Math.PI / 2);
+      },
+      onComplete: () => {
+        this.applyLocalHeal(heal);
+        this.flashAt(this.player.x, this.player.y, WEAPONS.healDrone.color, 10 + level * 2);
+        this.healPulse(this.player.x, this.player.y, 46 + level * 8);
+      },
+    });
+  }
+
+  private animateAllyHealDrone(
+    visual: Phaser.GameObjects.Image,
+    target: { socketId: string; x: number; y: number; name: string },
+    heal: number,
+    level: number,
+  ) {
+    const startX = visual.x;
+    const startY = visual.y;
+    const distance = Phaser.Math.Distance.Between(startX, startY, target.x, target.y);
+    const outboundMs = clamp(distance * 1.15, 260, 760);
+    const returnMs = clamp(distance * 0.9, 220, 640);
+    this.healDroneBusyUntil = this.elapsedMs + outboundMs + returnMs + 120;
+
+    this.tweens.add({
+      targets: visual,
+      x: target.x,
+      y: target.y,
+      duration: outboundMs,
+      ease: 'Sine.easeInOut',
+      onComplete: () => {
+        this.socket?.emit('team:heal', { targetSocketId: target.socketId, amount: heal });
+        this.flashAt(target.x, target.y, WEAPONS.healDrone.color, 10 + level * 2);
+        this.healPulse(target.x, target.y, 46 + level * 8);
+        this.tweens.add({
+          targets: visual,
+          x: startX,
+          y: startY,
+          duration: returnMs,
+          ease: 'Sine.easeInOut',
+        });
+      },
+    });
+  }
+
+  private applyTeamHeal(amount: number, healerName?: string) {
+    this.applyLocalHeal(amount);
+    this.flashAt(this.player.x, this.player.y, WEAPONS.healDrone.color, 12);
+    this.healPulse(this.player.x, this.player.y, 58);
+    if (healerName) {
+      this.showAnnouncement(`${healerName} 的治疗无人机修复了你`, 2200);
+    }
+  }
+
+  private applyLocalHeal(amount: number) {
+    this.hp = clamp(this.hp + amount, 0, this.maxHp);
+    if (this.currentVehicle !== 'mech' && this.maxVehicleShield > 0) {
+      this.vehicleShield = clamp(this.vehicleShield + amount * 0.8, 0, this.maxVehicleShield);
+    }
   }
 
   private updateRocketLauncher() {
@@ -1785,6 +2626,66 @@ class MainScene extends Phaser.Scene {
 
     this.weaponCooldowns.teslaEmitter =
       this.elapsedMs + Math.max(380, (1300 - level * 110) * this.getFireRateMultiplier());
+  }
+
+  private updateBeamCannon() {
+    const level = this.getWeaponLevel('beamCannon');
+    if (level <= 0 || this.elapsedMs < this.weaponCooldowns.beamCannon) {
+      return;
+    }
+
+    const target = this.findNearestEnemy(this.targetRange + 260 + level * 36);
+    if (!target) {
+      return;
+    }
+
+    const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y, target.x, target.y);
+    this.drawArcBolt(this.player.x, this.player.y, target.x, target.y, WEAPONS.beamCannon.color, 4 + level * 0.35, 190);
+    const reach = 760 + level * 70;
+    this.enemies.getChildren().forEach((rawEnemy) => {
+      const enemy = rawEnemy as Phaser.Physics.Arcade.Sprite;
+      if (!enemy.active) {
+        return;
+      }
+      const distanceAlong = Phaser.Math.Distance.Between(this.player.x, this.player.y, enemy.x, enemy.y);
+      if (distanceAlong > reach) {
+        return;
+      }
+      const enemyAngle = Phaser.Math.Angle.Between(this.player.x, this.player.y, enemy.x, enemy.y);
+      const delta = Math.abs(Phaser.Math.Angle.Wrap(enemyAngle - angle));
+      if (delta < 0.13 + level * 0.012) {
+        this.damageEnemy(enemy, (18 + level * 13) * this.getDamageMultiplier());
+      }
+    });
+    this.weaponCooldowns.beamCannon =
+      this.elapsedMs + Math.max(820, (2700 - level * 180) * this.getFireRateMultiplier());
+  }
+
+  private updateOrbitalBeacon() {
+    const level = this.getWeaponLevel('orbitalBeacon');
+    if (level <= 0 || this.elapsedMs < this.weaponCooldowns.orbitalBeacon) {
+      return;
+    }
+
+    const target = this.findNearestTarget(this.targetRange + 220 + level * 30);
+    if (!target) {
+      return;
+    }
+
+    const radius = 92 + level * 18;
+    this.time.delayedCall(260, () => {
+      if (this.isGameOver) {
+        return;
+      }
+      this.splashDamage(target.x, target.y, radius, (32 + level * 22) * this.getDamageMultiplier());
+      this.splashDamageChests(target.x, target.y, radius, 24 + level * 16);
+      this.shockwave(target.x, target.y, radius, WEAPONS.orbitalBeacon.color);
+      this.flashAt(target.x, target.y, WEAPONS.orbitalBeacon.color, 18 + level * 2);
+      this.cameras.main.shake(100, 0.0035);
+    });
+    this.shockwave(target.x, target.y, radius * 0.7, WEAPONS.orbitalBeacon.color);
+    this.weaponCooldowns.orbitalBeacon =
+      this.elapsedMs + Math.max(1200, (3600 - level * 240) * this.getFireRateMultiplier());
   }
 
   private spawnProjectile(angle: number, vehicle: VehicleSpec) {
@@ -1919,6 +2820,14 @@ class MainScene extends Phaser.Scene {
 
       const kind = enemy.getData('kind') as EnemyKind;
       const spec = ENEMIES[kind];
+      if (kind === 'boss') {
+        const result = this.updateBoss(enemy, spec, deltaSeconds);
+        aggroTotal += result.aggro;
+        hunterCount += result.hunting ? 2 : 0;
+        activeCount += 1;
+        enemy.setTint(this.getEnemyTint(enemy));
+        return;
+      }
       const distanceToPlayer = Phaser.Math.Distance.Between(
         enemy.x,
         enemy.y,
@@ -1964,6 +2873,8 @@ class MainScene extends Phaser.Scene {
         this.enemyAttack(enemy, spec);
       }
 
+      this.updateEliteSkill(enemy, spec, distanceToPlayer);
+
       enemy.setTint(this.getEnemyTint(enemy));
 
       aggroTotal += aggro;
@@ -1974,7 +2885,221 @@ class MainScene extends Phaser.Scene {
     this.areaAlert = clamp(averageAggro * 0.58 + hunterCount * 5.5, 0, 100);
   }
 
+  private updateBoss(
+    enemy: Phaser.Physics.Arcade.Sprite,
+    spec: EnemySpec,
+    deltaSeconds: number,
+  ): { aggro: number; hunting: boolean } {
+    if (enemy.getData('neutralAsleep')) {
+      enemy.setVelocity(0, 0);
+      enemy.setRotation(Math.sin(this.elapsedMs / 900 + enemy.x) * 0.08);
+      return { aggro: 0, hunting: false };
+    }
+
+    const hp = enemy.getData('hp') as number;
+    const maxHp = enemy.getData('maxHp') as number;
+    const target = this.findBossTarget(enemy, spec.noticeRadius);
+    const mode = enemy.getData('bossMode') as string | undefined;
+    const hasLockedTarget = Boolean(enemy.getData('bossTargetId'));
+    const healCooldownUntil = (enemy.getData('bossHealCooldownUntil') as number | undefined) ?? 0;
+
+    if (!target) {
+      enemy.setData('bossMode', 'heal');
+      enemy.setVelocity(0, 0);
+      this.healBoss(enemy, deltaSeconds, this.elapsedMs >= healCooldownUntil);
+      enemy.setTint(hp < maxHp ? 0xa7e65d : BOSS_MINIMAP_COLOR);
+      return { aggro: hp < maxHp ? 48 : 18, hunting: false };
+    }
+
+    if (mode === 'heal') {
+      enemy.setData('bossMode', 'attack');
+    }
+
+    const targetId = enemy.getData('bossTargetId') as string;
+    if (targetId !== target.id) {
+      enemy.setData('bossTargetId', target.id);
+      enemy.setData('bossTargetSince', this.elapsedMs);
+    }
+
+    const targetSince = (enemy.getData('bossTargetSince') as number | undefined) ?? this.elapsedMs;
+    const fleeUntil = (enemy.getData('bossFleeUntil') as number | undefined) ?? 0;
+    if (!hasLockedTarget && this.elapsedMs >= fleeUntil && this.elapsedMs - targetSince > BOSS_FIXATION_MS) {
+      enemy.setData('bossMode', 'flee');
+      enemy.setData('bossFleeUntil', this.elapsedMs + BOSS_FLEE_MS);
+      enemy.setData('bossFleeFromId', target.id);
+      enemy.setData('bossTargetSince', this.elapsedMs);
+    }
+
+    if ((enemy.getData('bossMode') as string) === 'flee') {
+      if (this.elapsedMs < ((enemy.getData('bossFleeUntil') as number | undefined) ?? 0)) {
+        this.moveBossAway(enemy, target, spec.speed * 1.35);
+        enemy.setTint(0xffd166);
+        return { aggro: 100, hunting: true };
+      }
+      enemy.setData('bossMode', 'attack');
+      enemy.setData('bossTargetSince', this.elapsedMs);
+    }
+
+    const distance = Phaser.Math.Distance.Between(enemy.x, enemy.y, target.x, target.y);
+    if (distance > spec.attackRange * 0.8) {
+      this.moveEnemyToward(enemy, target.x, target.y, spec.speed * 1.12);
+    } else {
+      enemy.setVelocity(0, 0);
+    }
+
+    if (target.isLocal && distance <= spec.attackRange) {
+      this.enemyAttack(enemy, spec);
+    }
+
+    this.updateBossSkill(enemy, spec, target, distance);
+    enemy.setTint(BOSS_MINIMAP_COLOR);
+    return { aggro: 100, hunting: true };
+  }
+
+  private findBossTarget(enemy: Phaser.Physics.Arcade.Sprite, range: number): BossTarget | undefined {
+    const candidates: BossTarget[] = [];
+    if (!this.isGameOver) {
+      candidates.push({
+        id: this.localSocketId || 'local',
+        x: this.player.x,
+        y: this.player.y,
+        isLocal: true,
+      });
+    }
+
+    this.latestRoomState?.players.forEach((player) => {
+      if (!player.alive || player.socketId === this.localSocketId) {
+        return;
+      }
+      candidates.push({
+        id: player.socketId,
+        x: player.x,
+        y: player.y,
+        isLocal: false,
+      });
+    });
+
+    const lockedTargetId = enemy.getData('bossTargetId') as string | undefined;
+    const lockedTarget = candidates.find((target) => target.id === lockedTargetId);
+    if (lockedTarget) {
+      return lockedTarget;
+    }
+
+    return candidates
+      .map((target) => ({
+        target,
+        distance: Phaser.Math.Distance.Between(enemy.x, enemy.y, target.x, target.y),
+      }))
+      .filter((entry) => entry.distance <= range)
+      .sort((a, b) => a.distance - b.distance)[0]?.target;
+  }
+
+  private healBoss(enemy: Phaser.Physics.Arcade.Sprite, deltaSeconds: number, canHeal: boolean) {
+    if (!canHeal) {
+      return;
+    }
+
+    const hp = enemy.getData('hp') as number;
+    const maxHp = enemy.getData('maxHp') as number;
+    if (hp >= maxHp) {
+      return;
+    }
+
+    enemy.setData('hp', clamp(hp + maxHp * BOSS_HEAL_RATE * deltaSeconds, 0, maxHp));
+    const lastFxAt = (enemy.getData('bossLastHealFxAt') as number | undefined) ?? 0;
+    if (this.elapsedMs - lastFxAt > 700) {
+      enemy.setData('bossLastHealFxAt', this.elapsedMs);
+      this.healPulse(enemy.x, enemy.y, 90);
+    }
+  }
+
+  private moveBossAway(enemy: Phaser.Physics.Arcade.Sprite, target: BossTarget, speed: number) {
+    const angle = Phaser.Math.Angle.Between(target.x, target.y, enemy.x, enemy.y);
+    enemy.setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
+    enemy.setRotation(angle);
+  }
+
+  private updateBossSkill(enemy: Phaser.Physics.Arcade.Sprite, spec: EnemySpec, target: BossTarget, distance: number) {
+    const nextSkillAt = (enemy.getData('nextSkillAt') as number | undefined) ?? 0;
+    if (this.elapsedMs < nextSkillAt) {
+      return;
+    }
+
+    const bossName = ENEMIES.boss.name;
+    enemy.setData('nextSkillAt', this.elapsedMs + Phaser.Math.Between(2400, 3600));
+    if (distance < 180) {
+      this.shockwave(enemy.x, enemy.y, 180, BOSS_MINIMAP_COLOR);
+      if (target.isLocal) {
+        this.damagePlayer((enemy.getData('damage') as number) * 1.25, bossName);
+      }
+      return;
+    }
+
+    this.drawArcBolt(enemy.x, enemy.y, target.x, target.y, BOSS_MINIMAP_COLOR, 4, 220);
+    if (target.isLocal && distance < 520) {
+      this.damagePlayer((enemy.getData('damage') as number) * 0.62, bossName);
+    }
+  }
+
+  private updateEliteSkill(enemy: Phaser.Physics.Arcade.Sprite, spec: EnemySpec, distanceToPlayer: number) {
+    const tier = enemy.getData('tier') as EnemyTier;
+    if (tier !== 'purple' && tier !== 'red') {
+      return;
+    }
+
+    const nextSkillAt = (enemy.getData('nextSkillAt') as number | undefined) ?? 0;
+    if (this.elapsedMs < nextSkillAt) {
+      return;
+    }
+
+    const kind = enemy.getData('kind') as EnemyKind;
+    enemy.setData('nextSkillAt', this.elapsedMs + Phaser.Math.Between(3200, 5200));
+
+    if (kind === 'mender') {
+      this.healNearbyEnemies(enemy.x, enemy.y, tier === 'red' ? 160 : 110);
+      return;
+    }
+
+    if (kind === 'sniper' && distanceToPlayer < 620) {
+      this.drawArcBolt(enemy.x, enemy.y, this.player.x, this.player.y, 0x5bc0ff, tier === 'red' ? 3.5 : 2.5, 160);
+      this.damagePlayer(spec.damage * (tier === 'red' ? 0.9 : 0.62), spec.name);
+      return;
+    }
+
+    if ((kind === 'bomber' || kind === 'crusher') && distanceToPlayer < 150) {
+      const radius = tier === 'red' ? 150 : 105;
+      this.shockwave(enemy.x, enemy.y, radius, 0xffd166);
+      this.damagePlayer(spec.damage * (tier === 'red' ? 1.1 : 0.72), spec.name);
+      return;
+    }
+
+    if (kind === 'stalker' || kind === 'drone') {
+      this.moveEnemyToward(enemy, this.player.x, this.player.y, this.getEnemySpeed(enemy, spec) * 1.85);
+      this.flashAt(enemy.x, enemy.y, ENEMY_TIERS[tier].color, 8);
+    }
+  }
+
+  private healNearbyEnemies(x: number, y: number, amount: number) {
+    this.healPulse(x, y, 150);
+    this.enemies.getChildren().forEach((rawEnemy) => {
+      const enemy = rawEnemy as Phaser.Physics.Arcade.Sprite;
+      if (!enemy.active || Phaser.Math.Distance.Between(x, y, enemy.x, enemy.y) > 180) {
+        return;
+      }
+
+      const hp = enemy.getData('hp') as number;
+      const maxHp = enemy.getData('maxHp') as number;
+      enemy.setData('hp', clamp(hp + amount, 0, maxHp));
+    });
+  }
+
   private getEnemyTint(enemy: Phaser.Physics.Arcade.Sprite) {
+    if (enemy.getData('isBoss')) {
+      const mode = enemy.getData('bossMode');
+      if (mode === 'heal') return 0xa7e65d;
+      if (mode === 'flee') return 0xffd166;
+      return BOSS_MINIMAP_COLOR;
+    }
     const tier = enemy.getData('tier') as EnemyTier | undefined;
     return tier ? ENEMY_TIERS[tier].color : 0xe8f7f4;
   }
@@ -2063,13 +3188,28 @@ class MainScene extends Phaser.Scene {
 
     enemy.setData('nextAttackAt', this.elapsedMs + spec.attackDelay);
     enemy.setData('aggro', clamp((enemy.getData('aggro') as number) + 9, 0, 100));
-    this.damagePlayer(enemy.getData('damage') as number);
+    this.damagePlayer(enemy.getData('damage') as number, spec.name);
     this.flashAt(enemy.x, enemy.y, 0xff6961, 5);
   }
 
-  private damagePlayer(amount: number) {
+  private damagePlayer(amount: number, defeatedBy = '未知单位') {
     const shieldMultiplier = this.isBuffActive('barrier') ? 0.55 : 1;
     const taken = amount * this.getCurrentVehicleSpec().damageTaken * shieldMultiplier;
+    this.lastDefeatedBy = defeatedBy;
+    if (this.currentVehicle !== 'mech' && this.vehicleShield > 0) {
+      this.vehicleShield = Math.max(0, this.vehicleShield - taken);
+      this.player.setTint(0x5bc0ff);
+      this.time.delayedCall(90, () => {
+        if (!this.isGameOver) {
+          this.player.setTint(this.localTeamTint || 0xffffff);
+        }
+      });
+      if (this.vehicleShield <= 0) {
+        this.destroyVehicleByShieldBreak();
+      }
+      return;
+    }
+
     this.hp = clamp(this.hp - taken, 0, this.maxHp);
     this.player.setTint(0xff6961);
     this.time.delayedCall(90, () => {
@@ -2157,6 +3297,13 @@ class MainScene extends Phaser.Scene {
     const hp = (enemy.getData('hp') as number) - damage;
     enemy.setData('hp', hp);
     enemy.setData('aggro', clamp((enemy.getData('aggro') as number) + 46, 0, 100));
+    enemy.setData('lastHitAt', this.elapsedMs);
+    if (enemy.getData('isBoss')) {
+      enemy.setData('neutralAsleep', false);
+      enemy.setData('bossMode', 'attack');
+      enemy.setData('bossTargetId', this.localSocketId || 'local');
+      enemy.setData('bossHealCooldownUntil', this.elapsedMs + BOSS_HEAL_COOLDOWN_MS);
+    }
     enemy.setTint(0xffffff);
     this.time.delayedCall(60, () => {
       if (enemy.active) {
@@ -2215,8 +3362,16 @@ class MainScene extends Phaser.Scene {
     }
 
     chest.setData('broken', true);
-    const vehicle = Phaser.Utils.Array.GetRandom(VEHICLE_ORDER);
-    this.spawnVehiclePod(chest.x, chest.y, vehicle);
+    const roll = Phaser.Math.Between(1, 100);
+    if (roll <= 28) {
+      const vehicle = Phaser.Utils.Array.GetRandom(VEHICLE_ORDER);
+      this.spawnVehiclePod(chest.x, chest.y, vehicle);
+    } else if (roll <= 62) {
+      this.spawnBuffAt(chest.x, chest.y);
+    } else {
+      this.hp = clamp(this.hp + 6, 0, this.maxHp);
+      this.healPulse(chest.x, chest.y, 46);
+    }
     this.flashAt(chest.x, chest.y, 0xffd166, 14);
     this.shockwave(chest.x, chest.y, 86, 0xffd166);
     this.addThreatNoise(chest.x, chest.y, 24, 420);
@@ -2230,36 +3385,71 @@ class MainScene extends Phaser.Scene {
     this.kills += 1;
     this.gainXp(xp);
     this.addTeamScore(xp);
-    this.flashAt(enemy.x, enemy.y, ENEMY_TIERS[tier].color, 8);
+    const isBoss = kind === 'boss';
+    this.flashAt(enemy.x, enemy.y, isBoss ? BOSS_MINIMAP_COLOR : ENEMY_TIERS[tier].color, isBoss ? 20 : 8);
     if (tier === 'purple' || tier === 'red') {
-      this.shockwave(enemy.x, enemy.y, tier === 'red' ? 150 : 105, ENEMY_TIERS[tier].color);
+      this.shockwave(enemy.x, enemy.y, isBoss ? 260 : tier === 'red' ? 150 : 105, isBoss ? BOSS_MINIMAP_COLOR : ENEMY_TIERS[tier].color);
     }
 
-    if (Phaser.Math.Between(1, 100) <= 5) {
+    if (isBoss) {
+      this.grantPermanentVehicle(enemy.x, enemy.y);
+    } else if (Phaser.Math.Between(1, 100) <= 5) {
       this.spawnChestAt(enemy.x, enemy.y);
     }
 
-    if (tier === 'purple' || tier === 'red') {
+    if (!isBoss && (tier === 'purple' || tier === 'red')) {
       this.spawnBuffAt(enemy.x, enemy.y);
     }
 
     enemy.destroy();
+    if (isBoss) {
+      this.time.delayedCall(1800, () => {
+        if (this.isInMultiplayerRoom && !this.isGameOver) {
+          this.ensureBossCount();
+        }
+      });
+    }
+  }
+
+  private grantPermanentVehicle(x: number, y: number) {
+    const vehicle = Phaser.Utils.Array.GetRandom(VEHICLE_ORDER);
+    const nextRank = clamp(
+      Math.max(this.permanentVehicleRanks[vehicle] ?? 0, this.vehicleRanks[vehicle] ?? 0) + 1,
+      1,
+      5,
+    );
+    this.permanentVehicleRanks[vehicle] = nextRank;
+    this.vehicleRanks[vehicle] = nextRank;
+    this.applyVehicle(vehicle, true, false);
+    this.hp = clamp(this.hp + 28, 0, this.maxHp);
+    this.addTeamScore(150);
+    this.flashAt(x, y, BOSS_MINIMAP_COLOR, 24);
+    this.shockwave(x, y, 240, BOSS_MINIMAP_COLOR);
+    this.invasionMessage = `击败 Boss，永久解锁 ${VEHICLES[vehicle].name} Lv.${nextRank}`;
+    this.invasionMessageUntil = this.elapsedMs + 4500;
   }
 
   private gainXp(amount: number) {
+    if (this.level >= LEVEL_CAP) {
+      this.xp = 0;
+      return;
+    }
+
     this.xp += amount;
 
-    while (this.xp >= this.xpToNext) {
+    if (this.xp >= this.xpToNext) {
       this.xp -= this.xpToNext;
       this.level += 1;
-      this.xpToNext = Math.floor(this.xpToNext * 1.22 + 10);
+      this.xpToNext = Math.floor(this.xpToNext * 1.52 + 28 + this.level * 4);
+      if (this.level >= LEVEL_CAP) {
+        this.xp = 0;
+      }
       this.showUpgradeChoices();
-      break;
     }
   }
 
   private showUpgradeChoices() {
-    if (this.isChoosingUpgrade || this.isGameOver) {
+    if (this.isChoosingUpgrade || this.isGameOver || this.level > LEVEL_CAP) {
       return;
     }
 
@@ -2527,6 +3717,7 @@ class MainScene extends Phaser.Scene {
     }
 
     choice.apply(this);
+    this.restoreOnUpgrade();
     this.modal?.destroy(true);
     this.modal = undefined;
     this.currentUpgradeChoices = [];
@@ -2534,18 +3725,31 @@ class MainScene extends Phaser.Scene {
     this.physics.resume();
   }
 
-  private spawnEnemy(preferredKind?: EnemyKind, forcedTier?: EnemyTier) {
+  private restoreOnUpgrade() {
+    const heal = Math.max(10, this.maxHp * 0.16);
+    this.hp = clamp(this.hp + heal, 0, this.maxHp);
+    if (this.currentVehicle !== 'mech' && this.maxVehicleShield > 0) {
+      this.vehicleShield = clamp(this.vehicleShield + this.maxVehicleShield * 0.18, 0, this.maxVehicleShield);
+    }
+    this.healPulse(this.player.x, this.player.y, 64);
+  }
+
+  private spawnEnemy(
+    preferredKind?: EnemyKind,
+    forcedTier?: EnemyTier,
+    forcedPosition?: { x: number; y: number },
+  ) {
     const kind = preferredKind ?? this.pickEnemyKind();
     const spec = ENEMIES[kind];
-    const tier = forcedTier ?? this.pickEnemyTier();
+    const tier = forcedTier ?? (kind === 'boss' ? 'red' : this.pickEnemyTier());
     const tierSpec = ENEMY_TIERS[tier];
-    const position = this.pickSpawnPosition();
+    const position = forcedPosition ?? this.pickSpawnPosition();
     const enemy = this.physics.add.sprite(position.x, position.y, spec.texture);
-    enemy.setDepth(18);
+    enemy.setDepth(kind === 'boss' ? 19 : 18);
     enemy.setTint(tierSpec.color);
     enemy.setCollideWorldBounds(true);
     const timeHpBonus = Math.floor(this.elapsedMs / 45000) * 12;
-    const maxHp = Math.round((spec.hp + timeHpBonus) * tierSpec.hpMultiplier);
+    const maxHp = Math.round((spec.hp + (kind === 'boss' ? timeHpBonus * 6 : timeHpBonus)) * tierSpec.hpMultiplier);
     enemy.setData('kind', kind);
     enemy.setData('tier', tier);
     enemy.setData('hp', maxHp);
@@ -2558,14 +3762,55 @@ class MainScene extends Phaser.Scene {
     enemy.setData('anchorY', position.y);
     enemy.setData('nextAttackAt', 0);
     enemy.setData('patrolTimeout', 0);
+    enemy.setData('nextSkillAt', this.elapsedMs + Phaser.Math.Between(2400, 5200));
+
+    if (kind === 'boss') {
+      enemy.setData('isBoss', true);
+      enemy.setData('aggro', 0);
+      enemy.setData('neutralAsleep', true);
+      enemy.setData('bossMode', 'sleep');
+      enemy.setData('bossTargetId', '');
+      enemy.setData('bossTargetSince', this.elapsedMs);
+      enemy.setData('bossFleeUntil', 0);
+      enemy.setData('bossFleeFromId', '');
+      enemy.setData('bossHealCooldownUntil', 0);
+      enemy.setData('bossLastHealFxAt', 0);
+    }
 
     const body = enemy.body as Phaser.Physics.Arcade.Body;
     body.setAllowGravity(false);
-    body.setSize(Math.max(20, enemy.width * 0.72), Math.max(20, enemy.height * 0.72), true);
+    body.setSize(
+      Math.max(20, enemy.width * (kind === 'boss' ? 0.82 : 0.72)),
+      Math.max(20, enemy.height * (kind === 'boss' ? 0.82 : 0.72)),
+      true,
+    );
 
     this.enemies.add(enemy);
     this.assignPatrolTarget(enemy, spec);
     return enemy;
+  }
+
+  private ensureBossCount() {
+    if (this.elapsedMs < BOSS_START_MS) {
+      return;
+    }
+
+    const activeBosses = this.enemies
+      .getChildren()
+      .filter((rawEnemy) => {
+        const enemy = rawEnemy as Phaser.Physics.Arcade.Sprite;
+        return enemy.active && enemy.getData('kind') === 'boss';
+      }).length;
+
+    for (let i = activeBosses; i < MIN_BOSS_COUNT; i += 1) {
+      const spawn = BOSS_SPAWNS[i % BOSS_SPAWNS.length];
+      const boss = this.spawnEnemy('boss', 'red', {
+        x: clamp(spawn.x + Phaser.Math.Between(-120, 120), 100, WORLD_WIDTH - 100),
+        y: clamp(spawn.y + Phaser.Math.Between(-120, 120), 100, WORLD_HEIGHT - 100),
+      });
+      boss.setScale(1.12);
+      this.shockwave(boss.x, boss.y, 110, BOSS_MINIMAP_COLOR);
+    }
   }
 
   private pickEnemyTier(): EnemyTier {
@@ -2605,18 +3850,25 @@ class MainScene extends Phaser.Scene {
     const roll = Phaser.Math.Between(1, 100);
 
     if (seconds < 24) {
-      return roll < 72 ? 'drone' : 'stalker';
+      if (roll < 58) return 'drone';
+      if (roll < 86) return 'stalker';
+      return 'mender';
     }
 
     if (seconds < 70) {
-      if (roll < 42) return 'drone';
-      if (roll < 78) return 'stalker';
+      if (roll < 30) return 'drone';
+      if (roll < 58) return 'stalker';
+      if (roll < 74) return 'mender';
+      if (roll < 88) return 'sniper';
       return 'warden';
     }
 
-    if (roll < 28) return 'drone';
-    if (roll < 58) return 'stalker';
-    if (roll < 86) return 'warden';
+    if (roll < 18) return 'drone';
+    if (roll < 40) return 'stalker';
+    if (roll < 56) return 'mender';
+    if (roll < 72) return 'sniper';
+    if (roll < 88) return 'bomber';
+    if (roll < 96) return 'warden';
     return 'crusher';
   }
 
@@ -2644,6 +3896,8 @@ class MainScene extends Phaser.Scene {
       this.spawnChestNearPlayer(Phaser.Math.Between(360, 620));
       this.nextChestAt = this.elapsedMs + Phaser.Math.Between(13000, 19000);
     }
+
+    this.ensureBossCount();
   }
 
   private spawnChestNearPlayer(distance: number) {
@@ -2756,8 +4010,9 @@ class MainScene extends Phaser.Scene {
     pickup.destroy();
   }
 
-  private applyVehicle(vehicle: VehicleKey, burst: boolean) {
-    if (vehicle !== 'mech') {
+  private applyVehicle(vehicle: VehicleKey, burst: boolean, rankUp = true) {
+    const previousVehicle = this.currentVehicle;
+    if (vehicle !== 'mech' && rankUp) {
       this.vehicleRanks[vehicle] = clamp(this.vehicleRanks[vehicle] + 1, 1, 5);
     }
 
@@ -2772,8 +4027,18 @@ class MainScene extends Phaser.Scene {
 
     if (vehicle === 'mech') {
       this.vehicleExpiresAt = 0;
+      this.vehicleShield = 0;
+      this.maxVehicleShield = 0;
     } else {
-      this.vehicleExpiresAt = this.elapsedMs + 28000 + (this.vehicleRanks[vehicle] - 1) * 4500;
+      this.vehicleExpiresAt =
+        previousVehicle === vehicle
+          ? Math.min(this.elapsedMs + 30000, Math.max(this.vehicleExpiresAt, this.elapsedMs) + 10000)
+          : this.elapsedMs + Phaser.Math.Between(20000, 30000);
+      this.maxVehicleShield = spec.shield;
+      this.vehicleShield =
+        previousVehicle === vehicle
+          ? clamp(this.vehicleShield + spec.shield * 0.35, 1, this.maxVehicleShield)
+          : this.maxVehicleShield;
     }
 
     if (burst) {
@@ -2796,6 +4061,36 @@ class MainScene extends Phaser.Scene {
     }
   }
 
+  private timeoutVehicle() {
+    if (this.currentVehicle === 'mech') {
+      return;
+    }
+
+    const expiredVehicle = this.currentVehicle;
+    this.applyVehicle('mech', true, false);
+    this.showAnnouncement(`${VEHICLES[expiredVehicle].name} 时间结束`, 2200);
+  }
+
+  private destroyVehicleByShieldBreak() {
+    if (this.currentVehicle === 'mech') {
+      return;
+    }
+
+    const expiredVehicle = this.currentVehicle;
+    const blastColor =
+      expiredVehicle === 'tank' || expiredVehicle === 'artillery' || expiredVehicle === 'flameRig'
+        ? 0xffd166
+        : expiredVehicle === 'railgun' || expiredVehicle === 'laserVan'
+          ? 0x5bc0ff
+          : 0xff6961;
+    this.shockwave(this.player.x, this.player.y, 120, blastColor);
+    this.flashAt(this.player.x, this.player.y, blastColor, 24);
+    this.cameras.main.shake(160, 0.005);
+    this.hp = Math.max(1, this.hp - this.maxHp * 0.18);
+    this.applyVehicle('mech', false, false);
+    this.showAnnouncement(`${VEHICLES[expiredVehicle].name} 护盾破碎爆炸，生命扣除 18%`, 2600);
+  }
+
   private getCurrentVehicleSpec() {
     return this.getVehicleSpec(this.currentVehicle);
   }
@@ -2815,6 +4110,7 @@ class MainScene extends Phaser.Scene {
       noise: base.noise + rankBonus * 3,
       noiseRadius: base.noiseRadius + rankBonus * 24,
       damageTaken: Math.max(0.42, base.damageTaken * (1 - rankBonus * 0.045)),
+      shield: base.shield + rankBonus * 26,
       aoe: base.aoe > 0 ? base.aoe + rankBonus * 10 : base.aoe,
     };
   }
@@ -3043,17 +4339,19 @@ class MainScene extends Phaser.Scene {
       const hp = enemy.getData('hp') as number;
       const maxHp = enemy.getData('maxHp') as number;
       const tier = enemy.getData('tier') as EnemyTier;
-      const x = enemy.x - 19;
-      const y = enemy.y - enemy.displayHeight / 2 - 13;
+      const isBoss = enemy.getData('isBoss');
+      const barWidth = isBoss ? 92 : 38;
+      const x = enemy.x - barWidth / 2;
+      const y = enemy.y - enemy.displayHeight / 2 - (isBoss ? 20 : 13);
 
       this.enemyHud.fillStyle(ENEMY_TIERS[tier].color, 1);
-      this.enemyHud.fillRect(x - 6, y, 4, 12);
+      this.enemyHud.fillRect(x - 6, y, 4, isBoss ? 18 : 12);
       this.enemyHud.fillStyle(0x050709, 0.82);
-      this.enemyHud.fillRect(x, y, 38, 4);
+      this.enemyHud.fillRect(x, y, barWidth, isBoss ? 6 : 4);
       this.enemyHud.fillStyle(aggro > 62 ? 0xff6961 : aggro > 24 ? 0xffd166 : 0x36f0d2, 1);
-      this.enemyHud.fillRect(x, y, 38 * (aggro / 100), 4);
+      this.enemyHud.fillRect(x, y, barWidth * (aggro / 100), isBoss ? 6 : 4);
       this.enemyHud.fillStyle(0xa7e65d, 0.95);
-      this.enemyHud.fillRect(x, y + 5, 38 * clamp(hp / maxHp, 0, 1), 3);
+      this.enemyHud.fillRect(x, y + (isBoss ? 8 : 5), barWidth * clamp(hp / maxHp, 0, 1), isBoss ? 5 : 3);
     });
 
     this.chests.getChildren().forEach((rawChest) => {
@@ -3181,9 +4479,13 @@ class MainScene extends Phaser.Scene {
     }
 
     const stat = this.children.getByName('stat-readout') as Phaser.GameObjects.Text | null;
+    const shieldText =
+      this.currentVehicle === 'mech'
+        ? ''
+        : `   护盾 ${Math.ceil(this.vehicleShield)}/${Math.ceil(this.maxVehicleShield)}`;
     const statText = `火力 x${this.getDamageMultiplier().toFixed(2)}   冷却 x${this.getFireRateMultiplier().toFixed(
       2,
-    )}`;
+    )}${shieldText}`;
     if (stat) {
       stat.setText(statText);
       stat.setPosition(rightPanelX + 18, rightPanelY + 52);
@@ -3279,22 +4581,28 @@ class MainScene extends Phaser.Scene {
     const toMiniX = (worldX: number) => x + clamp(worldX / WORLD_WIDTH, 0, 1) * size;
     const toMiniY = (worldY: number) => y + clamp(worldY / WORLD_HEIGHT, 0, 1) * size;
 
-    this.hud.fillStyle(this.localTeamTint, 1);
-    this.hud.fillCircle(toMiniX(this.player.x), toMiniY(this.player.y), 4);
+    this.enemies.getChildren().forEach((rawEnemy) => {
+      const enemy = rawEnemy as Phaser.Physics.Arcade.Sprite;
+      if (!enemy.active || !enemy.getData('isBoss')) {
+        return;
+      }
 
-    const teammates =
-      this.latestRoomState?.players.filter((player) => {
-        return (
-          player.socketId !== this.localSocketId &&
-          player.teamKey === this.localTeamKey &&
-          player.alive
-        );
-      }) ?? [];
-
-    teammates.forEach((player) => {
-      this.hud.fillStyle(this.cssColorToNumber(player.color), 0.92);
-      this.hud.fillCircle(toMiniX(player.x), toMiniY(player.y), 3);
+      this.hud.fillStyle(BOSS_MINIMAP_COLOR, 0.95);
+      this.hud.fillCircle(toMiniX(enemy.x), toMiniY(enemy.y), 4);
     });
+
+    this.latestRoomState?.players.forEach((player) => {
+      if (!player.alive || player.socketId === this.localSocketId) {
+        return;
+      }
+
+      const isAlly = player.teamKey === this.localTeamKey;
+      this.hud.fillStyle(isAlly ? 0x5bc0ff : 0xff4d4d, 0.92);
+      this.hud.fillCircle(toMiniX(player.x), toMiniY(player.y), isAlly ? 3.2 : 2.8);
+    });
+
+    this.hud.fillStyle(0x5bc0ff, 1);
+    this.hud.fillCircle(toMiniX(this.player.x), toMiniY(this.player.y), 4.4);
 
     this.hud.lineStyle(1, 0xe8f7f4, 0.22);
     this.hud.lineBetween(x + size / 2, y + 6, x + size / 2, y + size - 6);
@@ -3306,6 +4614,7 @@ class MainScene extends Phaser.Scene {
     if (texture === 'shot-missile') return 0xff6961;
     if (texture === 'shot-rail') return 0x5bc0ff;
     if (texture === 'shot-grenade') return 0xffd166;
+    if (texture === 'shot-flame') return 0xff9f1c;
     return 0x36f0d2;
   }
 
@@ -3466,6 +4775,7 @@ class MainScene extends Phaser.Scene {
     }
 
     this.isGameOver = true;
+    this.socket?.emit('player:defeated', { defeatedBy: this.lastDefeatedBy });
     this.physics.pause();
 
     const width = this.scale.width;
@@ -3486,22 +4796,80 @@ class MainScene extends Phaser.Scene {
         color: '#e8f7f4',
       })
       .setOrigin(0.5);
-    const button = this.add
-      .rectangle(width / 2, height / 2 + 58, 176, 48, 0x111a1f, 1)
+    const prompt = this.add
+      .text(width / 2, height / 2 + 24, `被 ${this.lastDefeatedBy} 击败。本局不能复活`, {
+        fontFamily: 'Inter, "Segoe UI", sans-serif',
+        fontSize: '15px',
+        color: '#9fffe0',
+      })
+      .setOrigin(0.5);
+    const stacked = width < 480;
+    const buttonWidth = stacked ? 184 : 168;
+    const gap = 16;
+    const continueX = stacked ? width / 2 : width / 2 - buttonWidth / 2 - gap / 2;
+    const exitX = stacked ? width / 2 : width / 2 + buttonWidth / 2 + gap / 2;
+    const continueY = height / 2 + 86;
+    const exitY = stacked ? height / 2 + 142 : continueY;
+    const continueButton = this.add
+      .rectangle(continueX, continueY, buttonWidth, 48, 0x111a1f, 1)
       .setStrokeStyle(2, 0x36f0d2)
       .setInteractive({ useHandCursor: true });
-    const label = this.add
-      .text(width / 2, height / 2 + 58, '重新部署', {
+    const continueLabel = this.add
+      .text(continueX, continueY, '等待结算', {
         fontFamily: 'Inter, "Segoe UI", sans-serif',
-        fontSize: '18px',
+        fontSize: '17px',
+        color: '#e8f7f4',
+      })
+      .setOrigin(0.5);
+    const exitButton = this.add
+      .rectangle(exitX, exitY, buttonWidth, 48, 0x111a1f, 1)
+      .setStrokeStyle(2, 0xff6961)
+      .setInteractive({ useHandCursor: true });
+    const exitLabel = this.add
+      .text(exitX, exitY, '退出房间', {
+        fontFamily: 'Inter, "Segoe UI", sans-serif',
+        fontSize: '17px',
         color: '#e8f7f4',
       })
       .setOrigin(0.5);
 
-    button.on('pointerdown', () => this.scene.restart());
-    this.input.keyboard?.once('keydown-SPACE', () => this.scene.restart());
-    container.add([overlay, title, stats, button, label]);
+    const leaveRoom = () => this.leaveRoomToLobby();
+    continueButton.disableInteractive();
+    continueButton.setAlpha(0.48);
+    continueLabel.setAlpha(0.7);
+    exitButton.on('pointerover', () => exitButton.setFillStyle(0x211417, 1));
+    exitButton.on('pointerout', () => exitButton.setFillStyle(0x111a1f, 1));
+    exitButton.on('pointerdown', leaveRoom);
+    exitLabel.setInteractive({ useHandCursor: true }).on('pointerdown', leaveRoom);
+    container.add([overlay, title, stats, prompt, continueButton, continueLabel, exitButton, exitLabel]);
     this.gameOverLayer = container;
+  }
+
+  private redeployAfterGameOver() {
+    this.showAnnouncement('失败后本局不能复活，请等待结算或退出房间', 3000);
+  }
+
+  private leaveRoomToLobby() {
+    this.socket?.emit('room:leave', {}, () => {
+      this.socket?.emit('rooms:list');
+    });
+    this.isInMultiplayerRoom = false;
+    this.joinedRoomId = '';
+    this.localTeamKey = '';
+    this.localTeamName = '';
+    this.localTeamColorCss = '#36f0d2';
+    this.localTeamTint = 0x36f0d2;
+    this.latestRoomState = undefined;
+    this.gameOverLayer?.destroy(true);
+    this.gameOverLayer = undefined;
+    this.clearRunObjects();
+    this.resetRunState();
+    this.player.setPosition(WORLD_WIDTH / 2, WORLD_HEIGHT / 2);
+    this.applyVehicle('mech', false);
+    this.player.clearTint();
+    this.physics.pause();
+    this.showLobbyOverlay();
+    this.socket?.emit('rooms:list');
   }
 }
 
@@ -3524,4 +4892,5 @@ const config: Phaser.Types.Core.GameConfig = {
   scene: MainScene,
 };
 
+installPrivacyModeToggle();
 new Phaser.Game(config);
