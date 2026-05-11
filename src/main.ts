@@ -860,6 +860,7 @@ class MainScene extends Phaser.Scene {
   private modal?: Phaser.GameObjects.Container;
   private gameOverLayer?: Phaser.GameObjects.Container;
   private currentUpgradeChoices: UpgradeSpec[] = [];
+  private upgradePanel?: HTMLDivElement;
   private socket?: Socket;
   private lobbyOverlay?: HTMLDivElement;
   private lobbyRoomsEl?: HTMLDivElement;
@@ -876,6 +877,7 @@ class MainScene extends Phaser.Scene {
   private localTeamTint = 0x36f0d2;
   private selectedTeamKey: TeamKey = 'A';
   private latestRoomState?: RoomState;
+  private roomStateSyncedAt = 0;
   private remotePlayers = new Map<string, RemotePlayerView>();
   private lastNetworkSendAt = 0;
   private invasionMessageUntil = 0;
@@ -1097,7 +1099,7 @@ class MainScene extends Phaser.Scene {
     this.maxHp = 120;
     this.xp = 0;
     this.level = 1;
-    this.xpToNext = 32;
+    this.xpToNext = this.getXpRequirementForLevel(1);
     this.kills = 0;
     this.elapsedMs = 0;
     this.nextShotAt = 0;
@@ -1165,6 +1167,8 @@ class MainScene extends Phaser.Scene {
     this.moveTarget = undefined;
     this.lastDefeatedBy = '未知单位';
     this.currentUpgradeChoices = [];
+    this.upgradePanel?.remove();
+    this.upgradePanel = undefined;
     this.hideAnnouncement();
     this.weaponSlots = [];
     this.weaponLevels = {
@@ -1228,6 +1232,7 @@ class MainScene extends Phaser.Scene {
     });
     this.socket.on('room:state', (state: RoomState) => {
       this.latestRoomState = state;
+      this.roomStateSyncedAt = this.elapsedMs;
       this.syncRemotePlayers(state.players);
       const localPlayer = state.players.find((player) => player.socketId === this.localSocketId);
       if (localPlayer) {
@@ -1630,6 +1635,14 @@ class MainScene extends Phaser.Scene {
       .padStart(2, '0');
     const seconds = (totalSeconds % 60).toString().padStart(2, '0');
     return `${minutes}:${seconds}`;
+  }
+
+  private getRoomRemainingMs() {
+    if (!this.latestRoomState) {
+      return undefined;
+    }
+
+    return Math.max(0, this.latestRoomState.remainingMs - (this.elapsedMs - this.roomStateSyncedAt));
   }
 
   private sendNetworkState() {
@@ -3532,6 +3545,8 @@ class MainScene extends Phaser.Scene {
         tint: WEAPONS.sawLauncher.color,
         trailColor: 0xc9ff6a,
         impactColor: 0xc9ff6a,
+        pierce: true,
+        hitIntervalMs: perfect ? 110 : 150,
       });
     }
     this.weaponCooldowns.sawLauncher =
@@ -3616,8 +3631,8 @@ class MainScene extends Phaser.Scene {
       return;
     }
 
-    const radius = 115 + level * 26 + (perfect ? 70 : 0);
-    const duration = perfect ? 1350 : 900;
+    const radius = 135 + level * 30 + (perfect ? 84 : 0);
+    const duration = perfect ? 1800 : 1250;
     const well = this.add
       .circle(target.x, target.y, radius, WEAPONS.gravityWell.color, 0.08)
       .setStrokeStyle(perfect ? 4 : 3, WEAPONS.gravityWell.color, 0.8)
@@ -3632,9 +3647,43 @@ class MainScene extends Phaser.Scene {
       ease: 'Sine.easeInOut',
       onComplete: () => well.destroy(),
     });
-    for (let tick = 0; tick < 4; tick += 1) {
-      this.time.delayedCall(tick * (duration / 4), () => {
-        this.pullAndDamageTargets(target.x, target.y, radius, (9 + level * 7 + (perfect ? 10 : 0)) * this.getDamageMultiplier());
+    const swirlCount = perfect ? 10 : 7;
+    for (let i = 0; i < swirlCount; i += 1) {
+      const angle = (i / swirlCount) * Math.PI * 2;
+      const startDistance = radius * Phaser.Math.FloatBetween(0.55, 0.95);
+      const mote = this.add
+        .circle(
+          target.x + Math.cos(angle) * startDistance,
+          target.y + Math.sin(angle) * startDistance,
+          perfect ? 5 : 4,
+          WEAPONS.gravityWell.color,
+          0.82,
+        )
+        .setDepth(34);
+      this.tweens.add({
+        targets: mote,
+        x: target.x,
+        y: target.y,
+        alpha: 0,
+        scale: 0.35,
+        duration: duration * Phaser.Math.FloatBetween(0.55, 0.95),
+        delay: i * 45,
+        ease: 'Cubic.easeIn',
+        onComplete: () => mote.destroy(),
+      });
+    }
+    const ticks = perfect ? 14 : 10;
+    for (let tick = 0; tick < ticks; tick += 1) {
+      this.time.delayedCall(tick * (duration / ticks), () => {
+        if (!this.isGameOver && this.isInMultiplayerRoom) {
+          this.pullAndDamageTargets(
+            target.x,
+            target.y,
+            radius,
+            (5 + level * 4 + (perfect ? 7 : 0)) * this.getDamageMultiplier(),
+            perfect ? 54 : 42,
+          );
+        }
       });
     }
     this.weaponCooldowns.gravityWell =
@@ -3705,6 +3754,8 @@ class MainScene extends Phaser.Scene {
     aoe: number;
     scale: number;
     explodeOnExpire?: boolean;
+    pierce?: boolean;
+    hitIntervalMs?: number;
     tint?: number;
     trailColor?: number;
     impactColor?: number;
@@ -3734,6 +3785,9 @@ class MainScene extends Phaser.Scene {
     projectile.setData('ttl', config.ttl);
     projectile.setData('aoe', config.aoe);
     projectile.setData('explodeOnExpire', config.explodeOnExpire ?? false);
+    projectile.setData('pierce', config.pierce ?? false);
+    projectile.setData('hitIntervalMs', config.hitIntervalMs ?? 180);
+    projectile.setData('hitMap', new Map<unknown, number>());
     projectile.setData('trailColor', config.trailColor ?? config.tint ?? this.getProjectileColor(config.texture));
     projectile.setData('impactColor', config.impactColor ?? config.tint ?? this.getProjectileColor(config.texture));
     projectile.setData('lastTrailAt', this.elapsedMs);
@@ -3756,6 +3810,9 @@ class MainScene extends Phaser.Scene {
         return;
       }
 
+      if (projectile.texture.key === 'shot-saw') {
+        projectile.rotation += delta * 0.018;
+      }
       this.emitProjectileTrail(projectile);
       if (!projectile.getData('ignoreRemotePlayers') && this.hitRemotePlayerWithProjectile(projectile)) {
         return;
@@ -3862,10 +3919,17 @@ class MainScene extends Phaser.Scene {
     const impactColor = projectile.getData('impactColor') as number;
     const hitX = projectile.x;
     const hitY = projectile.y;
+    const pierce = Boolean(projectile.getData('pierce'));
+
+    if (pierce && !this.registerPierceHit(projectile, target.socketId)) {
+      return false;
+    }
 
     this.damageRemotePlayer(target, damage);
     this.impactBurst(hitX, hitY, impactColor, aoe > 0 ? 1.35 : 0.9);
-    projectile.destroy();
+    if (!pierce) {
+      projectile.destroy();
+    }
 
     if (aoe > 0) {
       this.splashDamage(hitX, hitY, aoe, damage * 0.62);
@@ -3875,7 +3939,7 @@ class MainScene extends Phaser.Scene {
       this.shockwave(hitX, hitY, aoe, impactColor);
     }
 
-    return true;
+    return !pierce;
   }
 
   private updateEnemies(deltaSeconds: number) {
@@ -4375,10 +4439,18 @@ class MainScene extends Phaser.Scene {
     const impactColor = projectile.getData('impactColor') as number;
     const hitX = projectile.x;
     const hitY = projectile.y;
+    const pierce = Boolean(projectile.getData('pierce'));
+    if (pierce && !this.registerPierceHit(projectile, enemy)) {
+      return;
+    }
 
     this.damageEnemy(enemy, damage);
     this.impactBurst(hitX, hitY, impactColor, aoe > 0 ? 1.35 : 0.9);
-    projectile.destroy();
+    if (!pierce) {
+      projectile.destroy();
+    } else {
+      this.flashAt(hitX, hitY, impactColor, 5);
+    }
 
     if (aoe > 0) {
       this.splashDamage(hitX, hitY, aoe, damage * 0.62);
@@ -4403,7 +4475,13 @@ class MainScene extends Phaser.Scene {
     const impactColor = projectile.getData('impactColor') as number;
     const hitX = projectile.x;
     const hitY = projectile.y;
-    projectile.destroy();
+    const pierce = Boolean(projectile.getData('pierce'));
+    if (pierce && !this.registerPierceHit(projectile, chest)) {
+      return;
+    }
+    if (!pierce) {
+      projectile.destroy();
+    }
 
     this.damageChest(chest, damage);
     this.impactBurst(hitX, hitY, impactColor, aoe > 0 ? 1.2 : 0.8);
@@ -4415,6 +4493,22 @@ class MainScene extends Phaser.Scene {
       this.flashAt(hitX, hitY, impactColor, Math.max(10, aoe / 4));
       this.shockwave(hitX, hitY, aoe, impactColor);
     }
+  }
+
+  private registerPierceHit(projectile: Phaser.Physics.Arcade.Image, key: unknown) {
+    const hitMap = projectile.getData('hitMap') as Map<unknown, number> | undefined;
+    if (!hitMap) {
+      return true;
+    }
+
+    const interval = (projectile.getData('hitIntervalMs') as number | undefined) ?? 180;
+    const lastHitAt = hitMap.get(key) ?? -Infinity;
+    if (this.elapsedMs - lastHitAt < interval) {
+      return false;
+    }
+
+    hitMap.set(key, this.elapsedMs);
+    return true;
   }
 
   private damageChest(chest: Phaser.Physics.Arcade.Image, damage: number) {
@@ -4527,7 +4621,7 @@ class MainScene extends Phaser.Scene {
     });
   }
 
-  private pullAndDamageTargets(x: number, y: number, radius: number, damage: number) {
+  private pullAndDamageTargets(x: number, y: number, radius: number, damage: number, pullStrength = 24) {
     this.enemies.getChildren().forEach((rawEnemy) => {
       const enemy = rawEnemy as Phaser.Physics.Arcade.Sprite;
       if (!enemy.active) {
@@ -4541,8 +4635,11 @@ class MainScene extends Phaser.Scene {
 
       const angle = Phaser.Math.Angle.Between(enemy.x, enemy.y, x, y);
       const pull = clamp(1 - distance / radius, 0.2, 1);
-      enemy.x += Math.cos(angle) * 24 * pull;
-      enemy.y += Math.sin(angle) * 24 * pull;
+      const step = pullStrength * (0.35 + pull);
+      enemy.x += Math.cos(angle) * step;
+      enemy.y += Math.sin(angle) * step;
+      const body = enemy.body as Phaser.Physics.Arcade.Body | undefined;
+      body?.updateFromGameObject();
       this.damageEnemy(enemy, damage * pull);
     });
 
@@ -4595,23 +4692,26 @@ class MainScene extends Phaser.Scene {
     const kind = enemy.getData('kind') as EnemyKind;
     const tier = enemy.getData('tier') as EnemyTier;
     const xp = enemy.getData('xp') as number;
+    const killX = enemy.x;
+    const killY = enemy.y;
     this.kills += 1;
-    this.spawnXpOrb(enemy.x, enemy.y, xp);
+    this.gainXp(xp);
+    this.spawnXpOrb(killX, killY, xp);
     this.addTeamScore(xp);
     const isBoss = kind === 'boss';
-    this.flashAt(enemy.x, enemy.y, isBoss ? BOSS_MINIMAP_COLOR : ENEMY_TIERS[tier].color, isBoss ? 20 : 8);
+    this.flashAt(killX, killY, isBoss ? BOSS_MINIMAP_COLOR : ENEMY_TIERS[tier].color, isBoss ? 20 : 8);
     if (tier === 'purple' || tier === 'red') {
-      this.shockwave(enemy.x, enemy.y, isBoss ? 260 : tier === 'red' ? 150 : 105, isBoss ? BOSS_MINIMAP_COLOR : ENEMY_TIERS[tier].color);
+      this.shockwave(killX, killY, isBoss ? 260 : tier === 'red' ? 150 : 105, isBoss ? BOSS_MINIMAP_COLOR : ENEMY_TIERS[tier].color);
     }
 
     if (isBoss) {
-      this.grantPermanentVehicle(enemy.x, enemy.y);
+      this.grantPermanentVehicle(killX, killY);
     } else if (Phaser.Math.Between(1, 100) <= 5) {
-      this.spawnChestAt(enemy.x, enemy.y);
+      this.spawnChestAt(killX, killY);
     }
 
     if (!isBoss && (tier === 'purple' || tier === 'red')) {
-      this.spawnBuffAt(enemy.x, enemy.y);
+      this.spawnBuffAt(killX, killY);
     }
 
     enemy.destroy();
@@ -4629,27 +4729,40 @@ class MainScene extends Phaser.Scene {
     const halo = this.add.circle(x, y, 13, 0x9fffe0, 0.24).setDepth(65);
     const startX = x;
     const startY = y;
+    const label = this.add
+      .text(x, y - 22, `+${amount}`, {
+        fontFamily: 'Inter, "Segoe UI", sans-serif',
+        fontSize: '13px',
+        color: '#9fffe0',
+      })
+      .setOrigin(0.5)
+      .setDepth(67);
 
     this.tweens.addCounter({
       from: 0,
       to: 1,
-      duration: 460,
-      ease: 'Cubic.easeIn',
+      duration: 560,
+      ease: 'Cubic.easeInOut',
       onUpdate: (tween) => {
+        if (!this.player?.active || !this.isInMultiplayerRoom) {
+          return;
+        }
         const progress = tween.getValue() ?? 1;
-        const eased = Phaser.Math.Easing.Cubic.In(progress);
+        const eased = Phaser.Math.Easing.Cubic.InOut(progress);
         const nextX = Phaser.Math.Linear(startX, this.player.x, eased);
         const nextY = Phaser.Math.Linear(startY, this.player.y, eased);
         orb.setPosition(nextX, nextY);
         halo.setPosition(nextX, nextY);
+        label.setPosition(nextX, nextY - 20);
         orb.setScale(1 - progress * 0.45);
         halo.setScale(1 + progress * 0.6);
         halo.setAlpha(0.24 * (1 - progress));
+        label.setAlpha(1 - progress * 0.7);
       },
       onComplete: () => {
         orb.destroy();
         halo.destroy();
-        this.gainXp(amount);
+        label.destroy();
         this.flashAt(this.player.x, this.player.y, 0x36f0d2, 5);
       },
     });
@@ -4675,17 +4788,31 @@ class MainScene extends Phaser.Scene {
 
   private gainXp(amount: number) {
     this.xp += amount;
+    this.resolvePendingLevelUps();
+  }
+
+  private resolvePendingLevelUps() {
+    if (this.isChoosingUpgrade || this.isGameOver) {
+      return;
+    }
 
     while (this.xp >= this.xpToNext) {
       this.xp -= this.xpToNext;
       this.level += 1;
-      const growth = 1.24 + Math.min(0.48, this.level * 0.018);
-      this.xpToNext = Math.floor(this.xpToNext * growth + 16 + this.level * 7);
+      this.xpToNext = this.getXpRequirementForLevel(this.level);
       this.showUpgradeChoices();
       if (this.isChoosingUpgrade) {
         break;
       }
     }
+  }
+
+  private getXpRequirementForLevel(level: number) {
+    if (level < 20) {
+      return Math.floor(16 + level * 5 + Math.pow(level, 1.14) * 3.6);
+    }
+
+    return Math.floor(145 + (level - 20) * 30 + Math.pow(level - 19, 1.5) * 15);
   }
 
   private showUpgradeChoices() {
@@ -4793,7 +4920,64 @@ class MainScene extends Phaser.Scene {
     });
 
     this.modal = container;
+    this.showUpgradePanel(choices);
     this.updateUpgradeChoiceTimer();
+  }
+
+  private showUpgradePanel(choices: UpgradeSpec[]) {
+    this.upgradePanel?.remove();
+
+    const panel = document.createElement('div');
+    panel.className = 'upgrade-panel';
+
+    const box = document.createElement('div');
+    box.className = 'upgrade-box';
+
+    const title = document.createElement('div');
+    title.className = 'upgrade-title';
+    title.textContent = `等级 ${this.level}`;
+
+    const hint = document.createElement('div');
+    hint.className = 'upgrade-hint';
+    hint.textContent = '点击选择升级，3 秒后默认选择 1';
+
+    const list = document.createElement('div');
+    list.className = 'upgrade-list';
+
+    choices.forEach((choice, index) => {
+      const button = document.createElement('button');
+      button.className = 'upgrade-card';
+      button.type = 'button';
+      button.innerHTML = `
+        <span class="upgrade-key">${index + 1}</span>
+        <span class="upgrade-name"></span>
+        <span class="upgrade-detail"></span>
+        <span class="upgrade-choose">选择</span>
+      `;
+      const name = button.querySelector<HTMLSpanElement>('.upgrade-name');
+      const detail = button.querySelector<HTMLSpanElement>('.upgrade-detail');
+      if (name) {
+        name.textContent = choice.title;
+      }
+      if (detail) {
+        detail.textContent = choice.detail;
+      }
+      button.addEventListener('pointerdown', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      });
+      button.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        this.applyUpgrade(choice);
+      });
+      list.appendChild(button);
+    });
+
+    box.append(title, hint, list);
+    panel.appendChild(box);
+    document.body.appendChild(panel);
+    this.upgradePanel = panel;
   }
 
   private updateUpgradeChoiceTimer() {
@@ -4897,6 +5081,7 @@ class MainScene extends Phaser.Scene {
 
   private getWeaponUpgrades(): UpgradeSpec[] {
     const upgrades: UpgradeSpec[] = [];
+    const hasOpenWeaponSlot = this.weaponSlots.length < MAX_WEAPON_SLOTS;
 
     WEAPON_ORDER.forEach((weapon) => {
       const spec = WEAPONS[weapon];
@@ -4915,7 +5100,7 @@ class MainScene extends Phaser.Scene {
         return;
       }
 
-      if (level === 0 && this.weaponSlots.length < MAX_WEAPON_SLOTS) {
+      if (level === 0 && hasOpenWeaponSlot) {
         upgrades.push({
           key: `weapon-new-${weapon}`,
           title: `武器槽：${spec.name}`,
@@ -5031,10 +5216,13 @@ class MainScene extends Phaser.Scene {
     this.restoreOnUpgrade();
     this.modal?.destroy(true);
     this.modal = undefined;
+    this.upgradePanel?.remove();
+    this.upgradePanel = undefined;
     this.upgradeCountdownText = undefined;
     this.upgradeChoiceExpiresAt = 0;
     this.currentUpgradeChoices = [];
     this.isChoosingUpgrade = false;
+    this.resolvePendingLevelUps();
   }
 
   private restoreOnUpgrade() {
@@ -5830,8 +6018,9 @@ class MainScene extends Phaser.Scene {
       .toString()
       .padStart(2, '0');
     const restSeconds = (seconds % 60).toString().padStart(2, '0');
-    const remainingText = this.latestRoomState
-      ? this.formatClock(this.latestRoomState.remainingMs)
+    const roomRemainingMs = this.getRoomRemainingMs();
+    const remainingText = roomRemainingMs !== undefined
+      ? this.formatClock(roomRemainingMs)
       : `${minutes}:${restSeconds}`;
     const teamScore = this.latestRoomState?.scores[this.localTeamKey] ?? 0;
 
@@ -6237,7 +6426,7 @@ class MainScene extends Phaser.Scene {
 
     const width = this.scale.width;
     const height = this.scale.height;
-    const canRevive = (this.latestRoomState?.remainingMs ?? 0) > 2 * 60 * 1000;
+    const canRevive = (this.getRoomRemainingMs() ?? 0) > 2 * 60 * 1000;
     const container = this.add.container(0, 0).setScrollFactor(0).setDepth(1300);
     const overlay = this.add.rectangle(0, 0, width, height, 0x050709, 0.74).setOrigin(0);
     const title = this.add
