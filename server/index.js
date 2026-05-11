@@ -170,6 +170,30 @@ function markUserDefeated(room, userId) {
   }
 }
 
+function revivePlayer(room, userId, socketId) {
+  room.deadUserIds.delete(userId);
+  const player = room.players.get(socketId) ?? [...room.players.values()].find((entry) => entry.userId === userId);
+  if (!player) {
+    return undefined;
+  }
+
+  const spawn = getSpawnPoint(player.teamKey, getTeamCounts(room)[player.teamKey] ?? 0);
+  player.socketId = socketId;
+  player.x = spawn.x;
+  player.y = spawn.y;
+  player.angle = 0;
+  player.maxHp = 120;
+  player.hp = 120;
+  player.alive = true;
+  player.aliveSince = now();
+  player.updatedAt = now();
+  if (!room.teamLeaders[player.teamKey]) {
+    room.teamLeaders[player.teamKey] = player.userId;
+  }
+  player.teamLeader = room.teamLeaders[player.teamKey] === player.userId;
+  return player;
+}
+
 function getWinner(room) {
   return TEAM_COLORS.reduce(
     (best, team) => {
@@ -312,7 +336,7 @@ function pickQuickRoom() {
   const t = now();
   return [...rooms.values()]
     .filter((room) => room.endsAt - t > LATE_JOIN_LOCK_MS)
-    .sort((a, b) => getRealPlayerCount(a) - getRealPlayerCount(b) || a.endsAt - b.endsAt)[0];
+    .sort((a, b) => getRealPlayerCount(b) - getRealPlayerCount(a) || b.endsAt - a.endsAt)[0];
 }
 
 function getSpawnPoint(teamKey, index) {
@@ -431,6 +455,30 @@ io.on('connection', (socket) => {
       message: `${player.name} 被 ${defeatedBy} 击败`,
     });
     io.to(room.id).emit('room:state', buildRoomState(room));
+  });
+
+  socket.on('player:revive', (_payload = {}, ack) => {
+    const room = rooms.get(socket.data.roomId);
+    const player = room?.players.get(socket.id);
+    if (!room || !player) {
+      ack?.({ ok: false, error: '还没有加入房间。' });
+      return;
+    }
+
+    if (room.endsAt - now() <= LATE_JOIN_LOCK_MS) {
+      ack?.({ ok: false, error: '最后 2 分钟不能复活，请等待下一局。' });
+      return;
+    }
+
+    const revived = revivePlayer(room, player.userId, socket.id);
+    if (!revived) {
+      ack?.({ ok: false, error: '复活失败。' });
+      return;
+    }
+
+    ack?.({ ok: true, player: publicPlayer(revived) });
+    io.to(room.id).emit('room:state', buildRoomState(room));
+    io.emit('rooms:list', roomList());
   });
 
   socket.on('team:summon', (_payload = {}, ack) => {

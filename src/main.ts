@@ -865,6 +865,7 @@ class MainScene extends Phaser.Scene {
   private lobbyRoomsEl?: HTMLDivElement;
   private lobbyStatusEl?: HTMLDivElement;
   private playerNameInput?: HTMLInputElement;
+  private latestRooms: PublicRoom[] = [];
   private localUserId = '';
   private localSocketId = '';
   private isInMultiplayerRoom = false;
@@ -886,6 +887,7 @@ class MainScene extends Phaser.Scene {
   private summonButton?: HTMLButtonElement;
   private onlineButton?: HTMLButtonElement;
   private exitButton?: HTMLButtonElement;
+  private mobileControls?: HTMLDivElement;
   private onlinePanel?: HTMLDivElement;
   private moveTarget?: Phaser.Math.Vector2;
   private lastDefeatedBy = '未知单位';
@@ -930,7 +932,7 @@ class MainScene extends Phaser.Scene {
   private maxHp = 120;
   private xp = 0;
   private level = 1;
-  private xpToNext = 42;
+  private xpToNext = 32;
   private kills = 0;
   private elapsedMs = 0;
   private nextShotAt = 0;
@@ -1095,7 +1097,7 @@ class MainScene extends Phaser.Scene {
     this.maxHp = 120;
     this.xp = 0;
     this.level = 1;
-    this.xpToNext = 42;
+    this.xpToNext = 32;
     this.kills = 0;
     this.elapsedMs = 0;
     this.nextShotAt = 0;
@@ -1221,6 +1223,7 @@ class MainScene extends Phaser.Scene {
       this.setLobbyStatus('房间服务器连接失败：请用 npm start 或 Docker 运行多人服务');
     });
     this.socket.on('rooms:list', (rooms: PublicRoom[]) => {
+      this.latestRooms = rooms;
       this.renderRoomList(rooms);
     });
     this.socket.on('room:state', (state: RoomState) => {
@@ -1341,7 +1344,7 @@ class MainScene extends Phaser.Scene {
                 <li>播报用于天气预警、召集、击败、载具结束、完全体等重要事件。</li>
                 <li>播报不会自动关闭；点击顶部播报右侧 x 才会关闭。</li>
                 <li>哨戒炮台是固定敌人，不会追击，但会缓慢发射子弹。</li>
-                <li>多人房间失败后不能复活，可以等待结算或点退出房间。</li>
+                <li>最后 2 分钟不能复活；其他时间可以复活，但等级和武器会初始化。</li>
               </ul>
             </section>
           </div>
@@ -1458,6 +1461,10 @@ class MainScene extends Phaser.Scene {
       join.textContent = room.joinLocked ? '已锁定' : '进入';
       join.disabled = Boolean(room.joinLocked);
       join.addEventListener('click', () => this.joinRoom(room.id));
+      if (!room.joinLocked) {
+        item.addEventListener('click', () => this.joinRoom(room.id));
+        join.addEventListener('click', (event) => event.stopPropagation());
+      }
 
       item.append(info, join);
       this.lobbyRoomsEl?.appendChild(item);
@@ -1472,6 +1479,13 @@ class MainScene extends Phaser.Scene {
 
     const name = this.getPlayerName();
     window.localStorage.setItem('mech-harvest-player-name', name);
+    const targetRoom = this.pickMostPopulatedRoom();
+    if (targetRoom) {
+      this.setLobbyStatus(`正在进入真人最多的房间：${targetRoom.name}`);
+      this.joinRoom(targetRoom.id);
+      return;
+    }
+
     this.setLobbyStatus('正在匹配战区...');
     this.socket.emit(
       'room:quick-join',
@@ -1489,6 +1503,12 @@ class MainScene extends Phaser.Scene {
         this.beginRoom(response.room, response.player);
       },
     );
+  }
+
+  private pickMostPopulatedRoom() {
+    return [...this.latestRooms]
+      .filter((room) => !room.joinLocked)
+      .sort((a, b) => b.players - a.players || b.remainingMs - a.remainingMs || a.id.localeCompare(b.id))[0];
   }
 
   private joinRoom(roomId: string) {
@@ -2052,6 +2072,63 @@ class MainScene extends Phaser.Scene {
     this.exitButton = button;
   }
 
+  private syncMobileControls() {
+    if (!this.isInMultiplayerRoom) {
+      this.mobileControls?.remove();
+      this.mobileControls = undefined;
+      return;
+    }
+
+    if (!this.mobileControls) {
+      const panel = document.createElement('div');
+      panel.className = 'mobile-controls';
+
+      const landscape = document.createElement('button');
+      landscape.type = 'button';
+      landscape.textContent = '横屏';
+      landscape.addEventListener('click', () => this.requestLandscapeMode());
+
+      const decrease = document.createElement('button');
+      decrease.type = 'button';
+      decrease.textContent = '-索敌';
+      decrease.addEventListener('click', () => this.adjustTargetRange(-TARGET_RANGE_STEP));
+
+      const increase = document.createElement('button');
+      increase.type = 'button';
+      increase.textContent = '+索敌';
+      increase.addEventListener('click', () => this.adjustTargetRange(TARGET_RANGE_STEP));
+
+      panel.append(landscape, decrease, increase);
+      document.body.appendChild(panel);
+      this.mobileControls = panel;
+    }
+  }
+
+  private requestLandscapeMode() {
+    const fullscreenPromise = document.fullscreenElement
+      ? Promise.resolve()
+      : (document.documentElement.requestFullscreen?.().catch(() => undefined) ?? Promise.resolve());
+
+    fullscreenPromise.then(() => {
+      const orientation = screen.orientation as ScreenOrientation & {
+        lock?: (orientation: string) => Promise<void>;
+      };
+      if (!orientation?.lock) {
+        this.showAnnouncement('当前浏览器不支持自动横屏，请手动旋转手机', 3000);
+        return;
+      }
+
+      orientation
+        .lock('landscape')
+        .then(() => this.showAnnouncement('已尝试切换横屏', 1800))
+        .catch(() => this.showAnnouncement('横屏切换被浏览器拦截，请手动旋转手机', 3000));
+    });
+  }
+
+  private adjustTargetRange(delta: number) {
+    this.targetRange = clamp(this.targetRange + delta, TARGET_RANGE_MIN, TARGET_RANGE_MAX);
+  }
+
   private toggleOnlinePanel() {
     if (this.onlinePanel) {
       this.onlinePanel.remove();
@@ -2269,6 +2346,7 @@ class MainScene extends Phaser.Scene {
     this.drawTargetRing();
     this.syncSummonButton();
     this.syncExitButton();
+    this.syncMobileControls();
 
     if (!this.isInMultiplayerRoom) {
       this.weatherOverlay?.clear();
@@ -2899,19 +2977,11 @@ class MainScene extends Phaser.Scene {
 
   private handleTargetRangeInput() {
     if (Phaser.Input.Keyboard.JustDown(this.rangeKeys.Q)) {
-      this.targetRange = clamp(
-        this.targetRange - TARGET_RANGE_STEP,
-        TARGET_RANGE_MIN,
-        TARGET_RANGE_MAX,
-      );
+      this.adjustTargetRange(-TARGET_RANGE_STEP);
     }
 
     if (Phaser.Input.Keyboard.JustDown(this.rangeKeys.E)) {
-      this.targetRange = clamp(
-        this.targetRange + TARGET_RANGE_STEP,
-        TARGET_RANGE_MIN,
-        TARGET_RANGE_MAX,
-      );
+      this.adjustTargetRange(TARGET_RANGE_STEP);
     }
   }
 
@@ -4526,7 +4596,7 @@ class MainScene extends Phaser.Scene {
     const tier = enemy.getData('tier') as EnemyTier;
     const xp = enemy.getData('xp') as number;
     this.kills += 1;
-    this.gainXp(xp);
+    this.spawnXpOrb(enemy.x, enemy.y, xp);
     this.addTeamScore(xp);
     const isBoss = kind === 'boss';
     this.flashAt(enemy.x, enemy.y, isBoss ? BOSS_MINIMAP_COLOR : ENEMY_TIERS[tier].color, isBoss ? 20 : 8);
@@ -4554,6 +4624,37 @@ class MainScene extends Phaser.Scene {
     }
   }
 
+  private spawnXpOrb(x: number, y: number, amount: number) {
+    const orb = this.add.circle(x, y, 7, 0x36f0d2, 0.94).setDepth(66);
+    const halo = this.add.circle(x, y, 13, 0x9fffe0, 0.24).setDepth(65);
+    const startX = x;
+    const startY = y;
+
+    this.tweens.addCounter({
+      from: 0,
+      to: 1,
+      duration: 460,
+      ease: 'Cubic.easeIn',
+      onUpdate: (tween) => {
+        const progress = tween.getValue() ?? 1;
+        const eased = Phaser.Math.Easing.Cubic.In(progress);
+        const nextX = Phaser.Math.Linear(startX, this.player.x, eased);
+        const nextY = Phaser.Math.Linear(startY, this.player.y, eased);
+        orb.setPosition(nextX, nextY);
+        halo.setPosition(nextX, nextY);
+        orb.setScale(1 - progress * 0.45);
+        halo.setScale(1 + progress * 0.6);
+        halo.setAlpha(0.24 * (1 - progress));
+      },
+      onComplete: () => {
+        orb.destroy();
+        halo.destroy();
+        this.gainXp(amount);
+        this.flashAt(this.player.x, this.player.y, 0x36f0d2, 5);
+      },
+    });
+  }
+
   private grantPermanentVehicle(x: number, y: number) {
     const vehicle = Phaser.Utils.Array.GetRandom(VEHICLE_ORDER);
     const nextRank = clamp(
@@ -4578,7 +4679,8 @@ class MainScene extends Phaser.Scene {
     while (this.xp >= this.xpToNext) {
       this.xp -= this.xpToNext;
       this.level += 1;
-      this.xpToNext = Math.floor(this.xpToNext * 1.52 + 28 + this.level * 4);
+      const growth = 1.24 + Math.min(0.48, this.level * 0.018);
+      this.xpToNext = Math.floor(this.xpToNext * growth + 16 + this.level * 7);
       this.showUpgradeChoices();
       if (this.isChoosingUpgrade) {
         break;
@@ -4603,12 +4705,17 @@ class MainScene extends Phaser.Scene {
     const width = this.scale.width;
     const height = this.scale.height;
     const compact = width < 820;
-    const cardWidth = compact ? Math.min(300, width - 48) : 246;
-    const cardHeight = compact ? 96 : 128;
-    const gap = compact ? 12 : 22;
-    const startX = compact ? width / 2 : width / 2 - cardWidth - gap;
-    const startY = compact ? height / 2 - cardHeight - gap : height / 2 + 10;
-    const titleY = compact ? Math.max(44, startY - cardHeight / 2 - 30) : height / 2 - 132;
+    const compactLandscape = compact && width > height && height < 520;
+    const gap = compact ? 14 : 22;
+    const cardWidth = compactLandscape
+      ? Math.max(188, Math.min(238, (width - 56 - gap * 2) / 3))
+      : compact
+        ? Math.min(360, width - 28)
+        : 246;
+    const cardHeight = compact ? 118 : 128;
+    const startX = compactLandscape ? width / 2 - cardWidth - gap : compact ? width / 2 : width / 2 - cardWidth - gap;
+    const startY = compactLandscape ? Math.max(178, height / 2 + 36) : compact ? Math.max(136, height / 2 - cardHeight - gap) : height / 2 + 10;
+    const titleY = compactLandscape ? 42 : compact ? Math.max(44, startY - cardHeight / 2 - 30) : height / 2 - 132;
     const container = this.add.container(0, 0).setScrollFactor(0).setDepth(1200);
 
     const overlay = this.add.rectangle(0, 0, width, height, 0x050709, 0.28).setOrigin(0);
@@ -4638,8 +4745,8 @@ class MainScene extends Phaser.Scene {
     container.add([overlay, title, prompt, countdown]);
 
     choices.forEach((choice, index) => {
-      const x = compact ? startX : startX + index * (cardWidth + gap);
-      const y = compact ? startY + index * (cardHeight + gap) : startY;
+      const x = compact && !compactLandscape ? startX : startX + index * (cardWidth + gap);
+      const y = compact && !compactLandscape ? startY + index * (cardHeight + gap) : startY;
       const card = this.add
         .rectangle(x, y, cardWidth, cardHeight, 0x111a1f, 0.98)
         .setStrokeStyle(2, index === 0 ? 0x36f0d2 : index === 1 ? 0xffd166 : 0xa7e65d)
@@ -4667,11 +4774,22 @@ class MainScene extends Phaser.Scene {
           wordWrap: { width: cardWidth - 34 },
         })
         .setOrigin(0.5);
+      const chooseLabel = this.add
+        .text(x, y + cardHeight / 2 - 20, '选择', {
+          fontFamily: 'Inter, "Segoe UI", sans-serif',
+          fontSize: '15px',
+          color: '#9fffe0',
+        })
+        .setOrigin(0.5);
 
+      const choose = () => this.applyUpgrade(choice);
       card.on('pointerover', () => card.setFillStyle(0x17252a, 1));
       card.on('pointerout', () => card.setFillStyle(0x111a1f, 0.98));
-      card.on('pointerdown', () => this.applyUpgrade(choice));
-      container.add([card, number, name, detail]);
+      card.on('pointerdown', choose);
+      [number, name, detail, chooseLabel].forEach((item) => {
+        item.setInteractive({ useHandCursor: true }).on('pointerdown', choose);
+      });
+      container.add([card, number, name, detail, chooseLabel]);
     });
 
     this.modal = container;
@@ -6119,6 +6237,7 @@ class MainScene extends Phaser.Scene {
 
     const width = this.scale.width;
     const height = this.scale.height;
+    const canRevive = (this.latestRoomState?.remainingMs ?? 0) > 2 * 60 * 1000;
     const container = this.add.container(0, 0).setScrollFactor(0).setDepth(1300);
     const overlay = this.add.rectangle(0, 0, width, height, 0x050709, 0.74).setOrigin(0);
     const title = this.add
@@ -6136,7 +6255,7 @@ class MainScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
     const prompt = this.add
-      .text(width / 2, height / 2 + 24, `被 ${this.lastDefeatedBy} 击败。本局不能复活`, {
+      .text(width / 2, height / 2 + 24, `被 ${this.lastDefeatedBy} 击败。${canRevive ? '复活会初始化等级和装备' : '最后 2 分钟不能复活'}`, {
         fontFamily: 'Inter, "Segoe UI", sans-serif',
         fontSize: '15px',
         color: '#9fffe0',
@@ -6154,7 +6273,7 @@ class MainScene extends Phaser.Scene {
       .setStrokeStyle(2, 0x36f0d2)
       .setInteractive({ useHandCursor: true });
     const continueLabel = this.add
-      .text(continueX, continueY, '等待结算', {
+      .text(continueX, continueY, canRevive ? '复活' : '等待结算', {
         fontFamily: 'Inter, "Segoe UI", sans-serif',
         fontSize: '17px',
         color: '#e8f7f4',
@@ -6173,9 +6292,17 @@ class MainScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     const leaveRoom = () => this.leaveRoomToLobby();
-    continueButton.disableInteractive();
-    continueButton.setAlpha(0.48);
-    continueLabel.setAlpha(0.7);
+    if (canRevive) {
+      const revive = () => this.redeployAfterGameOver();
+      continueButton.on('pointerover', () => continueButton.setFillStyle(0x17252a, 1));
+      continueButton.on('pointerout', () => continueButton.setFillStyle(0x111a1f, 1));
+      continueButton.on('pointerdown', revive);
+      continueLabel.setInteractive({ useHandCursor: true }).on('pointerdown', revive);
+    } else {
+      continueButton.disableInteractive();
+      continueButton.setAlpha(0.48);
+      continueLabel.setAlpha(0.7);
+    }
     exitButton.on('pointerover', () => exitButton.setFillStyle(0x211417, 1));
     exitButton.on('pointerout', () => exitButton.setFillStyle(0x111a1f, 1));
     exitButton.on('pointerdown', leaveRoom);
@@ -6185,7 +6312,35 @@ class MainScene extends Phaser.Scene {
   }
 
   private redeployAfterGameOver() {
-    this.showAnnouncement('失败后本局不能复活，请等待结算或退出房间', 3000);
+    if (!this.isGameOver || !this.socket?.connected || !this.isInMultiplayerRoom) {
+      return;
+    }
+
+    this.socket.emit('player:revive', {}, (response: { ok?: boolean; error?: string; player?: NetworkPlayer }) => {
+      if (!response?.ok || !response.player) {
+        this.showAnnouncement(response?.error || '复活失败', 3000);
+        return;
+      }
+
+      this.gameOverLayer?.destroy(true);
+      this.gameOverLayer = undefined;
+      this.clearRunObjects();
+      this.resetRunState(true);
+      this.localSocketId = response.player.socketId;
+      this.localTeamKey = response.player.teamKey;
+      this.localTeamName = response.player.teamName;
+      this.localTeamColorCss = response.player.color;
+      this.localTeamTint = this.cssColorToNumber(response.player.color);
+      this.localCrown = response.player.crown ?? this.localCrown;
+      this.isTeamLeader = Boolean(response.player.teamLeader);
+      this.player.setPosition(response.player.x, response.player.y);
+      this.applyVehicle('mech', false);
+      this.player.setTint(this.localTeamTint || 0xffffff);
+      this.spawnInitialWorld();
+      this.physics.resume();
+      this.showAnnouncement('已复活，等级和装备已初始化', 2600);
+      this.sendNetworkState();
+    });
   }
 
   private leaveRoomToLobby() {
@@ -6207,6 +6362,8 @@ class MainScene extends Phaser.Scene {
     this.summonButton = undefined;
     this.exitButton?.remove();
     this.exitButton = undefined;
+    this.mobileControls?.remove();
+    this.mobileControls = undefined;
     this.gameOverLayer?.destroy(true);
     this.gameOverLayer = undefined;
     this.clearRunObjects();

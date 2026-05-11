@@ -86,6 +86,32 @@ canvas {
   background: rgba(50, 24, 28, 0.96);
 }
 
+.mobile-controls {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 18;
+  display: flex;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.mobile-controls button {
+  min-width: 52px;
+  height: 42px;
+  border: 1px solid rgba(159, 255, 224, 0.58);
+  border-radius: 6px;
+  background: rgba(17, 26, 31, 0.94);
+  color: #e8f7f4;
+  padding: 0 10px;
+  font: 800 13px Inter, "Segoe UI", sans-serif;
+  cursor: pointer;
+}
+
+.mobile-controls button:hover {
+  background: rgba(23, 37, 42, 0.96);
+}
+
 .online-panel {
   position: fixed;
   left: 24px;
@@ -193,6 +219,8 @@ canvas {
 }
 
 .lobby-panel {
+  display: flex;
+  flex-direction: column;
   width: min(760px, 100%);
   max-height: min(720px, 90vh);
   overflow: hidden;
@@ -319,8 +347,12 @@ canvas {
 .lobby-rooms {
   display: grid;
   gap: 10px;
+  flex: 1;
+  min-height: 0;
   max-height: 430px;
   overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   padding: 0 24px 24px;
 }
 
@@ -330,6 +362,10 @@ canvas {
   border-radius: 8px;
   background: rgba(17, 26, 31, 0.96);
   padding: 14px;
+}
+
+.lobby-room {
+  cursor: pointer;
 }
 
 .lobby-room-title {
@@ -384,9 +420,12 @@ canvas {
   .lobby-overlay {
     align-items: stretch;
     padding: 10px;
+    overflow: hidden;
   }
 
   .lobby-panel {
+    width: 100%;
+    height: calc(100vh - 20px);
     max-height: calc(100vh - 20px);
   }
 
@@ -412,6 +451,7 @@ canvas {
     margin-right: 14px;
     padding-left: 0;
     padding-right: 0;
+    flex: 0 0 auto;
   }
 
   .lobby-team {
@@ -420,6 +460,7 @@ canvas {
 
   .guide-grid {
     grid-template-columns: 1fr;
+    max-height: 30vh;
   }
 
   .lobby-overlay button,
@@ -429,7 +470,11 @@ canvas {
   }
 
   .lobby-rooms {
+    flex: 1 1 auto;
+    min-height: 120px;
     max-height: none;
+    padding-bottom: 14px;
+    touch-action: pan-y;
   }
 
   .summon-button {
@@ -464,5 +509,11 @@ canvas {
   .online-grid {
     grid-template-columns: 1fr;
     max-height: calc(100vh - 200px);
+  }
+}
+
+@media (min-width: 821px) {
+  .mobile-controls {
+    display: none;
   }
 }
