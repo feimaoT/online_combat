@@ -105,6 +105,12 @@ function getRealPlayerCount(room) {
   return new Set([...room.players.values()].map((player) => player.userId)).size;
 }
 
+function getTeamSummonRemainingMs(room, t = now()) {
+  return Object.fromEntries(
+    TEAM_COLORS.map((team) => [team.key, Math.max(0, (room.teamSummonReadyAt[team.key] ?? 0) - t)]),
+  );
+}
+
 function leaveCurrentRoom(socket) {
   const roomId = socket.data.roomId;
   if (!roomId) {
@@ -129,16 +135,38 @@ function reassignTeamLeader(room, teamKey) {
   }
 
   const leaderStillPresent = [...room.players.values()].some(
-    (player) => player.teamKey === teamKey && player.userId === room.teamLeaders[teamKey],
+    (player) => player.teamKey === teamKey && player.userId === room.teamLeaders[teamKey] && player.alive,
   );
   if (leaderStillPresent) {
     return;
   }
 
-  const nextLeader = [...room.players.values()].find((player) => player.teamKey === teamKey);
+  for (const player of room.players.values()) {
+    if (player.teamKey === teamKey) {
+      player.teamLeader = false;
+    }
+  }
+
+  const nextLeader = [...room.players.values()]
+    .filter((player) => player.teamKey === teamKey && player.alive)
+    .sort((a, b) => (a.aliveSince ?? a.joinedAt) - (b.aliveSince ?? b.joinedAt) || a.joinedAt - b.joinedAt)[0];
   room.teamLeaders[teamKey] = nextLeader?.userId ?? null;
   if (nextLeader) {
-    nextLeader.teamLeader = true;
+    for (const player of room.players.values()) {
+      if (player.teamKey === teamKey && player.userId === nextLeader.userId) {
+        player.teamLeader = true;
+      }
+    }
+  }
+}
+
+function markUserDefeated(room, userId) {
+  room.deadUserIds.add(userId);
+  for (const player of room.players.values()) {
+    if (player.userId === userId) {
+      player.alive = false;
+      player.hp = 0;
+    }
   }
 }
 
@@ -201,6 +229,7 @@ function restartRoomRound(room) {
     player.hp = player.maxHp;
     player.crown = userCrowns.get(player.userId) ?? 0;
     player.updatedAt = createdAt;
+    player.aliveSince = createdAt;
     teamIndexes[player.teamKey] = index + 1;
   }
 }
@@ -254,6 +283,8 @@ function joinPlayerToRoom(io, socket, room, payload = {}, ack) {
     y: spawn.y,
     angle: 0,
     alive: true,
+    joinedAt: now(),
+    aliveSince: now(),
     updatedAt: now(),
   };
 
@@ -363,16 +394,21 @@ io.on('connection', (socket) => {
       return;
     }
 
+    const wasAlive = player.alive;
     player.x = clampNumber(payload.x, 0, WORLD_WIDTH);
     player.y = clampNumber(payload.y, 0, WORLD_HEIGHT);
     player.angle = clampNumber(payload.angle, -Math.PI * 2, Math.PI * 2);
     player.maxHp = clampNumber(payload.maxHp, 1, 10000);
     player.hp = clampNumber(payload.hp, 0, player.maxHp);
     if (payload.alive === false) {
-      player.alive = false;
-      room.deadUserIds.add(player.userId);
+      markUserDefeated(room, player.userId);
+      reassignTeamLeader(room, player.teamKey);
+      if (wasAlive) {
+        io.to(room.id).emit('room:state', buildRoomState(room));
+      }
     } else if (!room.deadUserIds.has(player.userId)) {
       player.alive = true;
+      player.aliveSince = player.aliveSince ?? now();
     }
     player.updatedAt = now();
   });
@@ -384,8 +420,8 @@ io.on('connection', (socket) => {
       return;
     }
 
-    player.alive = false;
-    room.deadUserIds.add(player.userId);
+    markUserDefeated(room, player.userId);
+    reassignTeamLeader(room, player.teamKey);
     const defeatedBy = String(payload.defeatedBy || '未知单位').slice(0, 32);
     io.to(room.id).emit('room:player-defeated', {
       socketId: socket.id,
@@ -394,6 +430,7 @@ io.on('connection', (socket) => {
       defeatedBy,
       message: `${player.name} 被 ${defeatedBy} 击败`,
     });
+    io.to(room.id).emit('room:state', buildRoomState(room));
   });
 
   socket.on('team:summon', (_payload = {}, ack) => {
@@ -405,7 +442,7 @@ io.on('connection', (socket) => {
     }
 
     if (room.teamLeaders[player.teamKey] !== player.userId) {
-      ack?.({ ok: false, error: '只有本阵营第一个玩家可以召集。' });
+      ack?.({ ok: false, error: '只有本阵营队长可以召集。' });
       return;
     }
 
@@ -496,6 +533,7 @@ function buildRoomState(room) {
     scores: room.scores,
     remainingMs: Math.max(0, room.endsAt - t),
     nextInvasionMs: room.settling ? 0 : Math.max(0, room.nextInvasionAt - t),
+    teamSummonRemainingMs: getTeamSummonRemainingMs(room, t),
   };
 }
 
@@ -509,6 +547,8 @@ function publicPlayer(player) {
     color: player.color,
     crown: player.crown ?? 0,
     teamLeader: Boolean(player.teamLeader),
+    joinedAt: player.joinedAt ?? player.updatedAt ?? 0,
+    aliveSince: player.aliveSince ?? player.joinedAt ?? player.updatedAt ?? 0,
     hp: player.hp ?? 120,
     maxHp: player.maxHp ?? 120,
     x: player.x,

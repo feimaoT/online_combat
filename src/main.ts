@@ -162,6 +162,8 @@ interface NetworkPlayer {
   color: string;
   crown?: number;
   teamLeader?: boolean;
+  joinedAt?: number;
+  aliveSince?: number;
   hp?: number;
   maxHp?: number;
   x: number;
@@ -176,6 +178,7 @@ interface RoomState {
   scores: Record<string, number>;
   remainingMs: number;
   nextInvasionMs: number;
+  teamSummonRemainingMs?: Record<string, number>;
 }
 
 interface TeamInfo {
@@ -771,6 +774,8 @@ class MainScene extends Phaser.Scene {
   private isTeamLeader = false;
   private summonReadyAt = 0;
   private summonButton?: HTMLButtonElement;
+  private onlineButton?: HTMLButtonElement;
+  private onlinePanel?: HTMLDivElement;
   private moveTarget?: Phaser.Math.Vector2;
   private lastDefeatedBy = '未知单位';
   private weaponSlots: WeaponKey[] = [];
@@ -1070,7 +1075,13 @@ class MainScene extends Phaser.Scene {
       if (localPlayer) {
         this.localCrown = localPlayer.crown ?? 0;
         this.isTeamLeader = Boolean(localPlayer.teamLeader);
+        const summonRemainingMs = state.teamSummonRemainingMs?.[localPlayer.teamKey] ?? 0;
+        this.summonReadyAt = this.elapsedMs + summonRemainingMs;
         this.syncSummonButton();
+      }
+      this.syncOnlineButton();
+      if (this.onlinePanel) {
+        this.renderOnlinePanel();
       }
     });
     this.socket.on('room:invasion', (payload: { wave: number }) => {
@@ -1312,6 +1323,7 @@ class MainScene extends Phaser.Scene {
     this.lobbyOverlay?.remove();
     this.lobbyOverlay = undefined;
     this.syncSummonButton();
+    this.syncOnlineButton();
     this.physics.resume();
   }
 
@@ -1320,6 +1332,8 @@ class MainScene extends Phaser.Scene {
       group?.clear(true, true);
     });
     Object.values(this.weaponVisuals).forEach((visual) => visual?.destroy());
+    this.onlinePanel?.remove();
+    this.onlinePanel = undefined;
     this.remotePlayers.forEach((view) => {
       view.sprite.destroy();
       view.label.destroy();
@@ -1570,6 +1584,134 @@ class MainScene extends Phaser.Scene {
     const remaining = Math.max(0, Math.ceil((this.summonReadyAt - this.elapsedMs) / 1000));
     this.summonButton.disabled = remaining > 0;
     this.summonButton.textContent = remaining > 0 ? `召集 ${remaining}s` : '召集队友';
+  }
+
+  private syncOnlineButton() {
+    if (!this.isInMultiplayerRoom) {
+      this.onlineButton?.remove();
+      this.onlineButton = undefined;
+      this.onlinePanel?.remove();
+      this.onlinePanel = undefined;
+      return;
+    }
+
+    if (this.onlineButton) {
+      return;
+    }
+
+    const button = document.createElement('button');
+    button.className = 'online-button';
+    button.type = 'button';
+    button.textContent = '在线用户';
+    button.addEventListener('click', () => this.toggleOnlinePanel());
+    document.body.appendChild(button);
+    this.onlineButton = button;
+  }
+
+  private toggleOnlinePanel() {
+    if (this.onlinePanel) {
+      this.onlinePanel.remove();
+      this.onlinePanel = undefined;
+      return;
+    }
+
+    const panel = document.createElement('div');
+    panel.className = 'online-panel';
+    document.body.appendChild(panel);
+    this.onlinePanel = panel;
+    this.renderOnlinePanel();
+  }
+
+  private renderOnlinePanel() {
+    if (!this.onlinePanel) {
+      return;
+    }
+
+    const players = this.getUniqueOnlinePlayers();
+    this.onlinePanel.replaceChildren();
+
+    const head = document.createElement('div');
+    head.className = 'online-head';
+    const title = document.createElement('div');
+    title.className = 'online-title';
+    title.textContent = '在线用户';
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.textContent = '关闭';
+    close.addEventListener('click', () => {
+      this.onlinePanel?.remove();
+      this.onlinePanel = undefined;
+    });
+    head.append(title, close);
+
+    const grid = document.createElement('div');
+    grid.className = 'online-grid';
+    TEAM_OPTIONS.forEach((team) => {
+      const column = document.createElement('section');
+      column.className = 'online-team';
+      column.style.setProperty('--team-color', team.color);
+
+      const teamTitle = document.createElement('div');
+      teamTitle.className = 'online-team-title';
+      const teamPlayers = players
+        .filter((player) => player.teamKey === team.key)
+        .sort((a, b) => (a.joinedAt ?? 0) - (b.joinedAt ?? 0));
+      teamTitle.textContent = `${team.name} ${teamPlayers.length}`;
+      column.appendChild(teamTitle);
+
+      if (teamPlayers.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'online-empty';
+        empty.textContent = '暂无真人';
+        column.appendChild(empty);
+      } else {
+        teamPlayers.forEach((player) => {
+          const row = document.createElement('div');
+          row.className = `online-player${player.alive ? '' : ' is-dead'}`;
+
+          const name = document.createElement('span');
+          name.className = 'online-name';
+          name.textContent = `${player.teamLeader ? '★ ' : ''}${player.name}${player.socketId === this.localSocketId ? '（你）' : ''}`;
+
+          const crown = document.createElement('span');
+          crown.className = 'online-crown';
+          crown.textContent = player.crown ? `皇冠${Math.min(9, player.crown)}` : '';
+
+          row.append(name, crown);
+          column.appendChild(row);
+        });
+      }
+
+      grid.appendChild(column);
+    });
+
+    this.onlinePanel.append(head, grid);
+  }
+
+  private getUniqueOnlinePlayers() {
+    const players = this.latestRoomState?.players ?? [];
+    const byUserId = new Map<string, NetworkPlayer>();
+    players.forEach((player) => {
+      const key = player.userId || player.socketId;
+      const existing = byUserId.get(key);
+      if (!existing) {
+        byUserId.set(key, player);
+        return;
+      }
+
+      byUserId.set(key, {
+        ...existing,
+        ...player,
+        socketId: existing.socketId === this.localSocketId ? existing.socketId : player.socketId,
+        name: existing.name || player.name,
+        crown: Math.max(existing.crown ?? 0, player.crown ?? 0),
+        teamLeader: Boolean(existing.teamLeader || player.teamLeader),
+        joinedAt: Math.min(existing.joinedAt ?? Number.MAX_SAFE_INTEGER, player.joinedAt ?? Number.MAX_SAFE_INTEGER),
+        aliveSince: Math.min(existing.aliveSince ?? Number.MAX_SAFE_INTEGER, player.aliveSince ?? Number.MAX_SAFE_INTEGER),
+        alive: Boolean(existing.alive || player.alive),
+      });
+    });
+    return [...byUserId.values()];
   }
 
   private handleTeamSummon(payload: {
@@ -4860,6 +5002,12 @@ class MainScene extends Phaser.Scene {
     this.localTeamColorCss = '#36f0d2';
     this.localTeamTint = 0x36f0d2;
     this.latestRoomState = undefined;
+    this.onlineButton?.remove();
+    this.onlineButton = undefined;
+    this.onlinePanel?.remove();
+    this.onlinePanel = undefined;
+    this.summonButton?.remove();
+    this.summonButton = undefined;
     this.gameOverLayer?.destroy(true);
     this.gameOverLayer = undefined;
     this.clearRunObjects();

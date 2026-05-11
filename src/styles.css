@@ -52,6 +52,115 @@ canvas {
   opacity: 0.52;
 }
 
+.online-button {
+  position: fixed;
+  left: 24px;
+  bottom: 76px;
+  z-index: 18;
+  height: 42px;
+  border: 1px solid rgba(54, 240, 210, 0.78);
+  border-radius: 6px;
+  background: rgba(17, 26, 31, 0.94);
+  color: #e8f7f4;
+  padding: 0 16px;
+  font: 800 14px Inter, "Segoe UI", sans-serif;
+  cursor: pointer;
+}
+
+.online-panel {
+  position: fixed;
+  left: 24px;
+  bottom: 128px;
+  z-index: 19;
+  width: min(760px, calc(100vw - 48px));
+  max-height: min(560px, calc(100vh - 160px));
+  overflow: hidden;
+  border: 1px solid rgba(54, 240, 210, 0.42);
+  border-radius: 8px;
+  background: rgba(10, 15, 18, 0.98);
+  color: #e8f7f4;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+}
+
+.online-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid rgba(159, 255, 224, 0.14);
+}
+
+.online-title,
+.online-team-title {
+  font-weight: 800;
+}
+
+.online-head button {
+  height: 34px;
+  border: 1px solid rgba(54, 240, 210, 0.62);
+  border-radius: 6px;
+  background: #111a1f;
+  color: #e8f7f4;
+  padding: 0 12px;
+  cursor: pointer;
+}
+
+.online-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  overflow: auto;
+  max-height: calc(min(560px, 100vh - 160px) - 58px);
+  padding: 14px 16px 16px;
+}
+
+.online-team {
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--team-color, #36f0d2) 38%, transparent);
+  border-radius: 8px;
+  background: rgba(17, 26, 31, 0.94);
+  overflow: hidden;
+}
+
+.online-team-title {
+  padding: 10px 12px;
+  color: var(--team-color, #36f0d2);
+  border-bottom: 1px solid rgba(159, 255, 224, 0.12);
+}
+
+.online-player,
+.online-empty {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 34px;
+  padding: 7px 10px;
+  color: #dff4ef;
+  font-size: 13px;
+}
+
+.online-player + .online-player {
+  border-top: 1px solid rgba(159, 255, 224, 0.08);
+}
+
+.online-player.is-dead {
+  opacity: 0.52;
+}
+
+.online-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.online-crown,
+.online-empty {
+  color: #ffda8a;
+}
+
 .lobby-overlay {
   position: fixed;
   inset: 0;
@@ -236,5 +345,25 @@ canvas {
     bottom: 12px;
     min-width: 112px;
     height: 46px;
+  }
+
+  .online-button {
+    left: 12px;
+    bottom: 68px;
+    min-width: 112px;
+    height: 46px;
+  }
+
+  .online-panel {
+    left: 10px;
+    right: 10px;
+    bottom: 124px;
+    width: auto;
+    max-height: calc(100vh - 140px);
+  }
+
+  .online-grid {
+    grid-template-columns: 1fr;
+    max-height: calc(100vh - 200px);
   }
 }
