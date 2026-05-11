@@ -626,35 +626,218 @@ canvas {
 @media (max-width: 820px) and (orientation: landscape) {
   .upgrade-panel {
     align-items: center;
-    padding: 10px;
+    justify-content: center;
+    padding: 6px;
+    background: rgba(5, 7, 9, 0.08);
+  }
+
+  .upgrade-box {
+    width: min(660px, calc(100vw - 20px));
+    transform: scale(0.82);
+    transform-origin: center;
   }
 
   .upgrade-title {
-    font-size: 22px;
+    font-size: 18px;
   }
 
   .upgrade-hint {
-    margin-top: 4px;
-    font-size: 13px;
+    margin-top: 3px;
+    font-size: 11px;
   }
 
   .upgrade-list {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 10px;
-    margin-top: 10px;
+    gap: 8px;
+    margin-top: 8px;
   }
 
   .upgrade-card {
-    min-height: 112px;
-    padding: 10px;
+    min-height: 92px;
+    padding: 8px;
+  }
+
+  .upgrade-key,
+  .upgrade-choose {
+    font-size: 11px;
   }
 
   .upgrade-name {
-    font-size: 15px;
+    margin-top: 5px;
+    font-size: 13px;
   }
 
   .upgrade-detail {
+    margin-top: 6px;
+    font-size: 10px;
+    line-height: 1.25;
+  }
+
+  .mobile-controls {
+    top: 6px;
+    right: 6px;
+    gap: 5px;
+    transform: scale(0.78);
+    transform-origin: top right;
+  }
+
+  .mobile-controls button {
+    min-width: 44px;
+    height: 34px;
+    padding: 0 7px;
+    font-size: 11px;
+  }
+
+  .summon-button,
+  .online-button,
+  .exit-button {
+    height: 34px;
+    min-width: 86px;
+    padding: 0 10px;
+    font-size: 11px;
+  }
+
+  .summon-button {
+    left: 8px;
+    bottom: 8px;
+  }
+
+  .online-button {
+    left: 8px;
+    bottom: 48px;
+  }
+
+  .exit-button {
+    right: 8px;
+    bottom: 8px;
+  }
+
+  .online-panel {
+    left: 8px;
+    bottom: 86px;
+    width: min(560px, calc(100vw - 16px));
+    max-height: calc(100vh - 96px);
+    transform: scale(0.82);
+    transform-origin: left bottom;
+  }
+
+  .online-head {
+    padding: 8px 10px 7px;
+  }
+
+  .online-head button {
+    height: 28px;
+    padding: 0 9px;
+    font-size: 11px;
+  }
+
+  .online-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    max-height: calc(100vh - 150px);
+    padding: 8px 10px 10px;
+  }
+
+  .online-team-title {
+    padding: 7px 8px;
     font-size: 12px;
+  }
+
+  .online-player,
+  .online-empty {
+    min-height: 26px;
+    padding: 5px 7px;
+    font-size: 11px;
+  }
+
+  .lobby-overlay {
+    align-items: center;
+    padding: 6px;
+  }
+
+  .lobby-panel {
+    width: min(720px, calc(100vw - 12px));
+    max-height: calc(100vh - 12px);
+    transform: scale(0.86);
+    transform-origin: center;
+  }
+
+  .lobby-head {
+    padding: 10px 12px 8px;
+  }
+
+  .lobby-title {
+    font-size: 19px;
+  }
+
+  .lobby-subtitle,
+  .lobby-room-meta,
+  .lobby-status,
+  .lobby-empty {
+    font-size: 11px;
+  }
+
+  .lobby-row {
+    padding: 0 12px 8px;
+  }
+
+  .lobby-team {
+    gap: 6px;
+    padding: 0 12px 8px;
+  }
+
+  .lobby-status {
+    padding: 0 12px 6px;
+  }
+
+  .lobby-guide {
+    margin: 0 12px 8px;
+  }
+
+  .guide-head {
+    padding: 8px 10px;
+  }
+
+  .guide-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    max-height: 28vh;
+    padding: 8px;
+  }
+
+  .guide-grid h3 {
+    margin-bottom: 4px;
+    font-size: 12px;
+  }
+
+  .guide-grid p,
+  .guide-grid ul {
+    font-size: 10px;
+    line-height: 1.35;
+  }
+
+  .lobby-rooms {
+    gap: 6px;
+    max-height: 26vh;
+    padding: 0 12px 10px;
+  }
+
+  .lobby-room,
+  .lobby-empty {
+    padding: 8px;
+  }
+
+  .lobby-room-title {
+    font-size: 13px;
+    margin-bottom: 3px;
+  }
+
+  .lobby-overlay button,
+  .lobby-name {
+    height: 32px;
+    min-height: 32px;
+    padding: 0 10px;
+    font-size: 11px;
   }
 }
 
