@@ -121,7 +121,6 @@ interface WeaponSpec {
   name: string;
   detail: string;
   texture: string;
-  maxLevel: number;
   color: number;
 }
 
@@ -691,84 +690,72 @@ const WEAPONS: Record<WeaponKey, WeaponSpec> = {
     name: '攻击无人机',
     detail: '环绕玩家，自动射击索敌目标',
     texture: 'weapon-attack-drone',
-    maxLevel: 6,
     color: 0x36f0d2,
   },
   healDrone: {
     name: '治疗无人机',
     detail: '周期修复生命，高等级附带护盾恢复',
     texture: 'weapon-heal-drone',
-    maxLevel: 6,
     color: 0xa7e65d,
   },
   rocketLauncher: {
     name: '火箭筒',
     detail: '发射高伤害火箭，命中后范围爆炸',
     texture: 'shot-missile',
-    maxLevel: 6,
     color: 0xff6961,
   },
   grenadeLauncher: {
     name: '手榴弹模块',
     detail: '抛射延时爆弹，适合清理密集目标',
     texture: 'shot-grenade',
-    maxLevel: 6,
     color: 0xffd166,
   },
   teslaEmitter: {
     name: '电弧发生器',
     detail: '瞬发电弧连锁打击近距离目标',
     texture: 'buff-core',
-    maxLevel: 6,
     color: 0xba7cff,
   },
   beamCannon: {
     name: '聚束光炮',
     detail: '周期发射穿透光束，远距离打击直线目标',
     texture: 'shot-rail',
-    maxLevel: 6,
     color: 0x5bc0ff,
   },
   orbitalBeacon: {
     name: '轨道信标',
     detail: '锁定目标区域后落下范围打击',
     texture: 'buff-core',
-    maxLevel: 6,
     color: 0xff9f1c,
   },
   sawLauncher: {
     name: '回旋锯盘',
     detail: '发射会穿行切割的旋转锯盘',
     texture: 'shot-saw',
-    maxLevel: 6,
     color: 0xc9ff6a,
   },
   cryoMine: {
     name: '霜冻地雷',
     detail: '在附近目标脚下布置延时冰爆',
     texture: 'shot-cryo',
-    maxLevel: 6,
     color: 0x9ed7ff,
   },
   nanoSwarm: {
     name: '纳米蜂群',
     detail: '持续撕咬近距离多个目标',
     texture: 'weapon-swarm',
-    maxLevel: 6,
     color: 0xff8bd1,
   },
   gravityWell: {
     name: '重力井',
     detail: '生成牵引区域并压碎范围内敌人',
     texture: 'buff-core',
-    maxLevel: 6,
     color: 0x8f7cff,
   },
   ionLance: {
     name: '离子长枪',
     detail: '蓄能后发射高速贯穿长枪',
     texture: 'shot-ion',
-    maxLevel: 6,
     color: 0x64f5ff,
   },
 };
@@ -806,7 +793,7 @@ const TEAM_OPTIONS: TeamInfo[] = [
   { key: 'C', name: 'C 阵营', color: '#ffd166', spawnX: 2600, spawnY: 2850 },
 ];
 const MAX_WEAPON_SLOTS = 5;
-const LEVEL_CAP = 18;
+const PERFECT_WEAPON_LEVEL = 6;
 const TARGET_RANGE_MIN = 220;
 const TARGET_RANGE_MAX = 980;
 const TARGET_RANGE_STEP = 60;
@@ -1310,7 +1297,7 @@ class MainScene extends Phaser.Scene {
           <div class="guide-grid">
             <section>
               <h3>武器</h3>
-              <p>武器槽最多 5 个。武器最高 6 级，满级后变成完全体，不再出现在升级选项中。</p>
+              <p>武器槽最多 5 个。6 级会变成完全体，但不是等级上限，之后仍可继续强化。</p>
               <ul>
                 <li>攻击无人机：环绕射击，完全体多发高速弹并带范围爆破。</li>
                 <li>治疗无人机：修复自己或队友，完全体治疗更快并有更大治疗脉冲。</li>
@@ -4586,26 +4573,21 @@ class MainScene extends Phaser.Scene {
   }
 
   private gainXp(amount: number) {
-    if (this.level >= LEVEL_CAP) {
-      this.xp = 0;
-      return;
-    }
-
     this.xp += amount;
 
-    if (this.xp >= this.xpToNext) {
+    while (this.xp >= this.xpToNext) {
       this.xp -= this.xpToNext;
       this.level += 1;
       this.xpToNext = Math.floor(this.xpToNext * 1.52 + 28 + this.level * 4);
-      if (this.level >= LEVEL_CAP) {
-        this.xp = 0;
-      }
       this.showUpgradeChoices();
+      if (this.isChoosingUpgrade) {
+        break;
+      }
     }
   }
 
   private showUpgradeChoices() {
-    if (this.isChoosingUpgrade || this.isGameOver || this.level > LEVEL_CAP) {
+    if (this.isChoosingUpgrade || this.isGameOver) {
       return;
     }
 
@@ -4802,12 +4784,12 @@ class MainScene extends Phaser.Scene {
       const spec = WEAPONS[weapon];
       const level = this.getWeaponLevel(weapon);
 
-      if (level > 0 && level < spec.maxLevel) {
+      if (level > 0) {
         const nextLevel = level + 1;
         upgrades.push({
           key: `weapon-upgrade-${weapon}`,
           title: `${spec.name} Lv.${nextLevel}`,
-          detail: nextLevel >= spec.maxLevel ? '升到 6 级后变质为完全体，获得全新效果' : `升级范围、伤害和速度：${spec.detail}`,
+          detail: nextLevel === PERFECT_WEAPON_LEVEL ? '升到 6 级后变质为完全体，获得全新效果' : `继续强化范围、伤害和速度：${spec.detail}`,
           apply: (scene) => {
             scene.equipOrUpgradeWeapon(weapon);
           },
@@ -4846,8 +4828,9 @@ class MainScene extends Phaser.Scene {
       return;
     }
 
-    this.weaponLevels[weapon] = clamp(currentLevel + 1, 1, WEAPONS[weapon].maxLevel);
-    if (this.weaponLevels[weapon] >= WEAPONS[weapon].maxLevel) {
+    const nextLevel = currentLevel + 1;
+    this.weaponLevels[weapon] = nextLevel;
+    if (nextLevel === PERFECT_WEAPON_LEVEL) {
       this.showAnnouncement(`${WEAPONS[weapon].name} 变质为完全体`, 3000);
       this.flashAt(this.player.x, this.player.y, WEAPONS[weapon].color, 22);
       this.shockwave(this.player.x, this.player.y, 132, WEAPONS[weapon].color);
@@ -4859,7 +4842,7 @@ class MainScene extends Phaser.Scene {
   }
 
   private isWeaponPerfect(weapon: WeaponKey) {
-    return this.getWeaponLevel(weapon) >= WEAPONS[weapon].maxLevel;
+    return this.getWeaponLevel(weapon) >= PERFECT_WEAPON_LEVEL;
   }
 
   private getWeaponSlotText() {
