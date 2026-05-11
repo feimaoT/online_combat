@@ -10,6 +10,8 @@ const __dirname = path.dirname(__filename);
 const distDir = path.resolve(__dirname, '..', 'dist');
 
 const PORT = Number(process.env.PORT ?? 8080);
+const APP_BASE_PATH = normalizeBasePath(process.env.APP_BASE_PATH ?? '');
+const SOCKET_PATH = `${APP_BASE_PATH}/socket.io`;
 const MAX_ROOMS = 30;
 const ROOM_DURATION_MS = 10 * 60 * 1000;
 const INVASION_INTERVAL_MS = 3 * 60 * 1000;
@@ -172,12 +174,24 @@ function pickQuickRoom() {
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
+  path: SOCKET_PATH,
   cors: {
     origin: '*',
   },
 });
 
-app.use(express.static(distDir));
+if (APP_BASE_PATH) {
+  app.get('/', (_req, res) => {
+    res.redirect(`${APP_BASE_PATH}/`);
+  });
+  app.use(APP_BASE_PATH, express.static(distDir));
+  app.get(new RegExp(`^${escapeRegExp(APP_BASE_PATH)}(?:/.*)?$`), (_req, res) => {
+    res.sendFile(path.join(distDir, 'index.html'));
+  });
+} else {
+  app.use(express.static(distDir));
+}
+
 app.get(/.*/, (_req, res) => {
   res.sendFile(path.join(distDir, 'index.html'));
 });
@@ -262,6 +276,19 @@ function clampNumber(value, min, max) {
   return Math.max(min, Math.min(max, number));
 }
 
+function normalizeBasePath(value) {
+  const trimmed = String(value || '').trim();
+  if (!trimmed || trimmed === '/') {
+    return '';
+  }
+
+  return `/${trimmed.replace(/^\/+|\/+$/g, '')}`;
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function buildRoomState(room) {
   const t = now();
   return {
@@ -319,5 +346,5 @@ setInterval(() => {
 }, 200);
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Mech Harvest server listening on http://0.0.0.0:${PORT}`);
+  console.log(`Mech Harvest server listening on http://0.0.0.0:${PORT}${APP_BASE_PATH || '/'}`);
 });

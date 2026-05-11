@@ -1,7 +1,13 @@
 services:
   mech-harvest:
-    build: .
+    build:
+      context: .
+      args:
+        VITE_BASE_PATH: /game/
     image: mech-harvest:latest
+    environment:
+      APP_BASE_PATH: /game
+      PORT: 8080
     ports:
       - "8080:8080"
     restart: unless-stopped

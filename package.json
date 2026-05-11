@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsc && vite build",
+    "build:game": "tsc && vite build --base=/game/",
     "preview": "vite preview --host 127.0.0.1",
     "start": "node server/index.js"
   },

@@ -740,7 +740,10 @@ class MainScene extends Phaser.Scene {
       window.localStorage.setItem('mech-harvest-user-id', this.localUserId);
     }
 
-    this.socket = io();
+    const socketBasePath = import.meta.env.BASE_URL.replace(/\/$/, '');
+    this.socket = io({
+      path: `${socketBasePath}/socket.io`,
+    });
     this.socket.on('connect', () => {
       this.localSocketId = this.socket?.id ?? '';
       this.setLobbyStatus('已连接房间服务器');
