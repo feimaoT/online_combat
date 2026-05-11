@@ -1,0 +1,7 @@
+services:
+  mech-harvest:
+    build: .
+    image: mech-harvest:latest
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
