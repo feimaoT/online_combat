@@ -37,7 +37,7 @@ type VehicleKey =
   | 'buggy'
   | 'laserVan'
   | 'flameRig';
-type EnemyKind = 'drone' | 'stalker' | 'warden' | 'crusher' | 'mender' | 'sniper' | 'bomber' | 'boss';
+type EnemyKind = 'drone' | 'stalker' | 'warden' | 'crusher' | 'mender' | 'sniper' | 'bomber' | 'turret' | 'boss';
 type EnemyTier = 'white' | 'green' | 'blue' | 'purple' | 'red';
 type TeamKey = 'A' | 'B' | 'C';
 type UpgradeKey = 'damage' | 'rate' | 'speed' | 'armor' | 'magnet';
@@ -50,7 +50,12 @@ type WeaponKey =
   | 'grenadeLauncher'
   | 'teslaEmitter'
   | 'beamCannon'
-  | 'orbitalBeacon';
+  | 'orbitalBeacon'
+  | 'sawLauncher'
+  | 'cryoMine'
+  | 'nanoSwarm'
+  | 'gravityWell'
+  | 'ionLance';
 type ArcadeOverlapObject =
   | Phaser.Types.Physics.Arcade.GameObjectWithBody
   | Phaser.Physics.Arcade.Body
@@ -579,6 +584,23 @@ const ENEMIES: Record<EnemyKind, EnemySpec> = {
     patrolRadius: 280,
     tint: 0xffd166,
   },
+  turret: {
+    name: '哨戒炮台',
+    texture: 'enemy-turret',
+    hp: 150,
+    speed: 0,
+    damage: 14,
+    xp: 20,
+    noticeRadius: 620,
+    chaseThreshold: 18,
+    attackRange: 580,
+    attackDelay: 1850,
+    proximityGain: 18,
+    noiseMultiplier: 0.7,
+    decay: 4,
+    patrolRadius: 0,
+    tint: 0x9fffe0,
+  },
   boss: {
     name: '橙色歼灭者',
     texture: 'enemy-boss',
@@ -714,6 +736,41 @@ const WEAPONS: Record<WeaponKey, WeaponSpec> = {
     maxLevel: 6,
     color: 0xff9f1c,
   },
+  sawLauncher: {
+    name: '回旋锯盘',
+    detail: '发射会穿行切割的旋转锯盘',
+    texture: 'shot-saw',
+    maxLevel: 6,
+    color: 0xc9ff6a,
+  },
+  cryoMine: {
+    name: '霜冻地雷',
+    detail: '在附近目标脚下布置延时冰爆',
+    texture: 'shot-cryo',
+    maxLevel: 6,
+    color: 0x9ed7ff,
+  },
+  nanoSwarm: {
+    name: '纳米蜂群',
+    detail: '持续撕咬近距离多个目标',
+    texture: 'weapon-swarm',
+    maxLevel: 6,
+    color: 0xff8bd1,
+  },
+  gravityWell: {
+    name: '重力井',
+    detail: '生成牵引区域并压碎范围内敌人',
+    texture: 'buff-core',
+    maxLevel: 6,
+    color: 0x8f7cff,
+  },
+  ionLance: {
+    name: '离子长枪',
+    detail: '蓄能后发射高速贯穿长枪',
+    texture: 'shot-ion',
+    maxLevel: 6,
+    color: 0x64f5ff,
+  },
 };
 
 const VEHICLE_ORDER: VehicleKey[] = [
@@ -737,6 +794,11 @@ const WEAPON_ORDER: WeaponKey[] = [
   'teslaEmitter',
   'beamCannon',
   'orbitalBeacon',
+  'sawLauncher',
+  'cryoMine',
+  'nanoSwarm',
+  'gravityWell',
+  'ionLance',
 ];
 const TEAM_OPTIONS: TeamInfo[] = [
   { key: 'A', name: 'A 阵营', color: '#36f0d2', spawnX: 850, spawnY: 820 },
@@ -795,6 +857,7 @@ class MainScene extends Phaser.Scene {
   private player!: Phaser.Physics.Arcade.Sprite;
   private enemies!: Phaser.Physics.Arcade.Group;
   private projectiles!: Phaser.Physics.Arcade.Group;
+  private enemyProjectiles!: Phaser.Physics.Arcade.Group;
   private chests!: Phaser.Physics.Arcade.Group;
   private vehiclePods!: Phaser.Physics.Arcade.Group;
   private buffPickups!: Phaser.Physics.Arcade.Group;
@@ -848,6 +911,11 @@ class MainScene extends Phaser.Scene {
     teslaEmitter: 0,
     beamCannon: 0,
     orbitalBeacon: 0,
+    sawLauncher: 0,
+    cryoMine: 0,
+    nanoSwarm: 0,
+    gravityWell: 0,
+    ionLance: 0,
   };
   private weaponCooldowns: Record<WeaponKey, number> = {
     attackDrone: 0,
@@ -857,6 +925,11 @@ class MainScene extends Phaser.Scene {
     teslaEmitter: 0,
     beamCannon: 0,
     orbitalBeacon: 0,
+    sawLauncher: 0,
+    cryoMine: 0,
+    nanoSwarm: 0,
+    gravityWell: 0,
+    ionLance: 0,
   };
   private weaponVisuals: Partial<Record<WeaponKey, Phaser.GameObjects.Image>> = {};
   private healDroneBusyUntil = 0;
@@ -945,6 +1018,7 @@ class MainScene extends Phaser.Scene {
 
     this.enemies = this.physics.add.group({ allowGravity: false });
     this.projectiles = this.physics.add.group({ allowGravity: false, maxSize: 260 });
+    this.enemyProjectiles = this.physics.add.group({ allowGravity: false, maxSize: 120 });
     this.chests = this.physics.add.group({ allowGravity: false });
     this.vehiclePods = this.physics.add.group({ allowGravity: false });
     this.buffPickups = this.physics.add.group({ allowGravity: false });
@@ -999,6 +1073,7 @@ class MainScene extends Phaser.Scene {
       undefined,
       this,
     );
+    this.physics.add.overlap(this.player, this.enemyProjectiles, this.handleEnemyProjectileHit, undefined, this);
     this.physics.add.overlap(this.player, this.vehiclePods, this.handleVehiclePodPickup, undefined, this);
     this.physics.add.overlap(this.player, this.buffPickups, this.handleBuffPickup, undefined, this);
 
@@ -1111,6 +1186,11 @@ class MainScene extends Phaser.Scene {
       teslaEmitter: 0,
       beamCannon: 0,
       orbitalBeacon: 0,
+      sawLauncher: 0,
+      cryoMine: 0,
+      nanoSwarm: 0,
+      gravityWell: 0,
+      ionLance: 0,
     };
     this.weaponCooldowns = {
       attackDrone: 0,
@@ -1120,6 +1200,11 @@ class MainScene extends Phaser.Scene {
       teslaEmitter: 0,
       beamCannon: 0,
       orbitalBeacon: 0,
+      sawLauncher: 0,
+      cryoMine: 0,
+      nanoSwarm: 0,
+      gravityWell: 0,
+      ionLance: 0,
     };
     this.weaponVisuals = {};
     this.healDroneBusyUntil = 0;
@@ -1234,6 +1319,11 @@ class MainScene extends Phaser.Scene {
                 <li>电弧发生器：近距离连锁电击，完全体连锁目标更多。</li>
                 <li>聚束光炮：直线穿透，完全体射程和宽度提升。</li>
                 <li>轨道信标：锁定区域打击，完全体多段轨道落点。</li>
+                <li>回旋锯盘：穿行切割，完全体多锯盘高速扫场。</li>
+                <li>霜冻地雷：延时冰爆并减速，完全体范围和控制更强。</li>
+                <li>纳米蜂群：近距离多目标撕咬，完全体附带少量自修复。</li>
+                <li>重力井：牵引并压碎范围目标，完全体持续时间和范围提升。</li>
+                <li>离子长枪：高速贯穿打击，完全体双发并带小范围冲击。</li>
               </ul>
             </section>
             <section>
@@ -1263,6 +1353,7 @@ class MainScene extends Phaser.Scene {
               <ul>
                 <li>播报用于天气预警、召集、击败、载具结束、完全体等重要事件。</li>
                 <li>播报不会自动关闭；点击顶部播报右侧 x 才会关闭。</li>
+                <li>哨戒炮台是固定敌人，不会追击，但会缓慢发射子弹。</li>
                 <li>多人房间失败后不能复活，可以等待结算或点退出房间。</li>
               </ul>
             </section>
@@ -1481,7 +1572,7 @@ class MainScene extends Phaser.Scene {
   }
 
   private clearRunObjects() {
-    [this.enemies, this.projectiles, this.chests, this.vehiclePods, this.buffPickups].forEach((group) => {
+    [this.enemies, this.projectiles, this.enemyProjectiles, this.chests, this.vehiclePods, this.buffPickups].forEach((group) => {
       group?.clear(true, true);
     });
     Object.values(this.weaponVisuals).forEach((visual) => visual?.destroy());
@@ -2220,6 +2311,7 @@ class MainScene extends Phaser.Scene {
       this.handleUpgradeHotkeys();
     }
     this.updateProjectiles(delta);
+    this.updateEnemyProjectiles(delta);
     this.updateEnemies(deltaSeconds);
     this.updateSpawns();
     this.autoFire();
@@ -2486,6 +2578,19 @@ class MainScene extends Phaser.Scene {
       g.fillCircle(25, 24, 5);
     });
 
+    this.makeTexture('enemy-turret', 58, 58, (g) => {
+      g.fillStyle(0x10181b, 1);
+      g.fillCircle(29, 29, 21);
+      g.lineStyle(3, 0x9fffe0, 1);
+      g.strokeCircle(29, 29, 21);
+      g.fillStyle(0x263238, 1);
+      g.fillRoundedRect(25, 6, 8, 28, 3);
+      g.fillStyle(0xff6961, 1);
+      g.fillCircle(29, 29, 7);
+      g.lineStyle(2, 0xffd166, 0.8);
+      g.lineBetween(12, 46, 46, 46);
+    });
+
     this.makeTexture('enemy-boss', 96, 84, (g) => {
       g.fillStyle(0x241013, 1);
       g.fillRoundedRect(14, 12, 58, 56, 8);
@@ -2555,6 +2660,43 @@ class MainScene extends Phaser.Scene {
       g.fillEllipse(13, 7, 7, 4);
     });
 
+    this.makeTexture('shot-saw', 24, 24, (g) => {
+      g.fillStyle(0x1c2413, 1);
+      g.fillCircle(12, 12, 10);
+      g.lineStyle(2, 0xc9ff6a, 1);
+      g.strokeCircle(12, 12, 9);
+      g.fillStyle(0xc9ff6a, 1);
+      g.fillTriangle(12, 0, 16, 8, 8, 8);
+      g.fillTriangle(24, 12, 16, 16, 16, 8);
+      g.fillTriangle(12, 24, 8, 16, 16, 16);
+      g.fillTriangle(0, 12, 8, 8, 8, 16);
+      g.fillStyle(0x080b10, 1);
+      g.fillCircle(12, 12, 4);
+    });
+
+    this.makeTexture('shot-cryo', 22, 22, (g) => {
+      g.fillStyle(0x10202a, 1);
+      g.fillCircle(11, 11, 8);
+      g.lineStyle(2, 0x9ed7ff, 1);
+      g.strokeCircle(11, 11, 8);
+      g.lineBetween(11, 2, 11, 20);
+      g.lineBetween(2, 11, 20, 11);
+    });
+
+    this.makeTexture('shot-ion', 34, 8, (g) => {
+      g.fillStyle(0x64f5ff, 1);
+      g.fillRoundedRect(0, 2, 28, 4, 2);
+      g.fillStyle(0xe8f7f4, 1);
+      g.fillTriangle(25, 0, 34, 4, 25, 8);
+    });
+
+    this.makeTexture('enemy-bullet', 12, 12, (g) => {
+      g.fillStyle(0xff6961, 1);
+      g.fillCircle(6, 6, 5);
+      g.fillStyle(0xffd166, 0.9);
+      g.fillCircle(6, 6, 2);
+    });
+
     this.makeTexture('weapon-attack-drone', 34, 34, (g) => {
       g.fillStyle(0x10181e, 1);
       g.fillCircle(17, 17, 10);
@@ -2577,6 +2719,17 @@ class MainScene extends Phaser.Scene {
       g.fillRect(8, 15, 18, 4);
       g.lineStyle(2, 0x9fffe0, 0.75);
       g.strokeCircle(17, 17, 15);
+    });
+
+    this.makeTexture('weapon-swarm', 34, 34, (g) => {
+      g.fillStyle(0x22121d, 1);
+      g.fillCircle(17, 17, 10);
+      g.lineStyle(2, 0xff8bd1, 1);
+      g.strokeCircle(17, 17, 10);
+      g.fillStyle(0xff8bd1, 1);
+      g.fillCircle(11, 13, 3);
+      g.fillCircle(22, 16, 3);
+      g.fillCircle(16, 23, 3);
     });
 
     this.makeTexture('spark', 10, 10, (g) => {
@@ -2826,6 +2979,21 @@ class MainScene extends Phaser.Scene {
           break;
         case 'orbitalBeacon':
           this.updateOrbitalBeacon();
+          break;
+        case 'sawLauncher':
+          this.updateSawLauncher();
+          break;
+        case 'cryoMine':
+          this.updateCryoMine();
+          break;
+        case 'nanoSwarm':
+          this.updateNanoSwarm();
+          break;
+        case 'gravityWell':
+          this.updateGravityWell();
+          break;
+        case 'ionLance':
+          this.updateIonLance();
           break;
       }
     });
@@ -3278,6 +3446,180 @@ class MainScene extends Phaser.Scene {
       this.elapsedMs + Math.max(perfect ? 900 : 1200, (3600 - level * 320 - (perfect ? 360 : 0)) * this.getFireRateMultiplier());
   }
 
+  private updateSawLauncher() {
+    const level = this.getWeaponLevel('sawLauncher');
+    if (level <= 0 || this.elapsedMs < this.weaponCooldowns.sawLauncher) {
+      return;
+    }
+
+    const perfect = this.isWeaponPerfect('sawLauncher');
+    const target = this.findNearestTarget(this.targetRange + 110 + level * 42 + (perfect ? 160 : 0));
+    if (!target) {
+      return;
+    }
+
+    const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y, target.x, target.y);
+    const shots = perfect ? 3 : level >= 4 ? 2 : 1;
+    for (let i = 0; i < shots; i += 1) {
+      const offset = (i - (shots - 1) / 2) * 0.18;
+      this.spawnProjectileFrom({
+        x: this.player.x + Math.cos(angle + offset) * 30,
+        y: this.player.y + Math.sin(angle + offset) * 30,
+        angle: angle + offset,
+        texture: 'shot-saw',
+        damage: (16 + level * 12 + (perfect ? 20 : 0)) * this.getDamageMultiplier(),
+        projectileSpeed: 500 + level * 46 + (perfect ? 140 : 0),
+        ttl: perfect ? 1800 : 1450,
+        aoe: perfect ? 34 : 0,
+        scale: perfect ? 1.25 : 1,
+        tint: WEAPONS.sawLauncher.color,
+        trailColor: 0xc9ff6a,
+        impactColor: 0xc9ff6a,
+      });
+    }
+    this.weaponCooldowns.sawLauncher =
+      this.elapsedMs + Math.max(perfect ? 520 : 720, (1900 - level * 175 - (perfect ? 180 : 0)) * this.getFireRateMultiplier());
+  }
+
+  private updateCryoMine() {
+    const level = this.getWeaponLevel('cryoMine');
+    if (level <= 0 || this.elapsedMs < this.weaponCooldowns.cryoMine) {
+      return;
+    }
+
+    const perfect = this.isWeaponPerfect('cryoMine');
+    const target = this.findNearestTarget(this.targetRange + 120 + level * 40 + (perfect ? 160 : 0));
+    if (!target) {
+      return;
+    }
+
+    const radius = 76 + level * 20 + (perfect ? 54 : 0);
+    const damage = (20 + level * 16 + (perfect ? 28 : 0)) * this.getDamageMultiplier();
+    const marker = this.add
+      .circle(target.x, target.y, radius, WEAPONS.cryoMine.color, 0.1)
+      .setStrokeStyle(2, WEAPONS.cryoMine.color, 0.72)
+      .setDepth(33);
+    this.tweens.add({
+      targets: marker,
+      scale: 0.58,
+      yoyo: true,
+      repeat: perfect ? 2 : 1,
+      duration: 170,
+      ease: 'Sine.easeInOut',
+    });
+    this.time.delayedCall(perfect ? 330 : 460, () => {
+      marker.destroy();
+      this.splashDamage(target.x, target.y, radius, damage);
+      this.splashDamageRemotePlayers(target.x, target.y, radius, damage);
+      this.splashDamageChests(target.x, target.y, radius, damage * 0.5);
+      this.shockwave(target.x, target.y, radius, WEAPONS.cryoMine.color);
+      this.flashAt(target.x, target.y, WEAPONS.cryoMine.color, 16);
+      this.slowEnemiesInRadius(target.x, target.y, radius, perfect ? 0.42 : 0.58, perfect ? 2100 : 1400);
+    });
+    this.weaponCooldowns.cryoMine =
+      this.elapsedMs + Math.max(perfect ? 820 : 1050, (2600 - level * 230 - (perfect ? 260 : 0)) * this.getFireRateMultiplier());
+  }
+
+  private updateNanoSwarm() {
+    const level = this.getWeaponLevel('nanoSwarm');
+    if (level <= 0 || this.elapsedMs < this.weaponCooldowns.nanoSwarm) {
+      return;
+    }
+
+    const perfect = this.isWeaponPerfect('nanoSwarm');
+    const range = 180 + level * 44 + (perfect ? 160 : 0);
+    const targets = this.getTargetsInRange(range, perfect ? 8 : 2 + Math.floor(level / 2));
+    if (targets.length === 0) {
+      return;
+    }
+
+    targets.forEach((target, index) => {
+      const damage = (10 + level * 8 + (perfect ? 12 : 0)) * this.getDamageMultiplier() * Math.max(0.45, 1 - index * 0.08);
+      this.damageTarget(target, damage);
+      this.drawArcBolt(this.player.x, this.player.y, target.x, target.y, WEAPONS.nanoSwarm.color, perfect ? 2.4 : 1.5, 120);
+      this.flashAt(target.x, target.y, WEAPONS.nanoSwarm.color, perfect ? 8 : 5);
+    });
+    if (perfect) {
+      this.healPulse(this.player.x, this.player.y, 60);
+      this.hp = clamp(this.hp + targets.length * 1.8, 0, this.maxHp);
+    }
+    this.weaponCooldowns.nanoSwarm =
+      this.elapsedMs + Math.max(perfect ? 260 : 380, (1150 - level * 105 - (perfect ? 130 : 0)) * this.getFireRateMultiplier());
+  }
+
+  private updateGravityWell() {
+    const level = this.getWeaponLevel('gravityWell');
+    if (level <= 0 || this.elapsedMs < this.weaponCooldowns.gravityWell) {
+      return;
+    }
+
+    const perfect = this.isWeaponPerfect('gravityWell');
+    const target = this.findNearestTarget(this.targetRange + 170 + level * 40 + (perfect ? 180 : 0));
+    if (!target) {
+      return;
+    }
+
+    const radius = 115 + level * 26 + (perfect ? 70 : 0);
+    const duration = perfect ? 1350 : 900;
+    const well = this.add
+      .circle(target.x, target.y, radius, WEAPONS.gravityWell.color, 0.08)
+      .setStrokeStyle(perfect ? 4 : 3, WEAPONS.gravityWell.color, 0.8)
+      .setDepth(32);
+    this.tweens.add({
+      targets: well,
+      scale: 0.72,
+      alpha: 0.22,
+      yoyo: true,
+      repeat: 3,
+      duration: duration / 4,
+      ease: 'Sine.easeInOut',
+      onComplete: () => well.destroy(),
+    });
+    for (let tick = 0; tick < 4; tick += 1) {
+      this.time.delayedCall(tick * (duration / 4), () => {
+        this.pullAndDamageTargets(target.x, target.y, radius, (9 + level * 7 + (perfect ? 10 : 0)) * this.getDamageMultiplier());
+      });
+    }
+    this.weaponCooldowns.gravityWell =
+      this.elapsedMs + Math.max(perfect ? 1250 : 1600, (3900 - level * 310 - (perfect ? 360 : 0)) * this.getFireRateMultiplier());
+  }
+
+  private updateIonLance() {
+    const level = this.getWeaponLevel('ionLance');
+    if (level <= 0 || this.elapsedMs < this.weaponCooldowns.ionLance) {
+      return;
+    }
+
+    const perfect = this.isWeaponPerfect('ionLance');
+    const target = this.findNearestEnemyOrPlayer(this.targetRange + 310 + level * 62 + (perfect ? 240 : 0));
+    if (!target) {
+      return;
+    }
+
+    const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y, target.x, target.y);
+    const shots = perfect ? 2 : 1;
+    for (let i = 0; i < shots; i += 1) {
+      const offset = (i - (shots - 1) / 2) * 0.06;
+      this.spawnProjectileFrom({
+        x: this.player.x + Math.cos(angle + offset) * 34,
+        y: this.player.y + Math.sin(angle + offset) * 34,
+        angle: angle + offset,
+        texture: 'shot-ion',
+        damage: (42 + level * 28 + (perfect ? 42 : 0)) * this.getDamageMultiplier(),
+        projectileSpeed: 940 + level * 80 + (perfect ? 240 : 0),
+        ttl: perfect ? 1450 : 1180,
+        aoe: perfect ? 46 : 18,
+        scale: perfect ? 1.3 : 1.05,
+        tint: WEAPONS.ionLance.color,
+        trailColor: 0x64f5ff,
+        impactColor: 0xe8f7f4,
+      });
+    }
+    this.cameras.main.shake(perfect ? 90 : 55, perfect ? 0.0032 : 0.0018);
+    this.weaponCooldowns.ionLance =
+      this.elapsedMs + Math.max(perfect ? 760 : 980, (3000 - level * 260 - (perfect ? 280 : 0)) * this.getFireRateMultiplier());
+  }
+
   private spawnProjectile(angle: number, vehicle: VehicleSpec) {
     const color = this.getProjectileColor(vehicle.projectileTexture);
     this.spawnProjectileFrom({
@@ -3378,6 +3720,56 @@ class MainScene extends Phaser.Scene {
         }
       }
     });
+  }
+
+  private updateEnemyProjectiles(delta: number) {
+    this.enemyProjectiles.getChildren().forEach((rawProjectile) => {
+      const projectile = rawProjectile as Phaser.Physics.Arcade.Image;
+      if (!projectile.active) {
+        return;
+      }
+
+      const lastTrailAt = (projectile.getData('lastTrailAt') as number | undefined) ?? 0;
+      if (this.elapsedMs - lastTrailAt > 45) {
+        projectile.setData('lastTrailAt', this.elapsedMs);
+        const trail = this.add.circle(projectile.x, projectile.y, 4, 0xff6961, 0.35).setDepth(22);
+        this.tweens.add({
+          targets: trail,
+          alpha: 0,
+          scale: 2,
+          duration: 220,
+          ease: 'Sine.easeOut',
+          onComplete: () => trail.destroy(),
+        });
+      }
+
+      const ttl = (projectile.getData('ttl') as number) - delta;
+      projectile.setData('ttl', ttl);
+      if (
+        ttl <= 0 ||
+        projectile.x < -80 ||
+        projectile.x > WORLD_WIDTH + 80 ||
+        projectile.y < -80 ||
+        projectile.y > WORLD_HEIGHT + 80
+      ) {
+        projectile.destroy();
+      }
+    });
+  }
+
+  private handleEnemyProjectileHit(
+    _playerObject: ArcadeOverlapObject,
+    projectileObject: ArcadeOverlapObject,
+  ) {
+    const projectile = projectileObject as Phaser.Physics.Arcade.Image;
+    if (!projectile.active) {
+      return;
+    }
+
+    const damage = projectile.getData('damage') as number;
+    this.damagePlayer(damage, ENEMIES.turret.name);
+    this.flashAt(projectile.x, projectile.y, 0xff6961, 8);
+    projectile.destroy();
   }
 
   private explodeProjectile(projectile: Phaser.Physics.Arcade.Image) {
@@ -3482,6 +3874,19 @@ class MainScene extends Phaser.Scene {
       const decayRate = (distanceToPlayer > spec.noticeRadius ? spec.decay * 1.35 : spec.decay * 0.34) + fogCalm;
       aggro = clamp(aggro - decayRate * deltaSeconds, 0, 100);
       enemy.setData('aggro', aggro);
+
+      if (kind === 'turret') {
+        enemy.setVelocity(0, 0);
+        enemy.setRotation(Phaser.Math.Angle.Between(enemy.x, enemy.y, this.player.x, this.player.y));
+        if (aggro >= spec.chaseThreshold && distanceToPlayer <= spec.attackRange) {
+          hunterCount += 1;
+          this.turretAttack(enemy, spec);
+        }
+        enemy.setTint(this.getEnemyTint(enemy));
+        aggroTotal += aggro;
+        activeCount += 1;
+        return;
+      }
 
       if (aggro >= spec.chaseThreshold) {
         hunterCount += 1;
@@ -3728,7 +4133,14 @@ class MainScene extends Phaser.Scene {
   }
 
   private getEnemySpeed(enemy: Phaser.Physics.Arcade.Sprite, fallback: EnemySpec) {
-    return (enemy.getData('speed') as number | undefined) ?? fallback.speed;
+    const baseSpeed = (enemy.getData('speed') as number | undefined) ?? fallback.speed;
+    const slowUntil = (enemy.getData('slowUntil') as number | undefined) ?? 0;
+    if (this.elapsedMs >= slowUntil) {
+      enemy.setData('slowMultiplier', 1);
+      return baseSpeed;
+    }
+
+    return baseSpeed * ((enemy.getData('slowMultiplier') as number | undefined) ?? 1);
   }
 
   private patrol(
@@ -3813,6 +4225,51 @@ class MainScene extends Phaser.Scene {
     enemy.setData('aggro', clamp((enemy.getData('aggro') as number) + 9, 0, 100));
     this.damagePlayer(enemy.getData('damage') as number, spec.name);
     this.flashAt(enemy.x, enemy.y, 0xff6961, 5);
+  }
+
+  private turretAttack(enemy: Phaser.Physics.Arcade.Sprite, spec: EnemySpec) {
+    const nextAttackAt = (enemy.getData('nextAttackAt') as number | undefined) ?? 0;
+    if (this.elapsedMs < nextAttackAt) {
+      return;
+    }
+
+    enemy.setData('nextAttackAt', this.elapsedMs + spec.attackDelay);
+    const angle = Phaser.Math.Angle.Between(enemy.x, enemy.y, this.player.x, this.player.y);
+    const tier = enemy.getData('tier') as EnemyTier;
+    const shots = tier === 'red' ? 3 : tier === 'purple' ? 2 : 1;
+    for (let i = 0; i < shots; i += 1) {
+      const offset = (i - (shots - 1) / 2) * 0.14;
+      this.spawnEnemyProjectile(
+        enemy.x + Math.cos(angle + offset) * 28,
+        enemy.y + Math.sin(angle + offset) * 28,
+        angle + offset,
+        enemy.getData('damage') as number,
+        245 + shots * 20,
+      );
+    }
+    this.muzzleBurst(enemy.x, enemy.y, angle, 0xff6961);
+  }
+
+  private spawnEnemyProjectile(x: number, y: number, angle: number, damage: number, speed: number) {
+    const projectile = this.enemyProjectiles.get(x, y, 'enemy-bullet') as Phaser.Physics.Arcade.Image | null;
+    if (!projectile) {
+      return;
+    }
+
+    projectile
+      .setActive(true)
+      .setVisible(true)
+      .setDepth(31)
+      .setRotation(angle)
+      .setScale(1);
+    projectile.setData('damage', damage);
+    projectile.setData('ttl', 2800);
+    projectile.setData('lastTrailAt', this.elapsedMs);
+    const body = projectile.body as Phaser.Physics.Arcade.Body;
+    body.enable = true;
+    body.setAllowGravity(false);
+    body.setCircle(5);
+    body.setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
   }
 
   private damagePlayer(amount: number, defeatedBy = '未知单位') {
@@ -3997,6 +4454,45 @@ class MainScene extends Phaser.Scene {
       const falloff = 1 - distance / radius;
       this.damageChest(chest, damage * falloff);
     });
+  }
+
+  private slowEnemiesInRadius(x: number, y: number, radius: number, multiplier: number, durationMs: number) {
+    this.enemies.getChildren().forEach((rawEnemy) => {
+      const enemy = rawEnemy as Phaser.Physics.Arcade.Sprite;
+      if (!enemy.active || Phaser.Math.Distance.Between(x, y, enemy.x, enemy.y) > radius) {
+        return;
+      }
+
+      const currentMultiplier = (enemy.getData('slowMultiplier') as number | undefined) ?? 1;
+      enemy.setData('slowMultiplier', Math.min(currentMultiplier, multiplier));
+      enemy.setData('slowUntil', Math.max((enemy.getData('slowUntil') as number | undefined) ?? 0, this.elapsedMs + durationMs));
+      this.flashAt(enemy.x, enemy.y, WEAPONS.cryoMine.color, 5);
+    });
+  }
+
+  private pullAndDamageTargets(x: number, y: number, radius: number, damage: number) {
+    this.enemies.getChildren().forEach((rawEnemy) => {
+      const enemy = rawEnemy as Phaser.Physics.Arcade.Sprite;
+      if (!enemy.active) {
+        return;
+      }
+
+      const distance = Phaser.Math.Distance.Between(x, y, enemy.x, enemy.y);
+      if (distance > radius) {
+        return;
+      }
+
+      const angle = Phaser.Math.Angle.Between(enemy.x, enemy.y, x, y);
+      const pull = clamp(1 - distance / radius, 0.2, 1);
+      enemy.x += Math.cos(angle) * 24 * pull;
+      enemy.y += Math.sin(angle) * 24 * pull;
+      this.damageEnemy(enemy, damage * pull);
+    });
+
+    this.getHostilePlayerTargets(radius, x, y).forEach((target) => {
+      this.damageRemotePlayer(target, damage * 0.75);
+    });
+    this.shockwave(x, y, radius * 0.42, WEAPONS.gravityWell.color);
   }
 
   private damageRemotePlayer(target: RemotePlayerTarget, damage: number) {
@@ -4478,6 +4974,8 @@ class MainScene extends Phaser.Scene {
     enemy.setData('nextAttackAt', 0);
     enemy.setData('patrolTimeout', 0);
     enemy.setData('nextSkillAt', this.elapsedMs + Phaser.Math.Between(2400, 5200));
+    enemy.setData('slowMultiplier', 1);
+    enemy.setData('slowUntil', 0);
 
     if (kind === 'boss') {
       enemy.setData('isBoss', true);
@@ -4494,6 +4992,10 @@ class MainScene extends Phaser.Scene {
 
     const body = enemy.body as Phaser.Physics.Arcade.Body;
     body.setAllowGravity(false);
+    if (kind === 'turret') {
+      body.setImmovable(true);
+      body.setSize(48, 48, true);
+    }
     body.setSize(
       Math.max(20, enemy.width * (kind === 'boss' ? 0.82 : 0.72)),
       Math.max(20, enemy.height * (kind === 'boss' ? 0.82 : 0.72)),
@@ -4574,16 +5076,18 @@ class MainScene extends Phaser.Scene {
       if (roll < 30) return 'drone';
       if (roll < 58) return 'stalker';
       if (roll < 74) return 'mender';
-      if (roll < 88) return 'sniper';
+      if (roll < 84) return 'sniper';
+      if (roll < 92) return 'turret';
       return 'warden';
     }
 
     if (roll < 18) return 'drone';
     if (roll < 40) return 'stalker';
     if (roll < 56) return 'mender';
-    if (roll < 72) return 'sniper';
-    if (roll < 88) return 'bomber';
-    if (roll < 96) return 'warden';
+    if (roll < 69) return 'sniper';
+    if (roll < 80) return 'turret';
+    if (roll < 90) return 'bomber';
+    if (roll < 97) return 'warden';
     return 'crusher';
   }
 
