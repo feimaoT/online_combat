@@ -487,6 +487,32 @@ io.on('connection', (socket) => {
     });
   });
 
+  socket.on('player:damage', (payload = {}) => {
+    const room = rooms.get(socket.data.roomId);
+    const attacker = room?.players.get(socket.id);
+    if (!room || !attacker || !attacker.alive) {
+      return;
+    }
+
+    const targetSocketId = String(payload.targetSocketId || '');
+    const target = room.players.get(targetSocketId);
+    if (!target || !target.alive || target.teamKey === attacker.teamKey) {
+      return;
+    }
+
+    const amount = clampNumber(payload.amount, 0, 500);
+    if (amount <= 0) {
+      return;
+    }
+
+    io.to(targetSocketId).emit('player:damage-applied', {
+      amount,
+      attackerSocketId: socket.id,
+      attackerName: attacker.name,
+      attackerTeamKey: attacker.teamKey,
+    });
+  });
+
   socket.on('score:add', (payload = {}) => {
     const room = rooms.get(socket.data.roomId);
     const player = room?.players.get(socket.id);

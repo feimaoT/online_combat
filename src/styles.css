@@ -67,6 +67,25 @@ canvas {
   cursor: pointer;
 }
 
+.exit-button {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 18;
+  height: 42px;
+  border: 1px solid rgba(255, 105, 97, 0.78);
+  border-radius: 6px;
+  background: rgba(31, 17, 20, 0.94);
+  color: #ffe4e1;
+  padding: 0 16px;
+  font: 800 14px Inter, "Segoe UI", sans-serif;
+  cursor: pointer;
+}
+
+.exit-button:hover {
+  background: rgba(50, 24, 28, 0.96);
+}
+
 .online-panel {
   position: fixed;
   left: 24px;
@@ -196,6 +215,13 @@ canvas {
   padding: 22px 24px 14px;
 }
 
+.lobby-actions,
+.guide-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .lobby-title {
   font-size: 26px;
   font-weight: 800;
@@ -234,6 +260,60 @@ canvas {
 
 .lobby-status {
   padding: 0 24px 12px;
+}
+
+.lobby-guide {
+  margin: 0 24px 16px;
+  border: 1px solid rgba(159, 255, 224, 0.22);
+  border-radius: 8px;
+  background: rgba(8, 11, 16, 0.96);
+  overflow: hidden;
+}
+
+.guide-head {
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(159, 255, 224, 0.12);
+}
+
+.guide-title {
+  font-weight: 800;
+  color: #ffda8a;
+}
+
+.guide-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  max-height: min(390px, 45vh);
+  overflow: auto;
+  padding: 14px;
+}
+
+.guide-grid section {
+  min-width: 0;
+}
+
+.guide-grid h3 {
+  margin: 0 0 7px;
+  color: #9fffe0;
+  font-size: 15px;
+}
+
+.guide-grid p,
+.guide-grid ul {
+  margin: 0;
+  color: #c5d8d4;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.guide-grid ul {
+  padding-left: 18px;
+}
+
+.guide-grid li + li {
+  margin-top: 3px;
 }
 
 .lobby-rooms {
@@ -320,13 +400,25 @@ canvas {
   .lobby-head,
   .lobby-row,
   .lobby-team,
+  .lobby-guide,
   .lobby-status,
   .lobby-rooms {
     padding-left: 14px;
     padding-right: 14px;
   }
 
+  .lobby-guide {
+    margin-left: 14px;
+    margin-right: 14px;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
   .lobby-team {
+    grid-template-columns: 1fr;
+  }
+
+  .guide-grid {
     grid-template-columns: 1fr;
   }
 
@@ -350,6 +442,13 @@ canvas {
   .online-button {
     left: 12px;
     bottom: 68px;
+    min-width: 112px;
+    height: 46px;
+  }
+
+  .exit-button {
+    right: 12px;
+    bottom: 12px;
     min-width: 112px;
     height: 46px;
   }
