@@ -37,12 +37,25 @@ type VehicleKey =
   | 'buggy'
   | 'laserVan'
   | 'flameRig';
-type EnemyKind = 'drone' | 'stalker' | 'warden' | 'crusher' | 'mender' | 'sniper' | 'bomber' | 'turret' | 'boss';
+type EnemyKind =
+  | 'drone'
+  | 'stalker'
+  | 'warden'
+  | 'crusher'
+  | 'mender'
+  | 'sniper'
+  | 'bomber'
+  | 'turret'
+  | 'raider'
+  | 'mortar'
+  | 'shielder'
+  | 'spark'
+  | 'boss';
 type EnemyTier = 'white' | 'green' | 'blue' | 'purple' | 'red';
 type TeamKey = 'A' | 'B' | 'C';
 type UpgradeKey = 'damage' | 'rate' | 'speed' | 'armor' | 'magnet';
 type BuffKey = 'overclock' | 'rapid' | 'barrier' | 'regen';
-type WeatherKey = 'sunny' | 'wind' | 'snow' | 'fog' | 'storm';
+type WeatherKey = 'sunny' | 'wind' | 'snow' | 'fog' | 'storm' | 'heat' | 'meteor';
 type WeaponKey =
   | 'attackDrone'
   | 'healDrone'
@@ -163,6 +176,8 @@ interface RangeKeys {
 interface PublicRoom {
   id: string;
   name: string;
+  mode?: 'normal' | 'battleRoyale';
+  modeName?: string;
   round: number;
   players: number;
   maxPlayers: number;
@@ -170,9 +185,21 @@ interface PublicRoom {
   teamCounts: Record<string, number>;
   remainingMs: number;
   nextInvasionMs: number;
+  battleRoyaleZone?: BattleRoyaleZone;
   scores: Record<string, number>;
   joinLocked?: boolean;
   ended: boolean;
+}
+
+interface BattleRoyaleZone {
+  centerX: number;
+  centerY: number;
+  radius: number;
+  initialRadius: number;
+  minRadius: number;
+  shrinkStartsAtMs: number;
+  shrinkDurationMs: number;
+  outsideIsLethal: boolean;
 }
 
 interface NetworkPlayer {
@@ -600,6 +627,74 @@ const ENEMIES: Record<EnemyKind, EnemySpec> = {
     patrolRadius: 0,
     tint: 0x9fffe0,
   },
+  raider: {
+    name: '狂暴突击兵',
+    texture: 'enemy-raider',
+    hp: 64,
+    speed: 164,
+    damage: 13,
+    xp: 11,
+    noticeRadius: 430,
+    chaseThreshold: 30,
+    attackRange: 36,
+    attackDelay: 520,
+    proximityGain: 30,
+    noiseMultiplier: 0.92,
+    decay: 6,
+    patrolRadius: 330,
+    tint: 0xff5a76,
+  },
+  mortar: {
+    name: '迫击炮机',
+    texture: 'enemy-mortar',
+    hp: 132,
+    speed: 54,
+    damage: 18,
+    xp: 22,
+    noticeRadius: 620,
+    chaseThreshold: 26,
+    attackRange: 560,
+    attackDelay: 1650,
+    proximityGain: 16,
+    noiseMultiplier: 0.8,
+    decay: 4,
+    patrolRadius: 260,
+    tint: 0xffd166,
+  },
+  shielder: {
+    name: '护盾步兵',
+    texture: 'enemy-shielder',
+    hp: 168,
+    speed: 82,
+    damage: 15,
+    xp: 21,
+    noticeRadius: 390,
+    chaseThreshold: 42,
+    attackRange: 46,
+    attackDelay: 820,
+    proximityGain: 18,
+    noiseMultiplier: 0.68,
+    decay: 5,
+    patrolRadius: 250,
+    tint: 0x9ed7ff,
+  },
+  spark: {
+    name: '电磁浮雷',
+    texture: 'enemy-spark',
+    hp: 76,
+    speed: 118,
+    damage: 17,
+    xp: 15,
+    noticeRadius: 470,
+    chaseThreshold: 34,
+    attackRange: 72,
+    attackDelay: 1180,
+    proximityGain: 24,
+    noiseMultiplier: 0.86,
+    decay: 5,
+    patrolRadius: 300,
+    tint: 0xba7cff,
+  },
   boss: {
     name: '橙色歼灭者',
     texture: 'enemy-boss',
@@ -832,8 +927,16 @@ const WEATHER_SPECS: Record<WeatherKey, WeatherSpec> = {
     name: '雷雨',
     announce: '雷雨将至，注意躲避落雷',
   },
+  heat: {
+    name: '高温',
+    announce: '高温将至，武器冷却变慢但火力提升',
+  },
+  meteor: {
+    name: '流星雨',
+    announce: '流星雨将至，注意地面冲击预警',
+  },
 };
-const WEATHER_KEYS: Exclude<WeatherKey, 'sunny'>[] = ['wind', 'snow', 'fog', 'storm'];
+const WEATHER_KEYS: Exclude<WeatherKey, 'sunny'>[] = ['wind', 'snow', 'fog', 'storm', 'heat', 'meteor'];
 const WEATHER_NOTICE_MS = 10000;
 const WEATHER_MAX_DURATION_MS = 60000;
 
@@ -854,6 +957,7 @@ class MainScene extends Phaser.Scene {
   private upgradeHotkeys: Phaser.Input.Keyboard.Key[] = [];
   private hud!: Phaser.GameObjects.Graphics;
   private weatherOverlay!: Phaser.GameObjects.Graphics;
+  private battleZoneGraphics!: Phaser.GameObjects.Graphics;
   private targetRing!: Phaser.GameObjects.Graphics;
   private enemyHud!: Phaser.GameObjects.Graphics;
   private hudText!: Phaser.GameObjects.Text;
@@ -867,6 +971,7 @@ class MainScene extends Phaser.Scene {
   private lobbyStatusEl?: HTMLDivElement;
   private playerNameInput?: HTMLInputElement;
   private latestRooms: PublicRoom[] = [];
+  private currentRoom?: PublicRoom;
   private localUserId = '';
   private localSocketId = '';
   private isInMultiplayerRoom = false;
@@ -890,7 +995,12 @@ class MainScene extends Phaser.Scene {
   private onlineButton?: HTMLButtonElement;
   private exitButton?: HTMLButtonElement;
   private mobileControls?: HTMLDivElement;
+  private joystick?: HTMLDivElement;
+  private joystickKnob?: HTMLDivElement;
+  private joystickPointerId?: number;
+  private joystickVector = new Phaser.Math.Vector2(0, 0);
   private onlinePanel?: HTMLDivElement;
+  private gameOverPanel?: HTMLDivElement;
   private moveTarget?: Phaser.Math.Vector2;
   private lastDefeatedBy = '未知单位';
   private weaponSlots: WeaponKey[] = [];
@@ -983,15 +1093,18 @@ class MainScene extends Phaser.Scene {
   private lastAimAngle = 0;
   private nextEngineTrailAt = 0;
   private upgradeChoiceExpiresAt = 0;
-  private upgradeCountdownText?: Phaser.GameObjects.Text;
+  private upgradeCountdownEl?: HTMLDivElement;
   private currentWeather: WeatherKey = 'sunny';
   private pendingWeather?: PendingWeather;
   private weatherActiveUntil = 0;
   private nextWeatherDecisionAt = 0;
   private nextLightningAt = 0;
+  private nextMeteorAt = 0;
   private lightningStrikes: LightningStrike[] = [];
   private snowSlideX = 0;
   private snowSlideY = 0;
+  private lastBattleZoneWarningAt = -10000;
+  private audioContext?: AudioContext;
 
   constructor() {
     super('main');
@@ -1038,6 +1151,7 @@ class MainScene extends Phaser.Scene {
     ].map((keyCode) => this.input.keyboard!.addKey(keyCode));
 
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      this.ensureAudioContext();
       if (this.isChoosingUpgrade || this.isGameOver || !this.isInMultiplayerRoom) {
         return;
       }
@@ -1070,6 +1184,7 @@ class MainScene extends Phaser.Scene {
 
     this.weatherOverlay = this.add.graphics().setScrollFactor(0).setDepth(850);
     this.hud = this.add.graphics().setScrollFactor(0).setDepth(900);
+    this.battleZoneGraphics = this.add.graphics().setDepth(6);
     this.targetRing = this.add.graphics().setDepth(7);
     this.enemyHud = this.add.graphics().setDepth(60);
     this.hudText = this.add
@@ -1155,20 +1270,25 @@ class MainScene extends Phaser.Scene {
     this.lastAimAngle = 0;
     this.nextEngineTrailAt = 0;
     this.upgradeChoiceExpiresAt = 0;
-    this.upgradeCountdownText = undefined;
+    this.upgradeCountdownEl = undefined;
     this.currentWeather = 'sunny';
     this.pendingWeather = undefined;
     this.weatherActiveUntil = 0;
     this.nextWeatherDecisionAt = Phaser.Math.Between(18000, 42000);
     this.nextLightningAt = 0;
+    this.nextMeteorAt = 0;
     this.lightningStrikes = [];
     this.snowSlideX = 0;
     this.snowSlideY = 0;
+    this.lastBattleZoneWarningAt = -10000;
     this.moveTarget = undefined;
+    this.joystickVector.set(0, 0);
     this.lastDefeatedBy = '未知单位';
     this.currentUpgradeChoices = [];
     this.upgradePanel?.remove();
     this.upgradePanel = undefined;
+    this.gameOverPanel?.remove();
+    this.gameOverPanel = undefined;
     this.hideAnnouncement();
     this.weaponSlots = [];
     this.weaponLevels = {
@@ -1232,6 +1352,7 @@ class MainScene extends Phaser.Scene {
     });
     this.socket.on('room:state', (state: RoomState) => {
       this.latestRoomState = state;
+      this.currentRoom = state.room;
       this.roomStateSyncedAt = this.elapsedMs;
       this.syncRemotePlayers(state.players);
       const localPlayer = state.players.find((player) => player.socketId === this.localSocketId);
@@ -1251,6 +1372,9 @@ class MainScene extends Phaser.Scene {
     this.socket.on('room:invasion', (payload: { wave: number }) => {
       this.handleInvasionWave(payload.wave);
     });
+    this.socket.on('room:rampage', (payload: { wave: number }) => {
+      this.handleRampageWave(payload.wave);
+    });
     this.socket.on('room:player-joined', (payload: { message?: string; player?: NetworkPlayer }) => {
       this.showJoinMessage(payload);
     });
@@ -1268,6 +1392,9 @@ class MainScene extends Phaser.Scene {
     });
     this.socket.on('player:damage-applied', (payload: { amount: number; attackerName?: string }) => {
       this.applyRemotePlayerDamage(payload.amount, payload.attackerName);
+    });
+    this.socket.on('battle:zone-kill', (payload: { defeatedBy?: string }) => {
+      this.executeLocalPlayer(payload.defeatedBy || '缩圈闪电');
     });
     this.socket.on(
       'room:end',
@@ -1290,7 +1417,7 @@ class MainScene extends Phaser.Scene {
         <div class="lobby-head">
           <div>
             <div class="lobby-title">机械战区</div>
-            <div class="lobby-subtitle">固定 5 个战区。选择 A / B / C 阵营，10 分钟结算后自动开新局。</div>
+            <div class="lobby-subtitle">固定 3 个战区。1、2 房是普通模式，3 房是大逃杀缩圈模式。选择 A / B / C 阵营，15 分钟结算后自动开新局。</div>
           </div>
           <div class="lobby-actions">
             <button class="lobby-guide-toggle" type="button">攻略</button>
@@ -1450,15 +1577,16 @@ class MainScene extends Phaser.Scene {
       const info = document.createElement('div');
       const title = document.createElement('div');
       title.className = 'lobby-room-title';
-      title.textContent = room.name;
+      title.textContent = `${room.name} · ${room.modeName || '普通模式'}`;
       const meta = document.createElement('div');
       meta.className = 'lobby-room-meta';
       const scores = TEAM_OPTIONS.map((team) => `${team.key}:${room.scores[team.key] ?? 0}`).join('  ');
       const teams = TEAM_OPTIONS.map((team) => `${team.key}${room.teamCounts?.[team.key] ?? 0}`).join(' / ');
       const capacityText = room.unlimitedPlayers ? `${room.players}/不限` : `${room.players}/${room.maxPlayers}`;
+      const zoneText = room.battleRoyaleZone ? `   安全圈 ${Math.round(room.battleRoyaleZone.radius)}m` : '';
       meta.textContent = `第 ${room.round} 局   真人 ${capacityText}   剩余 ${this.formatClock(
         room.remainingMs,
-      )}   入侵 ${this.formatClock(room.nextInvasionMs)}   ${teams}   ${scores}`;
+      )}   入侵 ${this.formatClock(room.nextInvasionMs)}${zoneText}   ${teams}   ${scores}`;
       info.append(title, meta);
 
       const join = document.createElement('button');
@@ -1558,6 +1686,7 @@ class MainScene extends Phaser.Scene {
 
     this.isInMultiplayerRoom = true;
     this.joinedRoomId = room.id;
+    this.currentRoom = room;
     this.localSocketId = player.socketId;
     this.localTeamKey = player.teamKey;
     this.localTeamName = player.teamName;
@@ -1598,6 +1727,7 @@ class MainScene extends Phaser.Scene {
     this.remotePlayers.clear();
     this.enemyHud?.clear();
     this.targetRing?.clear();
+    this.battleZoneGraphics?.clear();
     this.weatherOverlay?.clear();
   }
 
@@ -1645,6 +1775,48 @@ class MainScene extends Phaser.Scene {
     return Math.max(0, this.latestRoomState.remainingMs - (this.elapsedMs - this.roomStateSyncedAt));
   }
 
+  private getBattleRoyaleZone() {
+    return this.latestRoomState?.room.battleRoyaleZone ?? this.currentRoom?.battleRoyaleZone;
+  }
+
+  private isBattleRoyaleRoom() {
+    return (this.latestRoomState?.room.mode ?? this.currentRoom?.mode) === 'battleRoyale';
+  }
+
+  private getBattleRoyaleZoneStatus() {
+    if (!this.isBattleRoyaleRoom()) {
+      return '';
+    }
+
+    const zone = this.getBattleRoyaleZone();
+    if (!zone) {
+      return '';
+    }
+
+    const distance = Phaser.Math.Distance.Between(this.player.x, this.player.y, zone.centerX, zone.centerY);
+    const margin = Math.round(zone.radius - distance);
+    return margin >= 0 ? `安全圈 ${Math.round(zone.radius)} 余 ${margin}` : `圈外 ${Math.abs(margin)}`;
+  }
+
+  private updateBattleRoyaleZone() {
+    const zone = this.getBattleRoyaleZone();
+    if (!zone || !zone.outsideIsLethal || this.isGameOver) {
+      return;
+    }
+
+    const distance = Phaser.Math.Distance.Between(this.player.x, this.player.y, zone.centerX, zone.centerY);
+    const margin = zone.radius - distance;
+    if (margin <= 0) {
+      this.executeLocalPlayer('缩圈闪电');
+      return;
+    }
+
+    if (margin < 220 && this.elapsedMs - this.lastBattleZoneWarningAt > 3500) {
+      this.lastBattleZoneWarningAt = this.elapsedMs;
+      this.showAnnouncement(`安全圈边缘 ${Math.round(margin)}m，圈外会被闪电击败`, 2600);
+    }
+  }
+
   private sendNetworkState() {
     if (!this.socket?.connected || !this.isInMultiplayerRoom) {
       return;
@@ -1680,6 +1852,7 @@ class MainScene extends Phaser.Scene {
 
     this.invasionMessage = `第 ${wave} 波高仇恨入侵`;
     this.invasionMessageUntil = Number.POSITIVE_INFINITY;
+    this.playCue('rampage');
 
     const count = clamp(8 + wave * 3, 8, 26);
     for (let i = 0; i < count; i += 1) {
@@ -1692,6 +1865,30 @@ class MainScene extends Phaser.Scene {
     }
 
     this.addThreatNoise(this.player.x, this.player.y, 90, 1000);
+  }
+
+  private handleRampageWave(wave: number) {
+    if (!this.isInMultiplayerRoom || this.isGameOver) {
+      return;
+    }
+
+    this.invasionMessage = `狂暴小兵来袭 ${wave}`;
+    this.invasionMessageUntil = Number.POSITIVE_INFINITY;
+    this.playCue('rampage');
+
+    const count = clamp(10 + wave * 2, 10, 32);
+    const kinds: EnemyKind[] = ['raider', 'spark', 'stalker', 'mortar', 'shielder'];
+    for (let i = 0; i < count; i += 1) {
+      const kind = kinds[i % kinds.length];
+      const tier: EnemyTier = wave >= 6 && i % 6 === 0 ? 'red' : wave >= 3 && i % 4 === 0 ? 'purple' : 'blue';
+      const enemy = this.spawnEnemy(kind, tier);
+      enemy.setData('aggro', 100);
+      enemy.setData('anchorX', this.player.x);
+      enemy.setData('anchorY', this.player.y);
+      enemy.setData('rampage', true);
+    }
+
+    this.addThreatNoise(this.player.x, this.player.y, 110, 1180);
   }
 
   private showJoinMessage(payload: { message?: string; player?: NetworkPlayer; name?: string; teamKey?: string; teamName?: string }) {
@@ -1747,6 +1944,9 @@ class MainScene extends Phaser.Scene {
     if (this.currentWeather === 'storm') {
       this.updateStorm(deltaSeconds);
     }
+    if (this.currentWeather === 'meteor') {
+      this.updateMeteor();
+    }
 
     this.drawWeatherEffects();
   }
@@ -1758,6 +1958,10 @@ class MainScene extends Phaser.Scene {
     if (weather.key === 'storm') {
       this.nextLightningAt = this.elapsedMs + Phaser.Math.Between(1200, 2600);
     }
+    if (weather.key === 'meteor') {
+      this.nextMeteorAt = this.elapsedMs + Phaser.Math.Between(1600, 3200);
+    }
+    this.playCue('weather');
   }
 
   private endWeather() {
@@ -1765,6 +1969,7 @@ class MainScene extends Phaser.Scene {
     this.weatherActiveUntil = 0;
     this.nextWeatherDecisionAt = this.elapsedMs + Phaser.Math.Between(22000, 52000);
     this.nextLightningAt = 0;
+    this.nextMeteorAt = 0;
     this.snowSlideX = 0;
     this.snowSlideY = 0;
     this.showAnnouncement(WEATHER_SPECS.sunny.announce, 2200);
@@ -1777,6 +1982,65 @@ class MainScene extends Phaser.Scene {
 
     this.nextLightningAt = this.elapsedMs + Phaser.Math.Between(2200, 4200);
     this.createLightningStrike();
+  }
+
+  private updateMeteor() {
+    if (this.elapsedMs < this.nextMeteorAt) {
+      return;
+    }
+
+    this.nextMeteorAt = this.elapsedMs + Phaser.Math.Between(2600, 5200);
+    this.createMeteorStrike();
+  }
+
+  private createMeteorStrike() {
+    const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
+    const distance = Phaser.Math.Between(120, 360);
+    const x = clamp(this.player.x + Math.cos(angle) * distance, 70, WORLD_WIDTH - 70);
+    const y = clamp(this.player.y + Math.sin(angle) * distance, 70, WORLD_HEIGHT - 70);
+    const radius = Phaser.Math.Between(84, 118);
+    const strike: LightningStrike = { x, y, radius };
+
+    const warning = this.add
+      .circle(x, y, radius, 0xff6961, 0.1)
+      .setStrokeStyle(3, 0xff6961, 0.82)
+      .setDepth(64);
+    this.tweens.add({
+      targets: warning,
+      scale: 0.42,
+      alpha: 0.76,
+      yoyo: true,
+      repeat: 2,
+      duration: 190,
+      ease: 'Sine.easeInOut',
+      onComplete: () => warning.destroy(),
+    });
+    this.time.delayedCall(1150, () => this.resolveMeteorStrike(strike));
+  }
+
+  private resolveMeteorStrike(strike: LightningStrike) {
+    if (!this.isInMultiplayerRoom || this.isGameOver) {
+      return;
+    }
+
+    const meteor = this.add.circle(strike.x - 80, strike.y - 280, 14, 0xffd166, 0.92).setDepth(83);
+    this.tweens.add({
+      targets: meteor,
+      x: strike.x,
+      y: strike.y,
+      duration: 140,
+      ease: 'Cubic.easeIn',
+      onComplete: () => meteor.destroy(),
+    });
+    this.shockwave(strike.x, strike.y, strike.radius, 0xff6961);
+    this.flashAt(strike.x, strike.y, 0xffd166, 18);
+    this.splashDamage(strike.x, strike.y, strike.radius, 46);
+    this.splashDamageChests(strike.x, strike.y, strike.radius, 28);
+
+    const distance = Phaser.Math.Distance.Between(this.player.x, this.player.y, strike.x, strike.y);
+    if (distance <= strike.radius) {
+      this.damagePlayer(42, '流星冲击');
+    }
   }
 
   private createLightningStrike() {
@@ -1898,6 +2162,29 @@ class MainScene extends Phaser.Scene {
         this.weatherOverlay.fillStyle(0xcfefff, 0.11);
         this.weatherOverlay.fillRect(0, 0, width, height);
       }
+      return;
+    }
+
+    if (this.currentWeather === 'heat') {
+      this.weatherOverlay.fillStyle(0x3a1608, 0.14);
+      this.weatherOverlay.fillRect(0, 0, width, height);
+      this.weatherOverlay.lineStyle(2, 0xffd166, 0.16);
+      for (let i = 0; i < 18; i += 1) {
+        const y = ((i * 41 + t * 0.026) % (height + 60)) - 30;
+        this.weatherOverlay.lineBetween(0, y + Math.sin(t / 450 + i) * 4, width, y + Math.sin(t / 530 + i) * 4);
+      }
+      return;
+    }
+
+    if (this.currentWeather === 'meteor') {
+      this.weatherOverlay.fillStyle(0x180b10, 0.16);
+      this.weatherOverlay.fillRect(0, 0, width, height);
+      this.weatherOverlay.lineStyle(2, 0xffd166, 0.22);
+      for (let i = 0; i < 18; i += 1) {
+        const x = ((i * 113 + t * 0.42) % (width + 160)) - 80;
+        const y = ((i * 71 + t * 0.22) % (height + 160)) - 80;
+        this.weatherOverlay.lineBetween(x, y, x - 46, y - 82);
+      }
     }
   }
 
@@ -1934,7 +2221,7 @@ class MainScene extends Phaser.Scene {
           .setDepth(22);
         const crown = this.add
           .text(player.x, player.y - 62, '', {
-            fontFamily: 'Inter, "Segoe UI", sans-serif',
+            fontFamily: '"Segoe UI Emoji", "Apple Color Emoji", Inter, "Segoe UI", sans-serif',
             fontSize: '12px',
             color: '#ffd166',
           })
@@ -1955,7 +2242,7 @@ class MainScene extends Phaser.Scene {
       view.label.setPosition(player.x, player.y - 42);
       view.label.setColor(player.teamKey === this.localTeamKey ? '#9fffe0' : '#ffb4ae');
       view.label.setVisible(player.alive);
-      view.crown.setText(player.crown ? `皇冠${Math.min(9, player.crown)}` : '');
+      view.crown.setText(player.crown ? `👑${Math.min(9, player.crown)}` : '');
       view.crown.setPosition(player.x, player.y - 62);
       view.crown.setVisible(player.alive && Boolean(player.crown));
     });
@@ -1987,7 +2274,7 @@ class MainScene extends Phaser.Scene {
       return;
     }
 
-    const text = `皇冠${Math.min(9, this.localCrown)}`;
+    const text = `👑${Math.min(9, this.localCrown)}`;
     if (existing) {
       existing.setText(text);
       existing.setPosition(this.player.x, this.player.y - 58);
@@ -1997,11 +2284,11 @@ class MainScene extends Phaser.Scene {
 
     this.add
       .text(this.player.x, this.player.y - 58, text, {
-        fontFamily: 'Inter, "Segoe UI", sans-serif',
+        fontFamily: '"Segoe UI Emoji", "Apple Color Emoji", Inter, "Segoe UI", sans-serif',
         fontSize: '14px',
         color: '#ffda8a',
         stroke: '#050709',
-        strokeThickness: 3,
+        strokeThickness: 2,
       })
       .setName('local-crown-readout')
       .setOrigin(0.5)
@@ -2089,6 +2376,7 @@ class MainScene extends Phaser.Scene {
     if (!this.isInMultiplayerRoom) {
       this.mobileControls?.remove();
       this.mobileControls = undefined;
+      this.removeJoystick();
       return;
     }
 
@@ -2098,7 +2386,7 @@ class MainScene extends Phaser.Scene {
 
       const landscape = document.createElement('button');
       landscape.type = 'button';
-      landscape.textContent = '横屏';
+      landscape.textContent = '横屏全屏';
       landscape.addEventListener('click', () => this.requestLandscapeMode());
 
       const decrease = document.createElement('button');
@@ -2115,26 +2403,163 @@ class MainScene extends Phaser.Scene {
       document.body.appendChild(panel);
       this.mobileControls = panel;
     }
+    this.syncJoystick();
+  }
+
+  private syncJoystick() {
+    if (!this.isInMultiplayerRoom || this.isGameOver) {
+      this.removeJoystick();
+      return;
+    }
+
+    if (this.joystick) {
+      return;
+    }
+
+    const joystick = document.createElement('div');
+    joystick.className = 'virtual-joystick';
+    const base = document.createElement('div');
+    base.className = 'virtual-joystick-base';
+    const knob = document.createElement('div');
+    knob.className = 'virtual-joystick-knob';
+    joystick.append(base, knob);
+
+    const updateJoystick = (event: PointerEvent) => {
+      const rect = joystick.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      const maxDistance = rect.width * 0.34;
+      const rawX = event.clientX - centerX;
+      const rawY = event.clientY - centerY;
+      const distance = Math.hypot(rawX, rawY);
+      const scale = distance > maxDistance ? maxDistance / distance : 1;
+      const x = rawX * scale;
+      const y = rawY * scale;
+      this.joystickVector.set(x / maxDistance, y / maxDistance);
+      knob.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`;
+    };
+
+    const resetJoystick = () => {
+      this.joystickPointerId = undefined;
+      this.joystickVector.set(0, 0);
+      knob.style.transform = 'translate(-50%, -50%)';
+    };
+
+    joystick.addEventListener('pointerdown', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      this.ensureAudioContext();
+      this.joystickPointerId = event.pointerId;
+      joystick.setPointerCapture(event.pointerId);
+      updateJoystick(event);
+    });
+    joystick.addEventListener('pointermove', (event) => {
+      if (event.pointerId !== this.joystickPointerId) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      updateJoystick(event);
+    });
+    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((eventName) => {
+      joystick.addEventListener(eventName, (event) => {
+        const pointerEvent = event as PointerEvent;
+        if (pointerEvent.pointerId !== undefined && pointerEvent.pointerId !== this.joystickPointerId) {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        resetJoystick();
+      });
+    });
+
+    document.body.appendChild(joystick);
+    this.joystick = joystick;
+    this.joystickKnob = knob;
+  }
+
+  private removeJoystick() {
+    this.joystick?.remove();
+    this.joystick = undefined;
+    this.joystickKnob = undefined;
+    this.joystickPointerId = undefined;
+    this.joystickVector.set(0, 0);
   }
 
   private requestLandscapeMode() {
+    this.ensureAudioContext();
+    const fullscreenTarget = document.getElementById('app') ?? document.documentElement;
     const fullscreenPromise = document.fullscreenElement
       ? Promise.resolve()
-      : (document.documentElement.requestFullscreen?.().catch(() => undefined) ?? Promise.resolve());
+      : (fullscreenTarget.requestFullscreen?.({ navigationUI: 'hide' }).catch(() => undefined) ?? Promise.resolve());
 
     fullscreenPromise.then(() => {
+      this.scale.refresh();
       const orientation = screen.orientation as ScreenOrientation & {
         lock?: (orientation: string) => Promise<void>;
       };
       if (!orientation?.lock) {
-        this.showAnnouncement('当前浏览器不支持自动横屏，请手动旋转手机', 3000);
+        this.showAnnouncement('已进入全屏。当前浏览器不支持自动横屏，请手动旋转手机', 3000);
         return;
       }
 
       orientation
         .lock('landscape')
-        .then(() => this.showAnnouncement('已尝试切换横屏', 1800))
+        .then(() => {
+          this.scale.refresh();
+          this.showAnnouncement('已进入横屏全屏', 1800);
+        })
         .catch(() => this.showAnnouncement('横屏切换被浏览器拦截，请手动旋转手机', 3000));
+    });
+  }
+
+  private ensureAudioContext() {
+    const AudioContextCtor = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextCtor) {
+      return undefined;
+    }
+
+    if (!this.audioContext) {
+      this.audioContext = new AudioContextCtor();
+    }
+    if (this.audioContext.state === 'suspended') {
+      this.audioContext.resume().catch(() => undefined);
+    }
+    return this.audioContext;
+  }
+
+  private playTone(frequency: number, durationMs: number, gain = 0.035, type: OscillatorType = 'sine') {
+    const context = this.ensureAudioContext();
+    if (!context) {
+      return;
+    }
+
+    const oscillator = context.createOscillator();
+    const envelope = context.createGain();
+    oscillator.type = type;
+    oscillator.frequency.setValueAtTime(frequency, context.currentTime);
+    envelope.gain.setValueAtTime(0.0001, context.currentTime);
+    envelope.gain.exponentialRampToValueAtTime(gain, context.currentTime + 0.015);
+    envelope.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + durationMs / 1000);
+    oscillator.connect(envelope);
+    envelope.connect(context.destination);
+    oscillator.start();
+    oscillator.stop(context.currentTime + durationMs / 1000 + 0.03);
+  }
+
+  private playCue(kind: 'upgrade' | 'chest' | 'boss' | 'death' | 'weather' | 'rampage' | 'vehicle') {
+    const cues: Record<typeof kind, Array<[number, number, number?, OscillatorType?]>> = {
+      upgrade: [[620, 90], [880, 120, 0.03]],
+      chest: [[420, 80, 0.03, 'triangle'], [640, 90, 0.026, 'triangle']],
+      boss: [[140, 260, 0.055, 'sawtooth'], [82, 360, 0.045, 'sawtooth']],
+      death: [[190, 240, 0.05, 'sawtooth'], [120, 360, 0.04, 'triangle']],
+      weather: [[520, 160, 0.025, 'sine'], [740, 120, 0.02, 'sine']],
+      rampage: [[250, 90, 0.04, 'square'], [340, 120, 0.04, 'square'], [220, 180, 0.035, 'sawtooth']],
+      vehicle: [[360, 80, 0.035, 'triangle'], [720, 120, 0.028, 'triangle']],
+    };
+
+    cues[kind].forEach(([frequency, duration, gain, type], index) => {
+      this.time.delayedCall(index * 90, () => this.playTone(frequency, duration, gain, type));
     });
   }
 
@@ -2209,7 +2634,7 @@ class MainScene extends Phaser.Scene {
 
           const crown = document.createElement('span');
           crown.className = 'online-crown';
-          crown.textContent = player.crown ? `皇冠${Math.min(9, player.crown)}` : '';
+          crown.textContent = player.crown ? `👑${Math.min(9, player.crown)}` : '';
 
           row.append(name, crown);
           column.appendChild(row);
@@ -2288,6 +2713,9 @@ class MainScene extends Phaser.Scene {
     this.physics.pause();
     this.gameOverLayer?.destroy(true);
     this.gameOverLayer = undefined;
+    this.gameOverPanel?.remove();
+    this.gameOverPanel = undefined;
+    this.removeJoystick();
 
     const width = this.scale.width;
     const height = this.scale.height;
@@ -2343,6 +2771,7 @@ class MainScene extends Phaser.Scene {
       this.player.setTint(this.localTeamTint || 0xffffff);
       this.spawnInitialWorld();
       this.physics.resume();
+      this.syncJoystick();
       this.sendNetworkState();
     };
     button.on('pointerover', () => button.setFillStyle(0x17252a, 1));
@@ -2357,12 +2786,14 @@ class MainScene extends Phaser.Scene {
   update(_time: number, delta: number) {
     this.drawHud();
     this.drawTargetRing();
+    this.drawBattleRoyaleZone();
     this.syncSummonButton();
     this.syncExitButton();
     this.syncMobileControls();
 
     if (!this.isInMultiplayerRoom) {
       this.weatherOverlay?.clear();
+      this.battleZoneGraphics?.clear();
       return;
     }
 
@@ -2381,6 +2812,7 @@ class MainScene extends Phaser.Scene {
 
     this.updateBuffs(deltaSeconds);
     this.updateWeather(deltaSeconds);
+    this.updateBattleRoyaleZone();
     if (!this.isChoosingUpgrade) {
       this.handleTargetRangeInput();
       this.updatePlayer(deltaSeconds);
@@ -2669,6 +3101,55 @@ class MainScene extends Phaser.Scene {
       g.lineBetween(12, 46, 46, 46);
     });
 
+    this.makeTexture('enemy-raider', 50, 36, (g) => {
+      g.fillStyle(0x251018, 1);
+      g.fillRoundedRect(8, 9, 30, 18, 5);
+      g.lineStyle(2, 0xff5a76, 1);
+      g.strokeRoundedRect(8, 9, 30, 18, 5);
+      g.fillStyle(0xffd166, 1);
+      g.fillTriangle(35, 7, 48, 18, 35, 29);
+      g.lineStyle(2, 0xff5a76, 0.8);
+      g.lineBetween(13, 27, 5, 35);
+      g.lineBetween(28, 27, 22, 35);
+    });
+
+    this.makeTexture('enemy-mortar', 62, 48, (g) => {
+      g.fillStyle(0x211d14, 1);
+      g.fillRoundedRect(10, 14, 34, 24, 5);
+      g.lineStyle(2, 0xffd166, 1);
+      g.strokeRoundedRect(10, 14, 34, 24, 5);
+      g.fillStyle(0xff6961, 1);
+      g.fillRect(28, 4, 10, 30);
+      g.fillStyle(0x0a0f12, 1);
+      g.fillCircle(19, 40, 4);
+      g.fillCircle(44, 40, 4);
+    });
+
+    this.makeTexture('enemy-shielder', 56, 52, (g) => {
+      g.fillStyle(0x101923, 1);
+      g.fillRoundedRect(16, 10, 26, 32, 5);
+      g.lineStyle(2, 0x9ed7ff, 1);
+      g.strokeRoundedRect(16, 10, 26, 32, 5);
+      g.fillStyle(0x5bc0ff, 0.28);
+      g.fillCircle(28, 26, 23);
+      g.fillStyle(0xffd166, 1);
+      g.fillRect(36, 24, 16, 5);
+    });
+
+    this.makeTexture('enemy-spark', 44, 44, (g) => {
+      g.fillStyle(0x1b1024, 1);
+      g.fillCircle(22, 22, 13);
+      g.lineStyle(2, 0xba7cff, 1);
+      g.strokeCircle(22, 22, 13);
+      g.fillStyle(0xe8f7f4, 1);
+      g.fillCircle(22, 22, 4);
+      g.lineStyle(2, 0x9fffe0, 0.82);
+      g.lineBetween(22, 2, 22, 12);
+      g.lineBetween(22, 32, 22, 42);
+      g.lineBetween(2, 22, 12, 22);
+      g.lineBetween(32, 22, 42, 22);
+    });
+
     this.makeTexture('enemy-boss', 96, 84, (g) => {
       g.fillStyle(0x241013, 1);
       g.fillRoundedRect(14, 12, 58, 56, 8);
@@ -2898,7 +3379,12 @@ class MainScene extends Phaser.Scene {
       (this.keys.S.isDown || this.cursors.down?.isDown ? 1 : 0) -
       (this.keys.W.isDown || this.cursors.up?.isDown ? 1 : 0);
     const keyboardMoving = moveX !== 0 || moveY !== 0;
+    const joystickMoving = !keyboardMoving && this.joystickVector.lengthSq() > 0.006;
     if (keyboardMoving) {
+      this.moveTarget = undefined;
+    } else if (joystickMoving) {
+      moveX = this.joystickVector.x;
+      moveY = this.joystickVector.y;
       this.moveTarget = undefined;
     } else if (this.moveTarget) {
       const distanceToTarget = Phaser.Math.Distance.Between(
@@ -4009,6 +4495,17 @@ class MainScene extends Phaser.Scene {
         return;
       }
 
+      if (kind === 'mortar' && aggro >= spec.chaseThreshold && distanceToPlayer <= spec.attackRange) {
+        hunterCount += 1;
+        enemy.setVelocity(0, 0);
+        enemy.setRotation(Phaser.Math.Angle.Between(enemy.x, enemy.y, this.player.x, this.player.y));
+        this.mortarAttack(enemy, spec);
+        enemy.setTint(this.getEnemyTint(enemy));
+        aggroTotal += aggro;
+        activeCount += 1;
+        return;
+      }
+
       if (aggro >= spec.chaseThreshold) {
         hunterCount += 1;
         this.chasePlayer(enemy, spec, aggro, distanceToPlayer);
@@ -4019,7 +4516,11 @@ class MainScene extends Phaser.Scene {
       }
 
       if (aggro >= spec.chaseThreshold && distanceToPlayer <= spec.attackRange) {
-        this.enemyAttack(enemy, spec);
+        if (kind === 'spark') {
+          this.sparkAttack(enemy, spec);
+        } else {
+          this.enemyAttack(enemy, spec);
+        }
       }
 
       this.updateEliteSkill(enemy, spec, distanceToPlayer);
@@ -4371,6 +4872,57 @@ class MainScene extends Phaser.Scene {
     this.muzzleBurst(enemy.x, enemy.y, angle, 0xff6961);
   }
 
+  private mortarAttack(enemy: Phaser.Physics.Arcade.Sprite, spec: EnemySpec) {
+    const nextAttackAt = (enemy.getData('nextAttackAt') as number | undefined) ?? 0;
+    if (this.elapsedMs < nextAttackAt) {
+      return;
+    }
+
+    enemy.setData('nextAttackAt', this.elapsedMs + spec.attackDelay);
+    const targetX = this.player.x + Phaser.Math.Between(-42, 42);
+    const targetY = this.player.y + Phaser.Math.Between(-42, 42);
+    const radius = 74;
+    const warning = this.add
+      .circle(targetX, targetY, radius, 0xffd166, 0.1)
+      .setStrokeStyle(2, 0xffd166, 0.74)
+      .setDepth(33);
+    this.tweens.add({
+      targets: warning,
+      scale: 0.45,
+      alpha: 0.7,
+      yoyo: true,
+      repeat: 1,
+      duration: 180,
+      ease: 'Sine.easeInOut',
+      onComplete: () => warning.destroy(),
+    });
+    this.time.delayedCall(640, () => {
+      if (!enemy.active || this.isGameOver) {
+        return;
+      }
+      this.shockwave(targetX, targetY, radius, 0xffd166);
+      this.flashAt(targetX, targetY, 0xffd166, 13);
+      const distance = Phaser.Math.Distance.Between(this.player.x, this.player.y, targetX, targetY);
+      if (distance <= radius) {
+        this.damagePlayer((enemy.getData('damage') as number) * (1 - distance / radius * 0.45), spec.name);
+      }
+    });
+    this.muzzleBurst(enemy.x, enemy.y, enemy.rotation, 0xffd166);
+  }
+
+  private sparkAttack(enemy: Phaser.Physics.Arcade.Sprite, spec: EnemySpec) {
+    const nextAttackAt = (enemy.getData('nextAttackAt') as number | undefined) ?? 0;
+    if (this.elapsedMs < nextAttackAt) {
+      return;
+    }
+
+    enemy.setData('nextAttackAt', this.elapsedMs + spec.attackDelay);
+    this.shockwave(enemy.x, enemy.y, 92, 0xba7cff);
+    this.drawArcBolt(enemy.x, enemy.y, this.player.x, this.player.y, 0xba7cff, 2.4, 130);
+    this.damagePlayer(enemy.getData('damage') as number, spec.name);
+    this.flashAt(enemy.x, enemy.y, 0xba7cff, 10);
+  }
+
   private spawnEnemyProjectile(x: number, y: number, angle: number, damage: number, speed: number) {
     const projectile = this.enemyProjectiles.get(x, y, 'enemy-bullet') as Phaser.Physics.Arcade.Image | null;
     if (!projectile) {
@@ -4422,6 +4974,19 @@ class MainScene extends Phaser.Scene {
     if (this.hp <= 0) {
       this.showGameOver();
     }
+  }
+
+  private executeLocalPlayer(defeatedBy: string) {
+    if (this.isGameOver || !this.isInMultiplayerRoom) {
+      return;
+    }
+
+    this.lastDefeatedBy = defeatedBy;
+    this.vehicleShield = 0;
+    this.hp = 0;
+    this.shockwave(this.player.x, this.player.y, 170, 0x5bc0ff);
+    this.flashAt(this.player.x, this.player.y, 0xcfefff, 24);
+    this.showGameOver();
   }
 
   private handleProjectileHit(
@@ -4527,7 +5092,10 @@ class MainScene extends Phaser.Scene {
   }
 
   private damageEnemy(enemy: Phaser.Physics.Arcade.Sprite, damage: number) {
-    const hp = (enemy.getData('hp') as number) - damage;
+    const kind = enemy.getData('kind') as EnemyKind;
+    const maxHp = enemy.getData('maxHp') as number;
+    const guardedDamage = kind === 'shielder' && (enemy.getData('hp') as number) > maxHp * 0.45 ? damage * 0.62 : damage;
+    const hp = (enemy.getData('hp') as number) - guardedDamage;
     enemy.setData('hp', hp);
     enemy.setData('aggro', clamp((enemy.getData('aggro') as number) + 46, 0, 100));
     enemy.setData('lastHitAt', this.elapsedMs);
@@ -4684,6 +5252,7 @@ class MainScene extends Phaser.Scene {
     }
     this.flashAt(chest.x, chest.y, 0xffd166, 14);
     this.shockwave(chest.x, chest.y, 86, 0xffd166);
+    this.playCue('chest');
     this.addThreatNoise(chest.x, chest.y, 24, 420);
     chest.destroy();
   }
@@ -4782,6 +5351,7 @@ class MainScene extends Phaser.Scene {
     this.addTeamScore(150);
     this.flashAt(x, y, BOSS_MINIMAP_COLOR, 24);
     this.shockwave(x, y, 240, BOSS_MINIMAP_COLOR);
+    this.playCue('boss');
     this.invasionMessage = `击败 Boss，永久解锁 ${VEHICLES[vehicle].name} Lv.${nextRank}`;
     this.invasionMessageUntil = Number.POSITIVE_INFINITY;
   }
@@ -4809,10 +5379,10 @@ class MainScene extends Phaser.Scene {
 
   private getXpRequirementForLevel(level: number) {
     if (level < 20) {
-      return Math.floor(16 + level * 5 + Math.pow(level, 1.14) * 3.6);
+      return Math.floor(34 + level * 7 + Math.pow(level, 1.18) * 5.2);
     }
 
-    return Math.floor(145 + (level - 20) * 30 + Math.pow(level - 19, 1.5) * 15);
+    return Math.floor(210 + (level - 20) * 36 + Math.pow(level - 19, 1.5) * 17);
   }
 
   private showUpgradeChoices() {
@@ -4829,97 +5399,6 @@ class MainScene extends Phaser.Scene {
     this.isChoosingUpgrade = true;
     this.currentUpgradeChoices = choices;
     this.upgradeChoiceExpiresAt = this.elapsedMs + 3000;
-    const width = this.scale.width;
-    const height = this.scale.height;
-    const compact = width < 820;
-    const compactLandscape = compact && width > height && height < 520;
-    const gap = compact ? 14 : 22;
-    const cardWidth = compactLandscape
-      ? Math.max(188, Math.min(238, (width - 56 - gap * 2) / 3))
-      : compact
-        ? Math.min(360, width - 28)
-        : 246;
-    const cardHeight = compact ? 118 : 128;
-    const startX = compactLandscape ? width / 2 - cardWidth - gap : compact ? width / 2 : width / 2 - cardWidth - gap;
-    const startY = compactLandscape ? Math.max(178, height / 2 + 36) : compact ? Math.max(136, height / 2 - cardHeight - gap) : height / 2 + 10;
-    const titleY = compactLandscape ? 42 : compact ? Math.max(44, startY - cardHeight / 2 - 30) : height / 2 - 132;
-    const container = this.add.container(0, 0).setScrollFactor(0).setDepth(1200);
-
-    const overlay = this.add.rectangle(0, 0, width, height, 0x050709, 0.28).setOrigin(0);
-    const title = this.add
-      .text(width / 2, titleY, `等级 ${this.level}`, {
-        fontFamily: 'Inter, "Segoe UI", sans-serif',
-        fontSize: '30px',
-        color: '#e8f7f4',
-      })
-      .setOrigin(0.5);
-    const prompt = this.add
-      .text(width / 2, titleY + 38, '点击卡片，或按 1 / 2 / 3 选择升级。3 秒后默认选择 1', {
-        fontFamily: 'Inter, "Segoe UI", sans-serif',
-        fontSize: '16px',
-        color: '#9fffe0',
-      })
-      .setOrigin(0.5);
-    const countdown = this.add
-      .text(width / 2, titleY + 68, '剩余 3.0s', {
-        fontFamily: 'Inter, "Segoe UI", sans-serif',
-        fontSize: '15px',
-        color: '#ffda8a',
-      })
-      .setOrigin(0.5);
-
-    this.upgradeCountdownText = countdown;
-    container.add([overlay, title, prompt, countdown]);
-
-    choices.forEach((choice, index) => {
-      const x = compact && !compactLandscape ? startX : startX + index * (cardWidth + gap);
-      const y = compact && !compactLandscape ? startY + index * (cardHeight + gap) : startY;
-      const card = this.add
-        .rectangle(x, y, cardWidth, cardHeight, 0x111a1f, 0.98)
-        .setStrokeStyle(2, index === 0 ? 0x36f0d2 : index === 1 ? 0xffd166 : 0xa7e65d)
-        .setInteractive({ useHandCursor: true });
-      const number = this.add
-        .text(x - cardWidth / 2 + 18, y - cardHeight / 2 + 18, `按 ${index + 1}`, {
-          fontFamily: 'Inter, "Segoe UI", sans-serif',
-          fontSize: '16px',
-          color: '#9fffe0',
-        })
-        .setOrigin(0, 0.5);
-      const name = this.add
-        .text(x, y - (compact ? 22 : 28), choice.title, {
-          fontFamily: 'Inter, "Segoe UI", sans-serif',
-          fontSize: '19px',
-          color: '#e8f7f4',
-        })
-        .setOrigin(0.5);
-      const detail = this.add
-        .text(x, y + (compact ? 22 : 22), choice.detail, {
-          fontFamily: 'Inter, "Segoe UI", sans-serif',
-          fontSize: '14px',
-          color: '#a9c7c1',
-          align: 'center',
-          wordWrap: { width: cardWidth - 34 },
-        })
-        .setOrigin(0.5);
-      const chooseLabel = this.add
-        .text(x, y + cardHeight / 2 - 20, '选择', {
-          fontFamily: 'Inter, "Segoe UI", sans-serif',
-          fontSize: '15px',
-          color: '#9fffe0',
-        })
-        .setOrigin(0.5);
-
-      const choose = () => this.applyUpgrade(choice);
-      card.on('pointerover', () => card.setFillStyle(0x17252a, 1));
-      card.on('pointerout', () => card.setFillStyle(0x111a1f, 0.98));
-      card.on('pointerdown', choose);
-      [number, name, detail, chooseLabel].forEach((item) => {
-        item.setInteractive({ useHandCursor: true }).on('pointerdown', choose);
-      });
-      container.add([card, number, name, detail, chooseLabel]);
-    });
-
-    this.modal = container;
     this.showUpgradePanel(choices);
     this.updateUpgradeChoiceTimer();
   }
@@ -4940,6 +5419,10 @@ class MainScene extends Phaser.Scene {
     const hint = document.createElement('div');
     hint.className = 'upgrade-hint';
     hint.textContent = '点击选择升级，3 秒后默认选择 1';
+
+    const countdown = document.createElement('div');
+    countdown.className = 'upgrade-countdown';
+    countdown.textContent = '剩余 3.0s';
 
     const list = document.createElement('div');
     list.className = 'upgrade-list';
@@ -4974,10 +5457,11 @@ class MainScene extends Phaser.Scene {
       list.appendChild(button);
     });
 
-    box.append(title, hint, list);
+    box.append(title, hint, countdown, list);
     panel.appendChild(box);
     document.body.appendChild(panel);
     this.upgradePanel = panel;
+    this.upgradeCountdownEl = countdown;
   }
 
   private updateUpgradeChoiceTimer() {
@@ -4986,7 +5470,9 @@ class MainScene extends Phaser.Scene {
     }
 
     const remainingMs = Math.max(0, this.upgradeChoiceExpiresAt - this.elapsedMs);
-    this.upgradeCountdownText?.setText(`剩余 ${(remainingMs / 1000).toFixed(1)}s`);
+    if (this.upgradeCountdownEl) {
+      this.upgradeCountdownEl.textContent = `剩余 ${(remainingMs / 1000).toFixed(1)}s`;
+    }
     if (remainingMs <= 0) {
       this.applyUpgrade(this.currentUpgradeChoices[0]);
     }
@@ -5021,11 +5507,11 @@ class MainScene extends Phaser.Scene {
   }
 
   private getDamageMultiplier() {
-    return this.damageMultiplier * (this.isBuffActive('overclock') ? 1.35 : 1);
+    return this.damageMultiplier * (this.isBuffActive('overclock') ? 1.35 : 1) * (this.currentWeather === 'heat' ? 1.12 : 1);
   }
 
   private getFireRateMultiplier() {
-    return this.fireRateMultiplier * (this.isBuffActive('rapid') ? 0.72 : 1);
+    return this.fireRateMultiplier * (this.isBuffActive('rapid') ? 0.72 : 1) * (this.currentWeather === 'heat' ? 1.14 : 1);
   }
 
   private getBuffSpeedBonus() {
@@ -5213,12 +5699,13 @@ class MainScene extends Phaser.Scene {
     }
 
     choice.apply(this);
+    this.playCue('upgrade');
     this.restoreOnUpgrade();
     this.modal?.destroy(true);
     this.modal = undefined;
     this.upgradePanel?.remove();
     this.upgradePanel = undefined;
-    this.upgradeCountdownText = undefined;
+    this.upgradeCountdownEl = undefined;
     this.upgradeChoiceExpiresAt = 0;
     this.currentUpgradeChoices = [];
     this.isChoosingUpgrade = false;
@@ -5308,6 +5795,10 @@ class MainScene extends Phaser.Scene {
         return enemy.active && enemy.getData('kind') === 'boss';
       }).length;
 
+    if (activeBosses < MIN_BOSS_COUNT) {
+      this.playCue('boss');
+    }
+
     for (let i = activeBosses; i < MIN_BOSS_COUNT; i += 1) {
       const spawn = BOSS_SPAWNS[i % BOSS_SPAWNS.length];
       const boss = this.spawnEnemy('boss', 'red', {
@@ -5366,17 +5857,22 @@ class MainScene extends Phaser.Scene {
       if (roll < 58) return 'stalker';
       if (roll < 74) return 'mender';
       if (roll < 84) return 'sniper';
-      if (roll < 92) return 'turret';
+      if (roll < 90) return 'raider';
+      if (roll < 96) return 'turret';
       return 'warden';
     }
 
-    if (roll < 18) return 'drone';
-    if (roll < 40) return 'stalker';
-    if (roll < 56) return 'mender';
-    if (roll < 69) return 'sniper';
-    if (roll < 80) return 'turret';
-    if (roll < 90) return 'bomber';
-    if (roll < 97) return 'warden';
+    if (roll < 12) return 'drone';
+    if (roll < 30) return 'stalker';
+    if (roll < 42) return 'raider';
+    if (roll < 52) return 'spark';
+    if (roll < 63) return 'mender';
+    if (roll < 73) return 'sniper';
+    if (roll < 80) return 'mortar';
+    if (roll < 86) return 'shielder';
+    if (roll < 91) return 'turret';
+    if (roll < 96) return 'bomber';
+    if (roll < 99) return 'warden';
     return 'crusher';
   }
 
@@ -5554,6 +6050,7 @@ class MainScene extends Phaser.Scene {
     }
 
     if (burst) {
+      this.playCue('vehicle');
       const color =
         vehicle === 'tank' || vehicle === 'artillery'
           ? 0xa7e65d
@@ -5945,6 +6442,44 @@ class MainScene extends Phaser.Scene {
     this.targetRing.strokeCircle(this.player.x, this.player.y, Math.max(12, this.targetRange - 8));
   }
 
+  private drawBattleRoyaleZone() {
+    if (!this.battleZoneGraphics) {
+      return;
+    }
+
+    this.battleZoneGraphics.clear();
+    if (!this.isInMultiplayerRoom) {
+      return;
+    }
+
+    const zone = this.getBattleRoyaleZone();
+    if (!zone) {
+      return;
+    }
+
+    const locked = zone.radius <= zone.minRadius + 2;
+    const ringColor = locked ? 0xffd166 : 0x5bc0ff;
+    this.battleZoneGraphics.lineStyle(18, 0x06101a, 0.36);
+    this.battleZoneGraphics.strokeCircle(zone.centerX, zone.centerY, zone.radius + 8);
+    this.battleZoneGraphics.lineStyle(5, ringColor, 0.88);
+    this.battleZoneGraphics.strokeCircle(zone.centerX, zone.centerY, zone.radius);
+    this.battleZoneGraphics.lineStyle(2, 0xcfefff, 0.48);
+    this.battleZoneGraphics.strokeCircle(zone.centerX, zone.centerY, Math.max(zone.minRadius, zone.radius - 10));
+
+    const t = this.elapsedMs / 1000;
+    this.battleZoneGraphics.lineStyle(3, 0xcfefff, 0.76);
+    for (let i = 0; i < 28; i += 1) {
+      const angle = (i * 2.399 + t * 0.42) % (Math.PI * 2);
+      const inner = zone.radius + 12 + (i % 3) * 8;
+      const outer = inner + 44 + (i % 5) * 10;
+      const x1 = zone.centerX + Math.cos(angle) * inner;
+      const y1 = zone.centerY + Math.sin(angle) * inner;
+      const x2 = zone.centerX + Math.cos(angle + Math.sin(t + i) * 0.035) * outer;
+      const y2 = zone.centerY + Math.sin(angle + Math.cos(t + i) * 0.035) * outer;
+      this.battleZoneGraphics.lineBetween(x1, y1, x2, y2);
+    }
+  }
+
   private drawEnemyBars() {
     this.enemyHud.clear();
     this.enemies.getChildren().forEach((rawEnemy) => {
@@ -5999,16 +6534,26 @@ class MainScene extends Phaser.Scene {
     const vehicle = VEHICLES[this.currentVehicle];
     const vehicleSpec = this.getCurrentVehicleSpec();
     const vehicleRank = this.getVehicleRank(this.currentVehicle);
-    const isCompact = width < 760;
-    const minimapSize = isCompact ? 112 : 150;
-    const minimapX = width - minimapSize - 16;
-    const minimapY = 16;
-    const rightPanelWidth = Math.min(284, width - 32);
-    const rightPanelHeight = 128;
-    const rightPanelX = isCompact ? 16 : width - rightPanelWidth - 16;
-    const rightPanelY = isCompact
-      ? Math.max(154, height - rightPanelHeight - 16)
-      : minimapY + minimapSize + 12;
+    const isMobileLandscape = width > height && width <= 960 && height <= 540;
+    const isCompact = width < 760 || isMobileLandscape;
+    const minimapSize = isMobileLandscape ? 76 : isCompact ? 104 : 150;
+    const minimapX = width - minimapSize - (isMobileLandscape ? 10 : 16);
+    const minimapY = isMobileLandscape ? 10 : 16;
+    const leftPanelWidth = isMobileLandscape ? Math.min(312, width * 0.38) : isCompact ? Math.min(360, width - 32) : 430;
+    const leftPanelHeight = isMobileLandscape ? 132 : 198;
+    const barWidth = isMobileLandscape ? Math.max(118, leftPanelWidth - 142) : 220;
+    const rightPanelWidth = isMobileLandscape ? Math.max(168, Math.min(222, width - leftPanelWidth - minimapSize - 38)) : Math.min(284, width - 32);
+    const rightPanelHeight = isMobileLandscape ? 88 : 128;
+    const rightPanelX = isMobileLandscape
+      ? Math.max(leftPanelWidth + 20, minimapX - rightPanelWidth - 10)
+      : isCompact
+        ? 16
+        : width - rightPanelWidth - 16;
+    const rightPanelY = isMobileLandscape
+      ? 10
+      : isCompact
+        ? Math.max(154, height - rightPanelHeight - 16)
+        : minimapY + minimapSize + 12;
     const remainingVehicle =
       this.currentVehicle === 'mech'
         ? 0
@@ -6023,27 +6568,29 @@ class MainScene extends Phaser.Scene {
       ? this.formatClock(roomRemainingMs)
       : `${minutes}:${restSeconds}`;
     const teamScore = this.latestRoomState?.scores[this.localTeamKey] ?? 0;
+    const roomModeName = this.latestRoomState?.room.modeName ?? this.currentRoom?.modeName ?? '普通模式';
+    const battleZoneText = this.getBattleRoyaleZoneStatus();
 
     this.hud.clear();
     this.hud.fillStyle(0x050709, 0.78);
-    this.hud.fillRoundedRect(16, 16, 430, 198, 8);
+    this.hud.fillRoundedRect(16, 16, leftPanelWidth, leftPanelHeight, 8);
     this.hud.lineStyle(1, 0x36f0d2, 0.52);
-    this.hud.strokeRoundedRect(16, 16, 430, 198, 8);
+    this.hud.strokeRoundedRect(16, 16, leftPanelWidth, leftPanelHeight, 8);
 
     this.hud.fillStyle(0x132022, 1);
-    this.hud.fillRect(34, 56, 220, 11);
+    this.hud.fillRect(34, isMobileLandscape ? 48 : 56, barWidth, isMobileLandscape ? 8 : 11);
     this.hud.fillStyle(0xff6961, 1);
-    this.hud.fillRect(34, 56, 220 * clamp(this.hp / this.maxHp, 0, 1), 11);
+    this.hud.fillRect(34, isMobileLandscape ? 48 : 56, barWidth * clamp(this.hp / this.maxHp, 0, 1), isMobileLandscape ? 8 : 11);
 
     this.hud.fillStyle(0x132022, 1);
-    this.hud.fillRect(34, 82, 220, 9);
+    this.hud.fillRect(34, isMobileLandscape ? 66 : 82, barWidth, isMobileLandscape ? 7 : 9);
     this.hud.fillStyle(0x36f0d2, 1);
-    this.hud.fillRect(34, 82, 220 * clamp(this.xp / this.xpToNext, 0, 1), 9);
+    this.hud.fillRect(34, isMobileLandscape ? 66 : 82, barWidth * clamp(this.xp / this.xpToNext, 0, 1), isMobileLandscape ? 7 : 9);
 
     this.hud.fillStyle(0x132022, 1);
-    this.hud.fillRect(34, 108, 220, 9);
+    this.hud.fillRect(34, isMobileLandscape ? 84 : 108, barWidth, isMobileLandscape ? 7 : 9);
     this.hud.fillStyle(this.areaAlert > 68 ? 0xff6961 : this.areaAlert > 34 ? 0xffd166 : 0xa7e65d, 1);
-    this.hud.fillRect(34, 108, 220 * (this.areaAlert / 100), 9);
+    this.hud.fillRect(34, isMobileLandscape ? 84 : 108, barWidth * (this.areaAlert / 100), isMobileLandscape ? 7 : 9);
 
     this.drawMiniMap(minimapX, minimapY, minimapSize);
 
@@ -6060,19 +6607,34 @@ class MainScene extends Phaser.Scene {
       this.hud.fillRect(rightPanelX + 17, rightPanelY + 14, vehicleBarWidth * remainingVehicle, 10);
     }
 
-    this.hudText.setText(
-      [
+    const hudLines = isMobileLandscape
+      ? [
+        `生命 ${Math.ceil(this.hp)}/${this.maxHp}   Lv.${this.level}`,
+        `经验 ${this.xp}/${this.xpToNext}   警戒 ${Math.round(this.areaAlert)}%`,
+        `击杀 ${this.kills}   剩余 ${remainingText}   分 ${teamScore}`,
+        `${vehicle.name}${this.currentVehicle === 'mech' ? '' : ` Lv.${vehicleRank}`}   ${battleZoneText || this.getWeatherHudText()}`,
+        this.getWeaponSlotText(),
+      ]
+      : [
         `生命 ${Math.ceil(this.hp)}/${this.maxHp}     等级 ${this.level}`,
         `经验 ${this.xp}/${this.xpToNext}`,
         `索敌 ${Math.round(this.targetRange)}   区域警戒 ${Math.round(this.areaAlert)}%`,
         `击杀 ${this.kills}     剩余 ${remainingText}`,
         `阵营 ${this.localTeamName || '未加入'}     积分 ${teamScore}`,
+        `模式 ${roomModeName}${battleZoneText ? `     ${battleZoneText}` : ''}`,
         `载具 ${vehicle.name}${this.currentVehicle === 'mech' ? '' : ` Lv.${vehicleRank}`}`,
         this.getWeatherHudText(),
         this.getWeaponSlotText(),
-      ].join('\n'),
-    );
-    this.hudText.setPosition(34, 28);
+      ];
+    this.hudText.setStyle({
+      fontFamily: 'Inter, "Segoe UI", sans-serif',
+      fontSize: isMobileLandscape ? '10px' : isCompact ? '13px' : '15px',
+      color: '#e8f7f4',
+      lineSpacing: isMobileLandscape ? 3 : 7,
+      wordWrap: { width: leftPanelWidth - 32 },
+    });
+    this.hudText.setText(hudLines.join('\n'));
+    this.hudText.setPosition(34, isMobileLandscape ? 24 : 28);
 
     const rightText =
       this.currentVehicle === 'mech'
@@ -6081,17 +6643,25 @@ class MainScene extends Phaser.Scene {
             (this.vehicleExpiresAt - this.elapsedMs) / 1000,
           )}s`;
     const rightTextY = rightPanelY + (this.currentVehicle === 'mech' ? 18 : 30);
+    const statTextY = rightPanelY + (isMobileLandscape ? 36 : 52);
+    const controlTextY = rightPanelY + (isMobileLandscape ? 55 : 73);
+    const buffTextY = rightPanelY + (isMobileLandscape ? 70 : 96);
     this.hudText.setDepth(901);
 
     const existing = this.children.getByName('vehicle-readout') as Phaser.GameObjects.Text | null;
     if (existing) {
+      existing.setStyle({
+        fontFamily: 'Inter, "Segoe UI", sans-serif',
+        fontSize: isMobileLandscape ? '12px' : '18px',
+        color: '#e8f7f4',
+      });
       existing.setText(rightText);
       existing.setPosition(rightPanelX + 18, rightTextY);
     } else {
       this.add
         .text(rightPanelX + 18, rightTextY, rightText, {
           fontFamily: 'Inter, "Segoe UI", sans-serif',
-          fontSize: '18px',
+          fontSize: isMobileLandscape ? '12px' : '18px',
           color: '#e8f7f4',
         })
         .setName('vehicle-readout')
@@ -6110,14 +6680,21 @@ class MainScene extends Phaser.Scene {
       1,
     )}/s   冷却 ${Math.round(actualFireDelay)}ms${shieldText}`;
     if (stat) {
+      stat.setStyle({
+        fontFamily: 'Inter, "Segoe UI", sans-serif',
+        fontSize: isMobileLandscape ? '10px' : '13px',
+        color: '#a9c7c1',
+        wordWrap: { width: rightPanelWidth - 34 },
+      });
       stat.setText(statText);
-      stat.setPosition(rightPanelX + 18, rightPanelY + 52);
+      stat.setPosition(rightPanelX + 18, statTextY);
     } else {
       this.add
-        .text(rightPanelX + 18, rightPanelY + 52, statText, {
+        .text(rightPanelX + 18, statTextY, statText, {
           fontFamily: 'Inter, "Segoe UI", sans-serif',
-          fontSize: '13px',
+          fontSize: isMobileLandscape ? '10px' : '13px',
           color: '#a9c7c1',
+          wordWrap: { width: rightPanelWidth - 34 },
         })
         .setName('stat-readout')
         .setScrollFactor(0)
@@ -6125,15 +6702,20 @@ class MainScene extends Phaser.Scene {
     }
 
     const controls = this.children.getByName('control-readout') as Phaser.GameObjects.Text | null;
-    const controlText = 'WASD移动   Q/E调索敌圈';
+    const controlText = isMobileLandscape ? '摇杆移动   Q/E索敌' : 'WASD移动   Q/E调索敌圈';
     if (controls) {
+      controls.setStyle({
+        fontFamily: 'Inter, "Segoe UI", sans-serif',
+        fontSize: isMobileLandscape ? '10px' : '12px',
+        color: '#9fffe0',
+      });
       controls.setText(controlText);
-      controls.setPosition(rightPanelX + 18, rightPanelY + 73);
+      controls.setPosition(rightPanelX + 18, controlTextY);
     } else {
       this.add
-        .text(rightPanelX + 18, rightPanelY + 73, controlText, {
+        .text(rightPanelX + 18, controlTextY, controlText, {
           fontFamily: 'Inter, "Segoe UI", sans-serif',
-          fontSize: '12px',
+          fontSize: isMobileLandscape ? '10px' : '12px',
           color: '#9fffe0',
         })
         .setName('control-readout')
@@ -6144,13 +6726,19 @@ class MainScene extends Phaser.Scene {
     const buffs = this.children.getByName('buff-readout') as Phaser.GameObjects.Text | null;
     const buffText = this.getActiveBuffText();
     if (buffs) {
+      buffs.setStyle({
+        fontFamily: 'Inter, "Segoe UI", sans-serif',
+        fontSize: isMobileLandscape ? '10px' : '12px',
+        color: '#ffda8a',
+        wordWrap: { width: rightPanelWidth - 36 },
+      });
       buffs.setText(buffText);
-      buffs.setPosition(rightPanelX + 18, rightPanelY + 96);
+      buffs.setPosition(rightPanelX + 18, buffTextY);
     } else {
       this.add
-        .text(rightPanelX + 18, rightPanelY + 96, buffText, {
+        .text(rightPanelX + 18, buffTextY, buffText, {
           fontFamily: 'Inter, "Segoe UI", sans-serif',
-          fontSize: '12px',
+          fontSize: isMobileLandscape ? '10px' : '12px',
           color: '#ffda8a',
           wordWrap: { width: rightPanelWidth - 36 },
         })
@@ -6226,6 +6814,18 @@ class MainScene extends Phaser.Scene {
 
     const toMiniX = (worldX: number) => x + clamp(worldX / WORLD_WIDTH, 0, 1) * size;
     const toMiniY = (worldY: number) => y + clamp(worldY / WORLD_HEIGHT, 0, 1) * size;
+
+    const zone = this.getBattleRoyaleZone();
+    if (zone) {
+      const zoneX = toMiniX(zone.centerX);
+      const zoneY = toMiniY(zone.centerY);
+      const zoneWidth = clamp((zone.radius * 2 / WORLD_WIDTH) * size, 3, size * 1.6);
+      const zoneHeight = clamp((zone.radius * 2 / WORLD_HEIGHT) * size, 3, size * 1.6);
+      this.hud.lineStyle(2, zone.radius <= zone.minRadius + 2 ? 0xffd166 : 0x5bc0ff, foggy ? 0.62 : 0.9);
+      this.hud.strokeEllipse(zoneX, zoneY, zoneWidth, zoneHeight);
+      this.hud.lineStyle(1, 0xcfefff, foggy ? 0.2 : 0.38);
+      this.hud.strokeEllipse(zoneX, zoneY, Math.max(3, zoneWidth - 5), Math.max(3, zoneHeight - 5));
+    }
 
     this.enemies.getChildren().forEach((rawEnemy) => {
       const enemy = rawEnemy as Phaser.Physics.Arcade.Sprite;
@@ -6423,6 +7023,8 @@ class MainScene extends Phaser.Scene {
     this.isGameOver = true;
     this.socket?.emit('player:defeated', { defeatedBy: this.lastDefeatedBy });
     this.physics.pause();
+    this.removeJoystick();
+    this.playCue('death');
 
     const width = this.scale.width;
     const height = this.scale.height;
@@ -6498,6 +7100,38 @@ class MainScene extends Phaser.Scene {
     exitLabel.setInteractive({ useHandCursor: true }).on('pointerdown', leaveRoom);
     container.add([overlay, title, stats, prompt, continueButton, continueLabel, exitButton, exitLabel]);
     this.gameOverLayer = container;
+    this.showGameOverPanel(canRevive);
+  }
+
+  private showGameOverPanel(canRevive: boolean) {
+    this.gameOverPanel?.remove();
+    const panel = document.createElement('div');
+    panel.className = 'game-over-panel';
+    panel.innerHTML = `
+      <div class="game-over-box">
+        <div class="game-over-title">任务失败</div>
+        <div class="game-over-stats">击杀 ${this.kills}　等级 ${this.level}</div>
+        <div class="game-over-prompt">被 ${this.lastDefeatedBy} 击败。${canRevive ? '复活会初始化等级和装备' : '最后 2 分钟不能复活'}</div>
+        <div class="game-over-actions">
+          <button class="game-over-revive" type="button" ${canRevive ? '' : 'disabled'}>${canRevive ? '复活' : '等待结算'}</button>
+          <button class="game-over-exit" type="button">退出房间</button>
+        </div>
+      </div>
+    `;
+    panel.querySelector<HTMLButtonElement>('.game-over-revive')?.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (canRevive) {
+        this.redeployAfterGameOver();
+      }
+    });
+    panel.querySelector<HTMLButtonElement>('.game-over-exit')?.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      this.leaveRoomToLobby();
+    });
+    document.body.appendChild(panel);
+    this.gameOverPanel = panel;
   }
 
   private redeployAfterGameOver() {
@@ -6513,6 +7147,8 @@ class MainScene extends Phaser.Scene {
 
       this.gameOverLayer?.destroy(true);
       this.gameOverLayer = undefined;
+      this.gameOverPanel?.remove();
+      this.gameOverPanel = undefined;
       this.clearRunObjects();
       this.resetRunState(true);
       this.localSocketId = response.player.socketId;
@@ -6527,6 +7163,7 @@ class MainScene extends Phaser.Scene {
       this.player.setTint(this.localTeamTint || 0xffffff);
       this.spawnInitialWorld();
       this.physics.resume();
+      this.syncJoystick();
       this.showAnnouncement('已复活，等级和装备已初始化', 2600);
       this.sendNetworkState();
     });
@@ -6542,6 +7179,7 @@ class MainScene extends Phaser.Scene {
     this.localTeamName = '';
     this.localTeamColorCss = '#36f0d2';
     this.localTeamTint = 0x36f0d2;
+    this.currentRoom = undefined;
     this.latestRoomState = undefined;
     this.onlineButton?.remove();
     this.onlineButton = undefined;
@@ -6553,8 +7191,11 @@ class MainScene extends Phaser.Scene {
     this.exitButton = undefined;
     this.mobileControls?.remove();
     this.mobileControls = undefined;
+    this.removeJoystick();
     this.gameOverLayer?.destroy(true);
     this.gameOverLayer = undefined;
+    this.gameOverPanel?.remove();
+    this.gameOverPanel = undefined;
     this.clearRunObjects();
     this.resetRunState();
     this.player.setPosition(WORLD_WIDTH / 2, WORLD_HEIGHT / 2);

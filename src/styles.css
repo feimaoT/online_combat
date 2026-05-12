@@ -62,6 +62,13 @@ canvas {
   text-align: center;
 }
 
+.upgrade-countdown {
+  margin-top: 8px;
+  color: #ffda8a;
+  font: 900 15px Inter, "Segoe UI", sans-serif;
+  text-align: center;
+}
+
 .upgrade-list {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -201,6 +208,111 @@ canvas {
 
 .mobile-controls button:hover {
   background: rgba(23, 37, 42, 0.96);
+}
+
+.virtual-joystick {
+  position: fixed;
+  left: 22px;
+  bottom: 96px;
+  z-index: 22;
+  width: 132px;
+  height: 132px;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.virtual-joystick-base,
+.virtual-joystick-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.virtual-joystick-base {
+  width: 118px;
+  height: 118px;
+  border: 1px solid rgba(159, 255, 224, 0.42);
+  background: rgba(8, 11, 16, 0.34);
+  box-shadow: inset 0 0 24px rgba(54, 240, 210, 0.12);
+}
+
+.virtual-joystick-knob {
+  width: 54px;
+  height: 54px;
+  border: 1px solid rgba(255, 209, 102, 0.68);
+  background: rgba(17, 26, 31, 0.84);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+}
+
+.game-over-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(5, 7, 9, 0.18);
+  color: #e8f7f4;
+  pointer-events: auto;
+}
+
+.game-over-box {
+  width: min(420px, 100%);
+  border: 1px solid rgba(255, 105, 97, 0.62);
+  border-radius: 8px;
+  background: rgba(10, 15, 18, 0.96);
+  padding: 20px;
+  text-align: center;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+}
+
+.game-over-title {
+  color: #ff6961;
+  font: 900 34px Inter, "Segoe UI", sans-serif;
+}
+
+.game-over-stats {
+  margin-top: 12px;
+  font: 800 16px Inter, "Segoe UI", sans-serif;
+}
+
+.game-over-prompt {
+  margin-top: 12px;
+  color: #9fffe0;
+  font: 700 14px/1.45 Inter, "Segoe UI", sans-serif;
+}
+
+.game-over-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 18px;
+}
+
+.game-over-actions button {
+  min-width: 132px;
+  height: 44px;
+  border-radius: 6px;
+  background: #111a1f;
+  color: #e8f7f4;
+  font: 900 15px Inter, "Segoe UI", sans-serif;
+  cursor: pointer;
+}
+
+.game-over-revive {
+  border: 1px solid rgba(54, 240, 210, 0.82);
+}
+
+.game-over-exit {
+  border: 1px solid rgba(255, 105, 97, 0.82);
+}
+
+.game-over-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
 }
 
 .online-panel {
@@ -589,14 +701,14 @@ canvas {
   }
 
   .summon-button {
-    left: 12px;
+    left: 154px;
     bottom: 12px;
     min-width: 112px;
     height: 46px;
   }
 
   .online-button {
-    left: 12px;
+    left: 154px;
     bottom: 68px;
     min-width: 112px;
     height: 46px;
@@ -642,6 +754,11 @@ canvas {
   }
 
   .upgrade-hint {
+    margin-top: 3px;
+    font-size: 11px;
+  }
+
+  .upgrade-countdown {
     margin-top: 3px;
     font-size: 11px;
   }
@@ -698,12 +815,12 @@ canvas {
   }
 
   .summon-button {
-    left: 8px;
+    left: 132px;
     bottom: 8px;
   }
 
   .online-button {
-    left: 8px;
+    left: 132px;
     bottom: 48px;
   }
 
@@ -713,7 +830,7 @@ canvas {
   }
 
   .online-panel {
-    left: 8px;
+    left: 132px;
     bottom: 86px;
     width: min(560px, calc(100vw - 16px));
     max-height: calc(100vh - 96px);
@@ -839,10 +956,56 @@ canvas {
     padding: 0 10px;
     font-size: 11px;
   }
+
+  .virtual-joystick {
+    left: 12px;
+    bottom: 10px;
+    width: 104px;
+    height: 104px;
+  }
+
+  .virtual-joystick-base {
+    width: 96px;
+    height: 96px;
+  }
+
+  .virtual-joystick-knob {
+    width: 44px;
+    height: 44px;
+  }
+
+  .game-over-box {
+    width: min(360px, calc(100vw - 24px));
+    padding: 14px;
+  }
+
+  .game-over-title {
+    font-size: 24px;
+  }
+
+  .game-over-stats,
+  .game-over-prompt {
+    margin-top: 7px;
+    font-size: 12px;
+  }
+
+  .game-over-actions {
+    margin-top: 12px;
+  }
+
+  .game-over-actions button {
+    min-width: 112px;
+    height: 36px;
+    font-size: 13px;
+  }
 }
 
 @media (min-width: 821px) {
   .mobile-controls {
+    display: none;
+  }
+
+  .virtual-joystick {
     display: none;
   }
 }

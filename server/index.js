@@ -11,13 +11,27 @@ const distDir = path.resolve(__dirname, '..', 'dist');
 const PORT = Number(process.env.PORT ?? 8080);
 const APP_BASE_PATH = normalizeBasePath(process.env.APP_BASE_PATH ?? '');
 const SOCKET_PATH = `${APP_BASE_PATH}/socket.io`;
-const ROOM_COUNT = 5;
-const ROOM_DURATION_MS = 10 * 60 * 1000;
+const ROOM_DURATION_MS = 15 * 60 * 1000;
 const LATE_JOIN_LOCK_MS = 2 * 60 * 1000;
 const INVASION_INTERVAL_MS = 3 * 60 * 1000;
+const RAMPAGE_START_MS = 5 * 60 * 1000;
+const RAMPAGE_INTERVAL_MS = 60 * 1000;
 const TEAM_SUMMON_COOLDOWN_MS = 3 * 60 * 1000;
 const WORLD_WIDTH = 5200;
 const WORLD_HEIGHT = 3600;
+const ROOM_CONFIGS = [
+  { name: '阿尔法普通战区', mode: 'normal', modeName: '普通模式' },
+  { name: '贝塔普通战区', mode: 'normal', modeName: '普通模式' },
+  { name: '伽马大逃杀战区', mode: 'battleRoyale', modeName: '大逃杀模式' },
+];
+const BATTLE_ROYALE_ZONE = {
+  centerX: WORLD_WIDTH / 2,
+  centerY: WORLD_HEIGHT / 2,
+  initialRadius: 3220,
+  minRadius: 720,
+  shrinkStartsAtMs: 45 * 1000,
+  shrinkDurationMs: 9 * 60 * 1000,
+};
 
 const TEAM_COLORS = [
   { key: 'A', name: 'A 阵营', color: '#36f0d2', spawnX: 850, spawnY: 820 },
@@ -25,7 +39,6 @@ const TEAM_COLORS = [
   { key: 'C', name: 'C 阵营', color: '#ffd166', spawnX: 2600, spawnY: 2850 },
 ];
 const TEAM_BY_KEY = new Map(TEAM_COLORS.map((team) => [team.key, team]));
-const ROOM_NAMES = ['阿尔法战区', '贝塔战区', '伽马战区', '德尔塔战区', '欧米伽战区'];
 
 const rooms = new Map();
 const userCrowns = new Map();
@@ -37,14 +50,22 @@ function now() {
 function makeRoom(index) {
   const createdAt = now();
   const scores = makeScoreBoard();
+  const config = ROOM_CONFIGS[index] ?? {
+    name: `固定战区 ${index + 1}`,
+    mode: 'normal',
+    modeName: '普通模式',
+  };
 
   return {
     id: `room-${index + 1}`,
-    name: ROOM_NAMES[index] ?? `固定战区 ${index + 1}`,
+    name: config.name,
+    mode: config.mode,
+    modeName: config.modeName,
     round: 1,
     createdAt,
     endsAt: createdAt + ROOM_DURATION_MS,
     nextInvasionAt: createdAt + INVASION_INTERVAL_MS,
+    nextRampageAt: createdAt + RAMPAGE_START_MS,
     players: new Map(),
     deadUserIds: new Set(),
     teamLeaders: makeTeamValueMap(null),
@@ -68,6 +89,8 @@ function publicRoom(room) {
   return {
     id: room.id,
     name: room.name,
+    mode: room.mode,
+    modeName: room.modeName,
     round: room.round,
     players: realPlayers,
     socketPlayers: room.players.size,
@@ -77,9 +100,46 @@ function publicRoom(room) {
     remainingMs: Math.max(0, room.endsAt - t),
     joinLocked: room.settling || room.endsAt - t <= LATE_JOIN_LOCK_MS,
     nextInvasionMs: room.settling ? 0 : Math.max(0, room.nextInvasionAt - t),
+    battleRoyaleZone: getBattleRoyaleZone(room, t),
     scores: room.scores,
     ended: false,
   };
+}
+
+function getBattleRoyaleZone(room, t = now()) {
+  if (room.mode !== 'battleRoyale') {
+    return undefined;
+  }
+
+  const elapsed = Math.max(0, t - room.createdAt);
+  const progress = clampNumber(
+    (elapsed - BATTLE_ROYALE_ZONE.shrinkStartsAtMs) / BATTLE_ROYALE_ZONE.shrinkDurationMs,
+    0,
+    1,
+  );
+  const radius =
+    BATTLE_ROYALE_ZONE.initialRadius -
+    (BATTLE_ROYALE_ZONE.initialRadius - BATTLE_ROYALE_ZONE.minRadius) * progress;
+
+  return {
+    centerX: BATTLE_ROYALE_ZONE.centerX,
+    centerY: BATTLE_ROYALE_ZONE.centerY,
+    radius: Math.round(radius),
+    initialRadius: BATTLE_ROYALE_ZONE.initialRadius,
+    minRadius: BATTLE_ROYALE_ZONE.minRadius,
+    shrinkStartsAtMs: BATTLE_ROYALE_ZONE.shrinkStartsAtMs,
+    shrinkDurationMs: BATTLE_ROYALE_ZONE.shrinkDurationMs,
+    outsideIsLethal: true,
+  };
+}
+
+function isOutsideBattleRoyaleZone(room, x, y, t = now()) {
+  const zone = getBattleRoyaleZone(room, t);
+  if (!zone) {
+    return false;
+  }
+
+  return Math.hypot(x - zone.centerX, y - zone.centerY) > zone.radius;
 }
 
 function roomList() {
@@ -177,7 +237,7 @@ function revivePlayer(room, userId, socketId) {
     return undefined;
   }
 
-  const spawn = getSpawnPoint(player.teamKey, getTeamCounts(room)[player.teamKey] ?? 0);
+  const spawn = getSpawnPoint(player.teamKey, getTeamCounts(room)[player.teamKey] ?? 0, room);
   player.socketId = socketId;
   player.x = spawn.x;
   player.y = spawn.y;
@@ -236,6 +296,7 @@ function restartRoomRound(room) {
   room.createdAt = createdAt;
   room.endsAt = createdAt + ROOM_DURATION_MS;
   room.nextInvasionAt = createdAt + INVASION_INTERVAL_MS;
+  room.nextRampageAt = createdAt + RAMPAGE_START_MS;
   room.scores = makeScoreBoard();
   room.deadUserIds.clear();
   room.teamSummonReadyAt = makeTeamValueMap(createdAt);
@@ -244,7 +305,7 @@ function restartRoomRound(room) {
   const teamIndexes = makeScoreBoard();
   for (const player of room.players.values()) {
     const index = teamIndexes[player.teamKey] ?? 0;
-    const spawn = getSpawnPoint(player.teamKey, index);
+    const spawn = getSpawnPoint(player.teamKey, index, room);
     player.x = spawn.x;
     player.y = spawn.y;
     player.angle = 0;
@@ -291,7 +352,7 @@ function joinPlayerToRoom(io, socket, room, payload = {}, ack) {
   }
   const isTeamLeader = room.teamLeaders[team.key] === userId;
 
-  const spawn = getSpawnPoint(team.key, getTeamCounts(room)[team.key] ?? 0);
+  const spawn = getSpawnPoint(team.key, getTeamCounts(room)[team.key] ?? 0, room);
   const player = {
     socketId: socket.id,
     userId,
@@ -339,7 +400,19 @@ function pickQuickRoom() {
     .sort((a, b) => getRealPlayerCount(b) - getRealPlayerCount(a) || b.endsAt - a.endsAt)[0];
 }
 
-function getSpawnPoint(teamKey, index) {
+function getSpawnPoint(teamKey, index, room) {
+  const zone = room ? getBattleRoyaleZone(room) : undefined;
+  if (zone) {
+    const teamIndex = Math.max(0, TEAM_COLORS.findIndex((entry) => entry.key === teamKey));
+    const angle = teamIndex * (Math.PI * 2 / TEAM_COLORS.length) + index * 0.42;
+    const radius = Math.max(90, Math.min(zone.radius - 140, 980));
+    const rowOffset = Math.floor(index / 6) * 46;
+    return {
+      x: clampNumber(zone.centerX + Math.cos(angle) * Math.max(60, radius - rowOffset), 80, WORLD_WIDTH - 80),
+      y: clampNumber(zone.centerY + Math.sin(angle) * Math.max(60, radius - rowOffset), 80, WORLD_HEIGHT - 80),
+    };
+  }
+
   const team = TEAM_BY_KEY.get(teamKey) ?? TEAM_COLORS[0];
   const column = index % 5;
   const row = Math.floor(index / 5);
@@ -358,7 +431,7 @@ const io = new Server(server, {
   },
 });
 
-for (let i = 0; i < ROOM_COUNT; i += 1) {
+for (let i = 0; i < ROOM_CONFIGS.length; i += 1) {
   const room = makeRoom(i);
   rooms.set(room.id, room);
 }
@@ -387,7 +460,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('room:create', (_payload = {}, ack) => {
-    ack?.({ ok: false, error: '当前版本固定 5 个房间，直接选择房间进入。' });
+    ack?.({ ok: false, error: '当前版本固定 3 个房间，直接选择房间进入。' });
   });
 
   socket.on('room:quick-join', (payload = {}, ack) => {
@@ -433,6 +506,20 @@ io.on('connection', (socket) => {
     } else if (!room.deadUserIds.has(player.userId)) {
       player.alive = true;
       player.aliveSince = player.aliveSince ?? now();
+    }
+
+    if (player.alive && isOutsideBattleRoyaleZone(room, player.x, player.y)) {
+      markUserDefeated(room, player.userId);
+      reassignTeamLeader(room, player.teamKey);
+      socket.emit('battle:zone-kill', { defeatedBy: '缩圈闪电' });
+      io.to(room.id).emit('room:player-defeated', {
+        socketId: socket.id,
+        name: player.name,
+        teamKey: player.teamKey,
+        defeatedBy: '缩圈闪电',
+        message: `${player.name} 被缩圈闪电击败`,
+      });
+      io.to(room.id).emit('room:state', buildRoomState(room));
     }
     player.updatedAt = now();
   });
@@ -647,6 +734,14 @@ setInterval(() => {
         roomId: room.id,
         wave: Math.max(1, Math.floor((t - room.createdAt) / INVASION_INTERVAL_MS)),
         nextInvasionMs: Math.max(0, room.nextInvasionAt - t),
+      });
+    }
+
+    if (!room.settling && t >= room.nextRampageAt) {
+      room.nextRampageAt += RAMPAGE_INTERVAL_MS;
+      io.to(room.id).emit('room:rampage', {
+        roomId: room.id,
+        wave: Math.max(1, Math.floor((t - room.createdAt - RAMPAGE_START_MS) / RAMPAGE_INTERVAL_MS) + 1),
       });
     }
   }
