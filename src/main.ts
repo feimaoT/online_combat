@@ -2297,6 +2297,31 @@ class MainScene extends Phaser.Scene {
 
   private updateLocalCrownView() {
     const existing = this.children.getByName('local-crown-readout') as Phaser.GameObjects.Text | null;
+    const nameExisting = this.children.getByName('local-name-readout') as Phaser.GameObjects.Text | null;
+    const showName = this.isInMultiplayerRoom && this.player?.active;
+
+    if (nameExisting) {
+      if (showName) {
+        nameExisting.setText(this.getPlayerName());
+        nameExisting.setPosition(this.player.x, this.player.y - 42);
+        nameExisting.setVisible(true);
+      } else {
+        nameExisting.setVisible(false);
+      }
+    } else if (showName) {
+      this.add
+        .text(this.player.x, this.player.y - 42, this.getPlayerName(), {
+          fontFamily: 'Inter, "Segoe UI", sans-serif',
+          fontSize: '13px',
+          color: '#e8f7f4',
+          backgroundColor: 'rgba(5,7,9,0.58)',
+          padding: { x: 5, y: 2 },
+        })
+        .setName('local-name-readout')
+        .setOrigin(0.5)
+        .setDepth(67);
+    }
+
     if (this.localCrown <= 0 || !this.player?.active || !this.isInMultiplayerRoom) {
       existing?.setVisible(false);
       return;
@@ -2305,13 +2330,13 @@ class MainScene extends Phaser.Scene {
     const text = `👑${Math.min(9, this.localCrown)}`;
     if (existing) {
       existing.setText(text);
-      existing.setPosition(this.player.x, this.player.y - 58);
+      existing.setPosition(this.player.x, this.player.y - 62);
       existing.setVisible(true);
       return;
     }
 
     this.add
-      .text(this.player.x, this.player.y - 58, text, {
+      .text(this.player.x, this.player.y - 62, text, {
         fontFamily: '"Segoe UI Emoji", "Apple Color Emoji", Inter, "Segoe UI", sans-serif',
         fontSize: '14px',
         color: '#ffda8a',
@@ -2516,7 +2541,7 @@ class MainScene extends Phaser.Scene {
 
   private requestLandscapeMode() {
     this.ensureAudioContext();
-    const fullscreenTarget = document.getElementById('app') ?? document.documentElement;
+    const fullscreenTarget = document.documentElement;
     const fullscreenPromise = document.fullscreenElement
       ? Promise.resolve()
       : (fullscreenTarget.requestFullscreen?.({ navigationUI: 'hide' }).catch(() => undefined) ?? Promise.resolve());
@@ -3925,7 +3950,7 @@ class MainScene extends Phaser.Scene {
     targets.forEach((target, index) => {
       const damage = (12 + level * 10 + (perfect ? 16 : 0)) * this.getDamageMultiplier() * Math.max(0.35, 1 - index * (perfect ? 0.1 : 0.18));
       this.damageTarget(target, damage);
-      this.drawArcBolt(
+      this.drawLightningBolt(
         index === 0 ? this.player.x : targets[index - 1].x,
         index === 0 ? this.player.y : targets[index - 1].y,
         target.x,
@@ -3956,7 +3981,7 @@ class MainScene extends Phaser.Scene {
     }
 
     const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y, target.x, target.y);
-    this.drawArcBolt(this.player.x, this.player.y, target.x, target.y, perfect ? 0xe8f7f4 : WEAPONS.beamCannon.color, 4 + level * 0.45 + (perfect ? 2 : 0), perfect ? 260 : 190);
+    this.drawBeam(this.player.x, this.player.y, target.x, target.y, perfect ? 0xe8f7f4 : WEAPONS.beamCannon.color, 4 + level * 0.45 + (perfect ? 2 : 0), perfect ? 260 : 190);
     const reach = 760 + level * 95 + (perfect ? 320 : 0);
     const beamWidth = 0.13 + level * 0.016 + (perfect ? 0.09 : 0);
     const damage = (18 + level * 16 + (perfect ? 28 : 0)) * this.getDamageMultiplier();
@@ -4122,7 +4147,7 @@ class MainScene extends Phaser.Scene {
     targets.forEach((target, index) => {
       const damage = (10 + level * 8 + (perfect ? 12 : 0)) * this.getDamageMultiplier() * Math.max(0.45, 1 - index * 0.08);
       this.damageTarget(target, damage);
-      this.drawArcBolt(this.player.x, this.player.y, target.x, target.y, WEAPONS.nanoSwarm.color, perfect ? 2.4 : 1.5, 120);
+      this.drawSwarmTrail(this.player.x, this.player.y, target.x, target.y, WEAPONS.nanoSwarm.color, perfect ? 10 : 5 + level);
       this.flashAt(target.x, target.y, WEAPONS.nanoSwarm.color, perfect ? 8 : 5);
     });
     if (perfect) {
@@ -4414,8 +4439,13 @@ class MainScene extends Phaser.Scene {
       this.splashDamage(x, y, aoe, damage);
       this.splashDamageRemotePlayers(x, y, aoe, damage);
       this.splashDamageChests(x, y, aoe, damage);
-      this.flashAt(x, y, projectile.getData('impactColor') as number, Math.max(14, aoe / 4));
-      this.shockwave(x, y, aoe, projectile.getData('impactColor') as number);
+      const impactColor = projectile.getData('impactColor') as number;
+      if (aoe > 60) {
+        this.bigExplosion(x, y, impactColor, Math.max(20, aoe / 3));
+      } else {
+        this.flashAt(x, y, impactColor, Math.max(14, aoe / 4));
+        this.shockwave(x, y, aoe, impactColor);
+      }
       this.cameras.main.shake(90, clamp(aoe / 36000, 0.002, 0.006));
     }
 
@@ -5290,9 +5320,16 @@ class MainScene extends Phaser.Scene {
     this.spawnXpOrb(killX, killY, xp);
     this.addTeamScore(xp);
     const isBoss = kind === 'boss';
-    this.flashAt(killX, killY, isBoss ? BOSS_MINIMAP_COLOR : ENEMY_TIERS[tier].color, isBoss ? 20 : 8);
-    if (tier === 'purple' || tier === 'red') {
-      this.shockwave(killX, killY, isBoss ? 260 : tier === 'red' ? 150 : 105, isBoss ? BOSS_MINIMAP_COLOR : ENEMY_TIERS[tier].color);
+    const tierColor = isBoss ? BOSS_MINIMAP_COLOR : ENEMY_TIERS[tier].color;
+    if (isBoss) {
+      this.bigExplosion(killX, killY, tierColor, 60);
+    } else if (tier === 'red') {
+      this.bigExplosion(killX, killY, tierColor, 28);
+    } else {
+      this.flashAt(killX, killY, tierColor, tier === 'purple' ? 14 : 8);
+      if (tier === 'purple') {
+        this.shockwave(killX, killY, 105, tierColor);
+      }
     }
 
     if (isBoss) {
@@ -5391,6 +5428,7 @@ class MainScene extends Phaser.Scene {
       this.xp -= this.xpToNext;
       this.level += 1;
       this.xpToNext = this.getXpRequirementForLevel(this.level);
+      this.levelUpBurst();
       this.showUpgradeChoices();
       if (this.isChoosingUpgrade) {
         break;
@@ -6369,6 +6407,136 @@ class MainScene extends Phaser.Scene {
     this.flashAt(x2, y2, color, 7 + width);
   }
 
+  private drawLightningBolt(
+    x1: number, y1: number, x2: number, y2: number,
+    color: number, width = 3, duration = 180,
+  ) {
+    const angle = Phaser.Math.Angle.Between(x1, y1, x2, y2);
+    const distance = Phaser.Math.Distance.Between(x1, y1, x2, y2);
+    const segments = Math.max(3, Math.floor(distance / 40));
+    const perpX = Math.cos(angle + Math.PI / 2);
+    const perpY = Math.sin(angle + Math.PI / 2);
+
+    const points: { x: number; y: number }[] = [{ x: x1, y: y1 }];
+    for (let i = 1; i < segments; i += 1) {
+      const t = i / segments;
+      const jitter = Phaser.Math.Between(-18, 18);
+      points.push({
+        x: x1 + Math.cos(angle) * distance * t + perpX * jitter,
+        y: y1 + Math.sin(angle) * distance * t + perpY * jitter,
+      });
+    }
+    points.push({ x: x2, y: y2 });
+
+    for (let i = 0; i < points.length - 1; i += 1) {
+      const seg = this.add.line(0, 0, points[i].x, points[i].y, points[i + 1].x, points[i + 1].y, color, 0.85)
+        .setOrigin(0).setDepth(35);
+      seg.setLineWidth(width, Math.max(1, width * 0.35));
+      this.tweens.add({
+        targets: seg,
+        alpha: 0,
+        duration,
+        ease: 'Cubic.easeOut',
+        onComplete: () => seg.destroy(),
+      });
+    }
+
+    for (let i = 0; i < 5; i += 1) {
+      const t = (i + 1) / 6;
+      const jitter = Phaser.Math.Between(-22, 22);
+      const spark = this.add.circle(
+        x1 + Math.cos(angle) * distance * t + perpX * jitter,
+        y1 + Math.sin(angle) * distance * t + perpY * jitter,
+        Math.max(2, width * 0.8), color, 0.9,
+      ).setDepth(36);
+      this.tweens.add({
+        targets: spark,
+        alpha: 0, scale: 2.8,
+        duration,
+        ease: 'Cubic.easeOut',
+        onComplete: () => spark.destroy(),
+      });
+    }
+
+    this.flashAt(x2, y2, color, Math.max(3, width));
+  }
+
+  private drawSwarmTrail(
+    x1: number, y1: number, x2: number, y2: number,
+    color: number, count = 6,
+  ) {
+    const angle = Phaser.Math.Angle.Between(x1, y1, x2, y2);
+    const distance = Phaser.Math.Distance.Between(x1, y1, x2, y2);
+    const perpX = Math.cos(angle + Math.PI / 2);
+    const perpY = Math.sin(angle + Math.PI / 2);
+
+    for (let i = 0; i < count; i += 1) {
+      const spread = Phaser.Math.Between(-24, 24);
+      const delay = i * 28;
+      const size = Phaser.Math.Between(2, 4);
+
+      const bug = this.add.circle(
+        x1 + perpX * spread,
+        y1 + perpY * spread,
+        size, color, 0.9,
+      ).setDepth(36);
+
+      this.tweens.add({
+        targets: bug,
+        x: x2 + perpX * Phaser.Math.Between(-14, 14),
+        y: y2 + perpY * Phaser.Math.Between(-14, 14),
+        alpha: 0,
+        duration: 140 + Phaser.Math.Between(0, 80),
+        delay,
+        ease: 'Quad.easeIn',
+        onComplete: () => bug.destroy(),
+      });
+    }
+
+    this.flashAt(x2, y2, color, 5);
+  }
+
+  private drawBeam(
+    x1: number, y1: number, x2: number, y2: number,
+    color: number, width = 6, duration = 220,
+  ) {
+    const glow = this.add.line(0, 0, x1, y1, x2, y2, color, 0.3)
+      .setOrigin(0).setDepth(34);
+    glow.setLineWidth(width * 2.2, width * 1.6);
+
+    const beam = this.add.line(0, 0, x1, y1, x2, y2, color, 0.92)
+      .setOrigin(0).setDepth(35);
+    beam.setLineWidth(width, Math.max(1, width * 0.5));
+
+    const core = this.add.line(0, 0, x1, y1, x2, y2, 0xe8f7f4, 0.7)
+      .setOrigin(0).setDepth(36);
+    core.setLineWidth(Math.max(1, width * 0.35), 1);
+
+    this.tweens.add({
+      targets: glow,
+      alpha: 0,
+      duration: duration + 60,
+      ease: 'Cubic.easeOut',
+      onComplete: () => glow.destroy(),
+    });
+    this.tweens.add({
+      targets: beam,
+      alpha: 0,
+      duration,
+      ease: 'Cubic.easeOut',
+      onComplete: () => beam.destroy(),
+    });
+    this.tweens.add({
+      targets: core,
+      alpha: 0,
+      duration: duration - 40,
+      ease: 'Cubic.easeOut',
+      onComplete: () => core.destroy(),
+    });
+
+    this.flashAt(x2, y2, color, Math.max(4, width));
+  }
+
   private findNearestEnemy(range: number) {
     let nearest: Phaser.Physics.Arcade.Sprite | undefined;
     let nearestDistance = range;
@@ -6556,6 +6724,10 @@ class MainScene extends Phaser.Scene {
     const vehicleSpec = this.getCurrentVehicleSpec();
     const vehicleRank = this.getVehicleRank(this.currentVehicle);
     const isMobileLandscape = width > height && width <= 960 && height <= 540;
+    const targetZoom = isMobileLandscape ? 0.78 : 1;
+    if (this.cameras.main.zoom !== targetZoom) {
+      this.cameras.main.setZoom(targetZoom);
+    }
     const isCompact = width < 760 || isMobileLandscape;
     const minimapSize = isMobileLandscape ? 76 : isCompact ? 104 : 150;
     const minimapX = width - minimapSize - (isMobileLandscape ? 10 : 16);
@@ -6777,64 +6949,109 @@ class MainScene extends Phaser.Scene {
     }
 
     const systemAnnouncement = this.getSystemAnnouncementText();
-    const announcementText = this.invasionMessage || systemAnnouncement;
-    const showTransientAnnouncement = Boolean(this.invasionMessage);
-    const announcementWidth = isMobileLandscape ? Math.min(292, width - 260) : Math.min(364, width - 32);
-    const announcementHeight = isMobileLandscape ? 30 : 42;
-    const announcementY = isMobileLandscape ? 8 : 20;
-    const announcementCenterY = announcementY + announcementHeight / 2;
-    const announcementFontSize = isMobileLandscape ? '12px' : '18px';
-    const announcementTextX = width / 2 - (showTransientAnnouncement ? (isMobileLandscape ? 7 : 8) : 0);
+    const showTransient = Boolean(this.invasionMessage);
+    const showSystem = Boolean(systemAnnouncement);
 
-    if (announcementText) {
+    // System countdown (gold) - always at top
+    const sysW = isMobileLandscape ? 220 : 340;
+    const sysH = isMobileLandscape ? 20 : 36;
+    const sysY = isMobileLandscape ? 4 : 20;
+    const sysCY = sysY + sysH / 2;
+    const sysFont = isMobileLandscape ? '9px' : '15px';
+
+    if (showSystem) {
+      this.hud.fillStyle(0x050709, 0.68);
+      this.hud.fillRoundedRect(width / 2 - sysW / 2, sysY, sysW, sysH, 6);
+      this.hud.lineStyle(1, 0xffda8a, 0.55);
+      this.hud.strokeRoundedRect(width / 2 - sysW / 2, sysY, sysW, sysH, 6);
+    }
+
+    const sysText = this.children.getByName('system-readout') as Phaser.GameObjects.Text | null;
+    if (sysText) {
+      sysText.setVisible(showSystem);
+      if (showSystem) {
+        sysText.setStyle({
+          fontFamily: 'Inter, "Segoe UI", sans-serif',
+          fontSize: sysFont,
+          color: '#ffda8a',
+          wordWrap: { width: sysW - 16 },
+        });
+        sysText.setText(systemAnnouncement);
+        sysText.setPosition(width / 2, sysCY);
+      }
+    } else {
+      this.add
+        .text(width / 2, sysCY, '', {
+          fontFamily: 'Inter, "Segoe UI", sans-serif',
+          fontSize: sysFont,
+          color: '#ffda8a',
+          wordWrap: { width: sysW - 16 },
+        })
+        .setName('system-readout')
+        .setScrollFactor(0)
+        .setOrigin(0.5)
+        .setVisible(showSystem)
+        .setDepth(902);
+    }
+
+    // Transient announcement (red, with close) - below system when both exist
+    const tranW = isMobileLandscape ? Math.min(240, width - 260) : Math.min(364, width - 32);
+    const tranH = isMobileLandscape ? 24 : 42;
+    const tranY = showSystem ? sysY + sysH + (isMobileLandscape ? 2 : 4) : (isMobileLandscape ? 4 : 20);
+    const tranCY = tranY + tranH / 2;
+    const tranFont = isMobileLandscape ? '10px' : '18px';
+    const tranTextX = width / 2 - (isMobileLandscape ? 6 : 8);
+
+    if (showTransient) {
       this.hud.fillStyle(0x050709, 0.76);
-      this.hud.fillRoundedRect(width / 2 - announcementWidth / 2, announcementY, announcementWidth, announcementHeight, 8);
+      this.hud.fillRoundedRect(width / 2 - tranW / 2, tranY, tranW, tranH, 8);
       this.hud.lineStyle(1, 0xff6961, 0.85);
-      this.hud.strokeRoundedRect(width / 2 - announcementWidth / 2, announcementY, announcementWidth, announcementHeight, 8);
+      this.hud.strokeRoundedRect(width / 2 - tranW / 2, tranY, tranW, tranH, 8);
     }
 
     const invasion = this.children.getByName('invasion-readout') as Phaser.GameObjects.Text | null;
-    const showInvasion = Boolean(announcementText);
     if (invasion) {
-      invasion.setVisible(showInvasion);
-      invasion.setStyle({
-        fontFamily: 'Inter, "Segoe UI", sans-serif',
-        fontSize: announcementFontSize,
-        color: showTransientAnnouncement ? '#ff6961' : '#ffda8a',
-        wordWrap: { width: announcementWidth - (showTransientAnnouncement ? 44 : 18) },
-      });
-      invasion.setText(announcementText);
-      invasion.setPosition(announcementTextX, announcementCenterY);
+      invasion.setVisible(showTransient);
+      if (showTransient) {
+        invasion.setStyle({
+          fontFamily: 'Inter, "Segoe UI", sans-serif',
+          fontSize: tranFont,
+          color: '#ff6961',
+          wordWrap: { width: tranW - (isMobileLandscape ? 36 : 44) },
+        });
+        invasion.setText(this.invasionMessage);
+        invasion.setPosition(tranTextX, tranCY);
+      }
     } else {
       this.add
-        .text(announcementTextX, announcementCenterY, announcementText, {
+        .text(tranTextX, tranCY, '', {
           fontFamily: 'Inter, "Segoe UI", sans-serif',
-          fontSize: announcementFontSize,
-          color: showTransientAnnouncement ? '#ff6961' : '#ffda8a',
-          wordWrap: { width: announcementWidth - (showTransientAnnouncement ? 44 : 18) },
+          fontSize: tranFont,
+          color: '#ff6961',
+          wordWrap: { width: tranW - (isMobileLandscape ? 36 : 44) },
         })
         .setName('invasion-readout')
         .setScrollFactor(0)
         .setOrigin(0.5)
-        .setVisible(showInvasion)
+        .setVisible(showTransient)
         .setDepth(902);
     }
 
-    if (showTransientAnnouncement) {
-      const closeX = width / 2 + announcementWidth / 2 - (isMobileLandscape ? 18 : 28);
+    if (showTransient) {
+      const closeX = width / 2 + tranW / 2 - (isMobileLandscape ? 14 : 28);
       if (this.announcementClose) {
         this.announcementClose.setVisible(true);
         this.announcementClose.setStyle({
           fontFamily: 'Inter, "Segoe UI", sans-serif',
-          fontSize: isMobileLandscape ? '14px' : '18px',
+          fontSize: isMobileLandscape ? '12px' : '18px',
           color: '#e8f7f4',
         });
-        this.announcementClose.setPosition(closeX, announcementCenterY);
+        this.announcementClose.setPosition(closeX, tranCY);
       } else {
         this.announcementClose = this.add
-          .text(closeX, announcementCenterY, 'x', {
+          .text(closeX, tranCY, 'x', {
             fontFamily: 'Inter, "Segoe UI", sans-serif',
-            fontSize: isMobileLandscape ? '14px' : '18px',
+            fontSize: isMobileLandscape ? '12px' : '18px',
             color: '#e8f7f4',
           })
           .setName('announcement-close')
@@ -6918,14 +7135,29 @@ class MainScene extends Phaser.Scene {
       .setDepth(32);
     this.tweens.add({
       targets: flame,
-      scaleX: 2.6,
-      scaleY: 0.45,
+      scaleX: 3,
+      scaleY: 0.5,
       rotation: angle,
       alpha: 0,
-      duration: 130,
+      duration: 140,
       ease: 'Cubic.easeOut',
       onComplete: () => flame.destroy(),
     });
+    for (let i = 0; i < 3; i += 1) {
+      const sa = angle + Phaser.Math.FloatBetween(-0.5, 0.5);
+      const sd = Phaser.Math.Between(8, 22);
+      const spark = this.add.circle(x, y, 2, 0xe8f7f4, 0.9).setDepth(33);
+      this.tweens.add({
+        targets: spark,
+        x: x + Math.cos(sa) * sd,
+        y: y + Math.sin(sa) * sd,
+        alpha: 0,
+        scale: 0.2,
+        duration: 120,
+        ease: 'Cubic.easeOut',
+        onComplete: () => spark.destroy(),
+      });
+    }
   }
 
   private emitProjectileTrail(projectile: Phaser.Physics.Arcade.Image) {
@@ -6936,24 +7168,29 @@ class MainScene extends Phaser.Scene {
 
     projectile.setData('lastTrailAt', this.elapsedMs);
     const color = projectile.getData('trailColor') as number;
+    const texture = projectile.texture.key;
     const angle = projectile.rotation + Math.PI;
-    const trail = this.add
-      .circle(
-        projectile.x + Math.cos(angle) * 8,
-        projectile.y + Math.sin(angle) * 8,
-        Phaser.Math.FloatBetween(2.5, 5.5),
-        color,
-        0.58,
-      )
-      .setDepth(24);
-    this.tweens.add({
-      targets: trail,
-      alpha: 0,
-      scale: 2.8,
-      duration: 260,
-      ease: 'Cubic.easeOut',
-      onComplete: () => trail.destroy(),
-    });
+    const bx = projectile.x + Math.cos(angle) * 8;
+    const by = projectile.y + Math.sin(angle) * 8;
+
+    if (texture === 'shot-flame') {
+      const ember = this.add.circle(bx + Phaser.Math.Between(-4, 4), by + Phaser.Math.Between(-4, 4), Phaser.Math.FloatBetween(3, 6), Phaser.Math.Between(0, 1) ? 0xff6961 : 0xffd166, 0.7).setDepth(24);
+      this.tweens.add({ targets: ember, alpha: 0, scale: 2, duration: 200, ease: 'Cubic.easeOut', onComplete: () => ember.destroy() });
+    } else if (texture === 'shot-missile') {
+      const smoke = this.add.circle(bx, by, Phaser.Math.FloatBetween(3, 5), 0x8a9199, 0.35).setDepth(24);
+      this.tweens.add({ targets: smoke, alpha: 0, scale: 3, x: smoke.x + Phaser.Math.Between(-8, 8), y: smoke.y + Phaser.Math.Between(-8, 8), duration: 320, ease: 'Cubic.easeOut', onComplete: () => smoke.destroy() });
+      const hot = this.add.circle(bx, by, 2, color, 0.75).setDepth(25);
+      this.tweens.add({ targets: hot, alpha: 0, duration: 160, onComplete: () => hot.destroy() });
+    } else if (texture === 'shot-rail' || texture === 'shot-ion') {
+      const streak = this.add.circle(bx, by, Phaser.Math.FloatBetween(1.5, 3), 0xe8f7f4, 0.7).setDepth(24);
+      this.tweens.add({ targets: streak, alpha: 0, scale: 0.3, duration: 180, ease: 'Cubic.easeOut', onComplete: () => streak.destroy() });
+    } else if (texture === 'shot-saw') {
+      const sp = this.add.circle(bx + Phaser.Math.Between(-6, 6), by + Phaser.Math.Between(-6, 6), Phaser.Math.FloatBetween(1, 2.5), Phaser.Math.Between(0, 1) ? 0xc9ff6a : 0xe8f7f4, 0.9).setDepth(24);
+      this.tweens.add({ targets: sp, alpha: 0, scale: 0.2, duration: 140, ease: 'Cubic.easeOut', onComplete: () => sp.destroy() });
+    } else {
+      const trail = this.add.circle(bx, by, Phaser.Math.FloatBetween(2.5, 5.5), color, 0.58).setDepth(24);
+      this.tweens.add({ targets: trail, alpha: 0, scale: 2.8, duration: 260, ease: 'Cubic.easeOut', onComplete: () => trail.destroy() });
+    }
   }
 
   private impactBurst(x: number, y: number, color: number, scale: number) {
@@ -6983,6 +7220,15 @@ class MainScene extends Phaser.Scene {
   }
 
   private shockwave(x: number, y: number, radius: number, color: number) {
+    const glow = this.add.circle(x, y, 10, color, 0.18).setDepth(40);
+    this.tweens.add({
+      targets: glow,
+      radius: radius * 0.6,
+      alpha: 0,
+      duration: 300,
+      ease: 'Cubic.easeOut',
+      onComplete: () => glow.destroy(),
+    });
     const ring = this.add.circle(x, y, 10, color, 0).setStrokeStyle(3, color, 0.82).setDepth(41);
     this.tweens.add({
       targets: ring,
@@ -7019,6 +7265,18 @@ class MainScene extends Phaser.Scene {
       ease: 'Cubic.easeOut',
       onComplete: () => ring.destroy(),
     });
+    const inner = this.add
+      .circle(this.player.x, this.player.y, 12, 0xe8f7f4, 0)
+      .setStrokeStyle(2, 0xe8f7f4, 0.6)
+      .setDepth(38);
+    this.tweens.add({
+      targets: inner,
+      radius: 60,
+      alpha: 0,
+      duration: 340,
+      ease: 'Cubic.easeOut',
+      onComplete: () => inner.destroy(),
+    });
   }
 
   private emitEngineTrail(angle: number, vehicle: VehicleSpec) {
@@ -7031,6 +7289,7 @@ class MainScene extends Phaser.Scene {
     const backAngle = angle + Math.PI;
     const x = this.player.x + Math.cos(backAngle) * (vehicle.bodyWidth * 0.55);
     const y = this.player.y + Math.sin(backAngle) * (vehicle.bodyHeight * 0.55);
+
     const trail = this.add.circle(x, y, this.currentVehicle === 'mech' ? 4 : 7, color, 0.34).setDepth(10);
     this.tweens.add({
       targets: trail,
@@ -7042,11 +7301,70 @@ class MainScene extends Phaser.Scene {
       ease: 'Sine.easeOut',
       onComplete: () => trail.destroy(),
     });
+
+    if (this.currentVehicle !== 'mech') {
+      const ox = Phaser.Math.Between(-4, 4);
+      const oy = Phaser.Math.Between(-4, 4);
+      const secondary = this.add.circle(x + ox, y + oy, 3, color, 0.2).setDepth(9);
+      this.tweens.add({
+        targets: secondary,
+        x: secondary.x + Math.cos(backAngle) * 20 + Phaser.Math.Between(-8, 8),
+        y: secondary.y + Math.sin(backAngle) * 20 + Phaser.Math.Between(-8, 8),
+        alpha: 0,
+        scale: 2,
+        duration: 300,
+        ease: 'Sine.easeOut',
+        onComplete: () => secondary.destroy(),
+      });
+    }
+  }
+
+  private bigExplosion(x: number, y: number, color: number, size: number) {
+    const core = this.add.circle(x, y, size * 0.3, 0xe8f7f4, 0.95).setDepth(42);
+    this.tweens.add({ targets: core, alpha: 0, scale: 3.5, duration: 250, ease: 'Cubic.easeOut', onComplete: () => core.destroy() });
+    const glow = this.add.circle(x, y, size * 0.4, color, 0.35).setDepth(40);
+    this.tweens.add({ targets: glow, alpha: 0, scale: 4, duration: 320, ease: 'Cubic.easeOut', onComplete: () => glow.destroy() });
+    const r1 = this.add.circle(x, y, 8, color, 0).setStrokeStyle(4, color, 0.9).setDepth(41);
+    this.tweens.add({ targets: r1, radius: size * 1.3, alpha: 0, duration: 440, ease: 'Cubic.easeOut', onComplete: () => r1.destroy() });
+    const r2 = this.add.circle(x, y, 6, 0xe8f7f4, 0).setStrokeStyle(2, 0xe8f7f4, 0.6).setDepth(41);
+    this.tweens.add({ targets: r2, radius: size * 0.85, alpha: 0, duration: 340, ease: 'Cubic.easeOut', onComplete: () => r2.destroy() });
+    for (let i = 0; i < 14; i += 1) {
+      const a = (i / 14) * Math.PI * 2 + Phaser.Math.FloatBetween(-0.15, 0.15);
+      const d = Phaser.Math.Between(size * 1.2, size * 3.5);
+      const sp = this.add.circle(x, y, Phaser.Math.FloatBetween(1.5, 4), i % 3 === 0 ? 0xe8f7f4 : color, 0.95).setDepth(43);
+      this.tweens.add({ targets: sp, x: x + Math.cos(a) * d, y: y + Math.sin(a) * d, alpha: 0, scale: 0.1, duration: 200 + Phaser.Math.Between(0, 280), ease: 'Cubic.easeOut', onComplete: () => sp.destroy() });
+    }
+    this.cameras.main.shake(140, 0.004);
+  }
+
+  private levelUpBurst() {
+    const x = this.player.x;
+    const y = this.player.y;
+    for (let i = 0; i < 16; i += 1) {
+      const a = (i / 16) * Math.PI * 2;
+      const p = this.add.circle(x, y, 3, i % 2 === 0 ? 0x36f0d2 : 0xe8f7f4, 0.9).setDepth(44);
+      this.tweens.add({ targets: p, x: x + Math.cos(a) * 80, y: y + Math.sin(a) * 80, alpha: 0, scale: 0.2, duration: 400, ease: 'Cubic.easeOut', onComplete: () => p.destroy() });
+    }
+    const flash = this.add.circle(x, y, 20, 0xe8f7f4, 0.8).setDepth(43);
+    this.tweens.add({ targets: flash, alpha: 0, scale: 3, duration: 300, ease: 'Cubic.easeOut', onComplete: () => flash.destroy() });
+    this.cameras.main.shake(80, 0.002);
   }
 
   private flashAt(x: number, y: number, color: number, size: number) {
-    for (let i = 0; i < 8; i += 1) {
-      const spark = this.add.image(x, y, 'spark').setTint(color).setDepth(70);
+    if (size > 6) {
+      const core = this.add.circle(x, y, size * 0.35, 0xe8f7f4, 0.85).setDepth(71);
+      this.tweens.add({
+        targets: core,
+        alpha: 0,
+        scale: 2.5,
+        duration: 180,
+        ease: 'Cubic.easeOut',
+        onComplete: () => core.destroy(),
+      });
+    }
+    const count = size > 10 ? 12 : 8;
+    for (let i = 0; i < count; i += 1) {
+      const spark = this.add.image(x, y, 'spark').setTint(i % 3 === 0 ? 0xe8f7f4 : color).setDepth(70);
       const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
       const distance = Phaser.Math.Between(size, size * 3);
       spark.setScale(Phaser.Math.FloatBetween(0.5, 1.2));
@@ -7149,6 +7467,10 @@ class MainScene extends Phaser.Scene {
     container.add([overlay, title, stats, prompt, continueButton, continueLabel, exitButton, exitLabel]);
     this.gameOverLayer = container;
     this.showGameOverPanel(canRevive);
+    continueButton.disableInteractive();
+    continueLabel.disableInteractive();
+    exitButton.disableInteractive();
+    exitLabel.disableInteractive();
   }
 
   private showGameOverPanel(canRevive: boolean) {

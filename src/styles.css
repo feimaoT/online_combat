@@ -1000,23 +1000,12 @@ canvas {
   }
 }
 
-@media (min-width: 821px) {
+@media (min-width: 821px) and (pointer: fine) {
   .mobile-controls {
     display: none;
   }
 
   .virtual-joystick {
     display: none;
-  }
-}
-
-@media (pointer: coarse) {
-  .mobile-controls,
-  .virtual-joystick {
-    display: block;
-  }
-
-  .mobile-controls {
-    display: flex;
   }
 }
