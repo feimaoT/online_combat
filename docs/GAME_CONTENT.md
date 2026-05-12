@@ -523,3 +523,66 @@
 - 死亡复活增加 HTML 面板 `.game-over-panel`，复活按钮直接调用 `player:revive`
 - 合成音效通过 Web Audio 创建，事件包括：升级、宝箱、Boss、死亡、天气、狂暴波、载具切换
 - 大逃杀房间的小地图绘制安全圈椭圆；HUD 显示安全圈半径和到圈边距离
+
+## 24. Recent AI Change Handoff
+
+> 本节用于后续 AI 接手排查。代码事实只引用当前源码；“用户反馈待复核”不是代码事实，只是排查入口。
+
+最近相关提交：
+
+- `41ef531`：`feat: improve mobile combat rooms and battle royale zone`
+- `89f936f`：`fix: improve mobile joystick announcements and boss aggro`
+
+房间与大逃杀：
+
+- 服务端固定房间配置在 `server/index.js:22-26`，当前 3 个房间：两个普通模式，一个大逃杀模式。
+- 服务端大逃杀圈参数在 `server/index.js:27-34`：中心 `(2600, 1800)`，初始半径 `3220`，最小半径 `720`，45 秒后开始，9 分钟缩完。
+- 服务端 `publicRoom` 会下发 `nextRampageMs` 和 `battleRoyaleZone`，位置在 `server/index.js:89-106`。
+- 服务端 `buildRoomState` 也会下发 `nextRampageMs`，位置在 `server/index.js:690-700`。
+- 服务端圈外判定通过 `isOutsideBattleRoyaleZone`，位置在 `server/index.js:137-144`。
+- 服务端在 `player:state` 中触发圈外失败并发 `battle:zone-kill`，位置在 `server/index.js:511-522`。
+- 客户端监听 `battle:zone-kill`，位置在 `src/main.ts:1398-1400`。
+- 客户端世界安全圈绘制在 `drawBattleRoyaleZone`，位置在 `src/main.ts:6466-6504`。
+- 客户端小地图安全圈绘制在 `drawMiniMap`，位置在 `src/main.ts:6852-6901`。
+
+移动端控制：
+
+- 移动端按钮和摇杆入口在 `syncMobileControls`，位置在 `src/main.ts:2403-2434`。
+- 虚拟摇杆 DOM 创建、PointerEvent 处理和 `joystickVector` 写入在 `syncJoystick`，位置在 `src/main.ts:2437-2514`。
+- 摇杆向量参与玩家移动计算在 `updatePlayer`，位置在 `src/main.ts:3360-3390`。
+- 横屏全屏请求在 `requestLandscapeMode`，位置在 `src/main.ts:2517-2541`。
+- 横屏手机布局 CSS 在 `src/styles.css:738-1001`。
+- 粗指针设备覆盖桌面隐藏规则，位置在 `src/styles.css:1003-1019`。
+
+播报系统：
+
+- 短播报统一入口是 `showAnnouncement(message, durationMs)`，位置在 `src/main.ts:1932-1935`。
+- 系统播报文本来自 `getSystemAnnouncementText`，位置在 `src/main.ts:1812-1829`；当前包含天气预警、当前天气倒计时、狂暴倒计时。
+- 顶部播报实际绘制在 `drawHud`，位置在 `src/main.ts:6774-6848`。
+- 入侵播报入口在 `handleInvasionWave`，位置在 `src/main.ts:1878-1896`。
+- 狂暴小兵播报入口在 `handleRampageWave`，位置在 `src/main.ts:1899-1923`。
+- Boss 击杀奖励播报在 `src/main.ts:5377`，当前使用短播报。
+- 天气预警、天气开始、天气转晴播报分别在 `src/main.ts:1968`、`src/main.ts:1985`、`src/main.ts:2003`。
+
+Boss 行为：
+
+- Boss 更新逻辑在 `updateBoss`，位置在 `src/main.ts:4566-4640`。
+- Boss 目标选择在 `findBossTarget`，位置在 `src/main.ts:4642-4666`。
+- Boss 生成数据在 `spawnEnemy` 的 Boss 分支，位置在 `src/main.ts:5777-5788`。
+- 当前 Boss 生成时写入 `neutralAsleep: false`、`bossMode: 'attack'`，即出生后不是睡眠状态。
+- 当前 `updateBoss` 使用 `findBossTarget(enemy, Number.POSITIVE_INFINITY)`，即目标选择不受 `noticeRadius` 限制。
+
+皇冠和复活：
+
+- 远程玩家皇冠显示使用 `👑数字`，位置在 `src/main.ts:2273-2275`。
+- 本地玩家皇冠显示使用 `👑数字`，位置在 `src/main.ts:2298-2324`。
+- 在线列表皇冠显示使用 `👑数字`，位置在 `src/main.ts:2663-2667`。
+- DOM 复活面板在 `showGameOverPanel`，位置在 `src/main.ts:7154-7182`。
+- 复活请求和本地重置在 `redeployAfterGameOver`，位置在 `src/main.ts:7185-7216`。
+
+用户反馈待复核：
+
+- 手机横屏后虚拟摇杆仍未出现。
+- 手机横屏顶部播报仍过大。
+- 播报可能没有正确替换；系统提示如天气、狂暴需要倒计时常驻，Boss 击杀、Boss 刷新等短事件不应长时间停留。
+- Boss 应该出生即索敌，不应等待被攻击后锁敌。
