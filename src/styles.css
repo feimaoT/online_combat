@@ -735,7 +735,7 @@ canvas {
   }
 }
 
-@media (max-width: 820px) and (orientation: landscape) {
+@media (orientation: landscape) and (max-height: 540px) {
   .upgrade-panel {
     align-items: center;
     justify-content: center;
@@ -1007,5 +1007,16 @@ canvas {
 
   .virtual-joystick {
     display: none;
+  }
+}
+
+@media (pointer: coarse) {
+  .mobile-controls,
+  .virtual-joystick {
+    display: block;
+  }
+
+  .mobile-controls {
+    display: flex;
   }
 }

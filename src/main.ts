@@ -185,6 +185,7 @@ interface PublicRoom {
   teamCounts: Record<string, number>;
   remainingMs: number;
   nextInvasionMs: number;
+  nextRampageMs?: number;
   battleRoyaleZone?: BattleRoyaleZone;
   scores: Record<string, number>;
   joinLocked?: boolean;
@@ -227,6 +228,7 @@ interface RoomState {
   scores: Record<string, number>;
   remainingMs: number;
   nextInvasionMs: number;
+  nextRampageMs?: number;
   teamSummonRemainingMs?: Record<string, number>;
 }
 
@@ -1473,8 +1475,8 @@ class MainScene extends Phaser.Scene {
               <h3>升级和播报</h3>
               <p>升级时战斗不会暂停。你有 3 秒选择升级，点击卡片或按 1 / 2 / 3，超时默认选 1。</p>
               <ul>
-                <li>播报用于天气预警、召集、击败、载具结束、完全体等重要事件。</li>
-                <li>播报不会自动关闭；点击顶部播报右侧 x 才会关闭。</li>
+                <li>短播报用于召集、击败、载具结束、完全体等事件，会自动关闭。</li>
+                <li>天气和狂暴小兵倒计时会作为系统播报常驻刷新。</li>
                 <li>哨戒炮台是固定敌人，不会追击，但会缓慢发射子弹。</li>
                 <li>最后 2 分钟不能复活；其他时间可以复活，但等级和武器会初始化。</li>
               </ul>
@@ -1584,9 +1586,10 @@ class MainScene extends Phaser.Scene {
       const teams = TEAM_OPTIONS.map((team) => `${team.key}${room.teamCounts?.[team.key] ?? 0}`).join(' / ');
       const capacityText = room.unlimitedPlayers ? `${room.players}/不限` : `${room.players}/${room.maxPlayers}`;
       const zoneText = room.battleRoyaleZone ? `   安全圈 ${Math.round(room.battleRoyaleZone.radius)}m` : '';
+      const rampageText = room.nextRampageMs !== undefined ? `   狂暴 ${this.formatClock(room.nextRampageMs)}` : '';
       meta.textContent = `第 ${room.round} 局   真人 ${capacityText}   剩余 ${this.formatClock(
         room.remainingMs,
-      )}   入侵 ${this.formatClock(room.nextInvasionMs)}${zoneText}   ${teams}   ${scores}`;
+      )}   入侵 ${this.formatClock(room.nextInvasionMs)}${rampageText}${zoneText}   ${teams}   ${scores}`;
       info.append(title, meta);
 
       const join = document.createElement('button');
@@ -1775,6 +1778,14 @@ class MainScene extends Phaser.Scene {
     return Math.max(0, this.latestRoomState.remainingMs - (this.elapsedMs - this.roomStateSyncedAt));
   }
 
+  private getNextRampageMs() {
+    if (this.latestRoomState?.nextRampageMs === undefined) {
+      return undefined;
+    }
+
+    return Math.max(0, this.latestRoomState.nextRampageMs - (this.elapsedMs - this.roomStateSyncedAt));
+  }
+
   private getBattleRoyaleZone() {
     return this.latestRoomState?.room.battleRoyaleZone ?? this.currentRoom?.battleRoyaleZone;
   }
@@ -1796,6 +1807,25 @@ class MainScene extends Phaser.Scene {
     const distance = Phaser.Math.Distance.Between(this.player.x, this.player.y, zone.centerX, zone.centerY);
     const margin = Math.round(zone.radius - distance);
     return margin >= 0 ? `安全圈 ${Math.round(zone.radius)} 余 ${margin}` : `圈外 ${Math.abs(margin)}`;
+  }
+
+  private getSystemAnnouncementText() {
+    if (this.pendingWeather) {
+      const remaining = Math.max(0, Math.ceil((this.pendingWeather.startsAt - this.elapsedMs) / 1000));
+      return `天气 ${WEATHER_SPECS[this.pendingWeather.key].name}预警 ${remaining}s`;
+    }
+
+    if (this.currentWeather !== 'sunny') {
+      const remaining = Math.max(0, Math.ceil((this.weatherActiveUntil - this.elapsedMs) / 1000));
+      return `天气 ${WEATHER_SPECS[this.currentWeather].name} ${remaining}s`;
+    }
+
+    const nextRampageMs = this.getNextRampageMs();
+    if (nextRampageMs !== undefined && nextRampageMs <= 5 * 60 * 1000) {
+      return `狂暴小兵倒计时 ${this.formatClock(nextRampageMs)}`;
+    }
+
+    return '';
   }
 
   private updateBattleRoyaleZone() {
@@ -1850,8 +1880,7 @@ class MainScene extends Phaser.Scene {
       return;
     }
 
-    this.invasionMessage = `第 ${wave} 波高仇恨入侵`;
-    this.invasionMessageUntil = Number.POSITIVE_INFINITY;
+    this.showAnnouncement(`第 ${wave} 波高仇恨入侵`, 5200);
     this.playCue('rampage');
 
     const count = clamp(8 + wave * 3, 8, 26);
@@ -1872,8 +1901,7 @@ class MainScene extends Phaser.Scene {
       return;
     }
 
-    this.invasionMessage = `狂暴小兵来袭 ${wave}`;
-    this.invasionMessageUntil = Number.POSITIVE_INFINITY;
+    this.showAnnouncement(`狂暴小兵来袭 ${wave}`, 5200);
     this.playCue('rampage');
 
     const count = clamp(10 + wave * 2, 10, 32);
@@ -1901,9 +1929,9 @@ class MainScene extends Phaser.Scene {
     this.showAnnouncement(payload.message || `真人加入：${name} 加入 ${teamName}`, 3500);
   }
 
-  private showAnnouncement(message: string, _durationMs = 3500) {
+  private showAnnouncement(message: string, durationMs = 3500) {
     this.invasionMessage = message;
-    this.invasionMessageUntil = Number.POSITIVE_INFINITY;
+    this.invasionMessageUntil = this.elapsedMs + Math.max(900, durationMs);
   }
 
   private hideAnnouncement() {
@@ -4540,15 +4568,9 @@ class MainScene extends Phaser.Scene {
     spec: EnemySpec,
     deltaSeconds: number,
   ): { aggro: number; hunting: boolean } {
-    if (enemy.getData('neutralAsleep')) {
-      enemy.setVelocity(0, 0);
-      enemy.setRotation(Math.sin(this.elapsedMs / 900 + enemy.x) * 0.08);
-      return { aggro: 0, hunting: false };
-    }
-
     const hp = enemy.getData('hp') as number;
     const maxHp = enemy.getData('maxHp') as number;
-    const target = this.findBossTarget(enemy, spec.noticeRadius);
+    const target = this.findBossTarget(enemy, Number.POSITIVE_INFINITY);
     const mode = enemy.getData('bossMode') as string | undefined;
     const hasLockedTarget = Boolean(enemy.getData('bossTargetId'));
     const healCooldownUntil = (enemy.getData('bossHealCooldownUntil') as number | undefined) ?? 0;
@@ -5352,8 +5374,7 @@ class MainScene extends Phaser.Scene {
     this.flashAt(x, y, BOSS_MINIMAP_COLOR, 24);
     this.shockwave(x, y, 240, BOSS_MINIMAP_COLOR);
     this.playCue('boss');
-    this.invasionMessage = `击败 Boss，永久解锁 ${VEHICLES[vehicle].name} Lv.${nextRank}`;
-    this.invasionMessageUntil = Number.POSITIVE_INFINITY;
+    this.showAnnouncement(`击败 Boss，永久解锁 ${VEHICLES[vehicle].name} Lv.${nextRank}`, 4200);
   }
 
   private gainXp(amount: number) {
@@ -5755,9 +5776,9 @@ class MainScene extends Phaser.Scene {
 
     if (kind === 'boss') {
       enemy.setData('isBoss', true);
-      enemy.setData('aggro', 0);
-      enemy.setData('neutralAsleep', true);
-      enemy.setData('bossMode', 'sleep');
+      enemy.setData('aggro', 100);
+      enemy.setData('neutralAsleep', false);
+      enemy.setData('bossMode', 'attack');
       enemy.setData('bossTargetId', '');
       enemy.setData('bossTargetSince', this.elapsedMs);
       enemy.setData('bossFleeUntil', 0);
@@ -6751,42 +6772,69 @@ class MainScene extends Phaser.Scene {
     this.hud.lineStyle(4, this.areaAlert > 65 ? 0xff6961 : 0xffd166, vignetteAlpha);
     this.hud.strokeRect(2, 2, width - 4, height - 4);
 
-    if (this.invasionMessage) {
+    if (this.invasionMessage && Number.isFinite(this.invasionMessageUntil) && this.elapsedMs >= this.invasionMessageUntil) {
+      this.hideAnnouncement();
+    }
+
+    const systemAnnouncement = this.getSystemAnnouncementText();
+    const announcementText = this.invasionMessage || systemAnnouncement;
+    const showTransientAnnouncement = Boolean(this.invasionMessage);
+    const announcementWidth = isMobileLandscape ? Math.min(292, width - 260) : Math.min(364, width - 32);
+    const announcementHeight = isMobileLandscape ? 30 : 42;
+    const announcementY = isMobileLandscape ? 8 : 20;
+    const announcementCenterY = announcementY + announcementHeight / 2;
+    const announcementFontSize = isMobileLandscape ? '12px' : '18px';
+    const announcementTextX = width / 2 - (showTransientAnnouncement ? (isMobileLandscape ? 7 : 8) : 0);
+
+    if (announcementText) {
       this.hud.fillStyle(0x050709, 0.76);
-      this.hud.fillRoundedRect(width / 2 - 182, 20, 364, 42, 8);
+      this.hud.fillRoundedRect(width / 2 - announcementWidth / 2, announcementY, announcementWidth, announcementHeight, 8);
       this.hud.lineStyle(1, 0xff6961, 0.85);
-      this.hud.strokeRoundedRect(width / 2 - 182, 20, 364, 42, 8);
+      this.hud.strokeRoundedRect(width / 2 - announcementWidth / 2, announcementY, announcementWidth, announcementHeight, 8);
     }
 
     const invasion = this.children.getByName('invasion-readout') as Phaser.GameObjects.Text | null;
-    const showInvasion = Boolean(this.invasionMessage);
+    const showInvasion = Boolean(announcementText);
     if (invasion) {
       invasion.setVisible(showInvasion);
-      invasion.setText(this.invasionMessage);
-      invasion.setPosition(width / 2 - 8, 41);
+      invasion.setStyle({
+        fontFamily: 'Inter, "Segoe UI", sans-serif',
+        fontSize: announcementFontSize,
+        color: showTransientAnnouncement ? '#ff6961' : '#ffda8a',
+        wordWrap: { width: announcementWidth - (showTransientAnnouncement ? 44 : 18) },
+      });
+      invasion.setText(announcementText);
+      invasion.setPosition(announcementTextX, announcementCenterY);
     } else {
       this.add
-        .text(width / 2 - 8, 41, this.invasionMessage, {
+        .text(announcementTextX, announcementCenterY, announcementText, {
           fontFamily: 'Inter, "Segoe UI", sans-serif',
-          fontSize: '18px',
-          color: '#ff6961',
+          fontSize: announcementFontSize,
+          color: showTransientAnnouncement ? '#ff6961' : '#ffda8a',
+          wordWrap: { width: announcementWidth - (showTransientAnnouncement ? 44 : 18) },
         })
         .setName('invasion-readout')
         .setScrollFactor(0)
         .setOrigin(0.5)
-        .setVisible(Boolean(showInvasion))
+        .setVisible(showInvasion)
         .setDepth(902);
     }
 
-    if (showInvasion) {
+    if (showTransientAnnouncement) {
+      const closeX = width / 2 + announcementWidth / 2 - (isMobileLandscape ? 18 : 28);
       if (this.announcementClose) {
         this.announcementClose.setVisible(true);
-        this.announcementClose.setPosition(width / 2 + 154, 41);
+        this.announcementClose.setStyle({
+          fontFamily: 'Inter, "Segoe UI", sans-serif',
+          fontSize: isMobileLandscape ? '14px' : '18px',
+          color: '#e8f7f4',
+        });
+        this.announcementClose.setPosition(closeX, announcementCenterY);
       } else {
         this.announcementClose = this.add
-          .text(width / 2 + 154, 41, 'x', {
+          .text(closeX, announcementCenterY, 'x', {
             fontFamily: 'Inter, "Segoe UI", sans-serif',
-            fontSize: '18px',
+            fontSize: isMobileLandscape ? '14px' : '18px',
             color: '#e8f7f4',
           })
           .setName('announcement-close')

@@ -114,7 +114,7 @@
 
 大逃杀模式规则：
 
-- 来源：`server/index.js:22-34`、`server/index.js:109-144`、`server/index.js:403-414`、`server/index.js:511-522`、`src/main.ts:1778-1814`、`src/main.ts:6441-6477`、`src/main.ts:6814-6824`
+- 来源：`server/index.js:22-34`、`server/index.js:109-144`、`server/index.js:403-414`、`server/index.js:511-522`、`src/main.ts:1778-1829`、`src/main.ts:6441-6477`、`src/main.ts:6814-6824`
 - 只有 `room-3` 是大逃杀模式，`room-1` 和 `room-2` 是普通模式
 - 服务端通过 `getBattleRoyaleZone` 计算当前安全圈，并在 `publicRoom(room)` 中写入 `battleRoyaleZone`
 - 安全圈半径从 `3220` 线性缩小到 `720`
@@ -136,7 +136,7 @@
 | `room:quick-join` | 客户端到服务端 | 快速匹配可加入房间 |
 | `room:join` | 客户端到服务端 | 加入指定房间 |
 | `room:leave` | 客户端到服务端 | 离开当前房间 |
-| `room:state` | 服务端到客户端 | 房间、玩家、分数、剩余时间、召集冷却；大逃杀房间包含 `battleRoyaleZone` |
+| `room:state` | 服务端到客户端 | 房间、玩家、分数、剩余时间、召集冷却、下一次狂暴倒计时；大逃杀房间包含 `battleRoyaleZone` |
 | `room:invasion` | 服务端到客户端 | 触发第 N 波入侵 |
 | `room:rampage` | 服务端到客户端 | 第 5 分钟后每分钟触发狂暴小兵 |
 | `room:player-joined` | 服务端到客户端 | 播报真人加入 |
@@ -290,8 +290,8 @@
   - `(940, WORLD_HEIGHT - 760)` = `(940, 2840)`
   - `(WORLD_WIDTH - 940, WORLD_HEIGHT - 760)` = `(4260, 2840)`
 - 实际出生点在上述坐标上加 `-120..120` 随机偏移，并限制在边界 `100..WORLD-100`
-- Boss 初始为 `neutralAsleep`
-- Boss 被玩家打中后醒来，进入攻击模式，锁定本地玩家或远程玩家
+- Boss 初始为 `neutralAsleep: false`
+- Boss 出生后即进入 `attack` 模式，按全图候选目标锁定本地玩家或远程玩家
 - Boss 锁定目标后会追击；近距离使用普通攻击
 - Boss 技能间隔 `2400..3600ms`
 - Boss 技能：距离 `<180` 时震波并对本地目标造成 `damage * 1.25`；否则画电弧，目标为本地且距离 `<520` 时造成 `damage * 0.62`
@@ -320,6 +320,7 @@
 
 - 服务端从第 `5 分钟` 开始，每 `1 分钟` 广播一次 `room:rampage`
 - 客户端播报：`狂暴小兵来袭 N`
+- `room:state` 和房间列表包含 `nextRampageMs`；客户端顶部系统播报显示 `狂暴小兵倒计时 mm:ss`
 - 生成数量：`clamp(10 + wave * 2, 10, 32)`
 - 种类循环：`raider`、`spark`、`stalker`、`mortar`、`shielder`
 - 品级：第 `6` 波起每 6 个一个红色；第 `3` 波起每 4 个一个紫色；其他为蓝色
@@ -506,7 +507,8 @@
 - 大多数时间是晴朗
 - 异常天气会提前 10 秒播报，最长持续 1 分钟
 - 升级时战斗不会暂停
-- 播报不会自动关闭；点击顶部播报右侧 `x` 才会关闭
+- 短播报用于召集、击败、载具结束、完全体等事件，会自动关闭
+- 天气和狂暴小兵倒计时会作为系统播报常驻刷新
 - 哨戒炮台是固定敌人，不会追击，但会缓慢发射子弹
 - 最后 2 分钟不能复活；其他时间可以复活，但等级和武器会初始化
 
@@ -515,6 +517,7 @@
 来源：`src/main.ts`、`src/styles.css`
 
 - 手机端房间内创建 `.virtual-joystick`，左侧摇杆向量直接参与 `updatePlayer` 移动输入
+- 横屏手机按 `orientation: landscape` 且 `max-height: 540px` 缩小摇杆；粗指针设备会覆盖桌面宽屏隐藏规则，避免横屏手机 CSS 宽度超过 `821px` 时摇杆被隐藏
 - `横屏全屏` 按钮会请求全屏并尝试 `screen.orientation.lock('landscape')`
 - 升级选择只保留 HTML 面板 `.upgrade-panel`，不再同时创建 Phaser 卡片层
 - 死亡复活增加 HTML 面板 `.game-over-panel`，复活按钮直接调用 `player:revive`

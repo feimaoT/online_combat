@@ -100,6 +100,7 @@ function publicRoom(room) {
     remainingMs: Math.max(0, room.endsAt - t),
     joinLocked: room.settling || room.endsAt - t <= LATE_JOIN_LOCK_MS,
     nextInvasionMs: room.settling ? 0 : Math.max(0, room.nextInvasionAt - t),
+    nextRampageMs: room.settling ? 0 : Math.max(0, room.nextRampageAt - t),
     battleRoyaleZone: getBattleRoyaleZone(room, t),
     scores: room.scores,
     ended: false,
@@ -694,6 +695,7 @@ function buildRoomState(room) {
     scores: room.scores,
     remainingMs: Math.max(0, room.endsAt - t),
     nextInvasionMs: room.settling ? 0 : Math.max(0, room.nextInvasionAt - t),
+    nextRampageMs: room.settling ? 0 : Math.max(0, room.nextRampageAt - t),
     teamSummonRemainingMs: getTeamSummonRemainingMs(room, t),
   };
 }
