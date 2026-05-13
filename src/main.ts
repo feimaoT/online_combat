@@ -86,14 +86,6 @@ const TERRAIN_REGIONS: TerrainRegion[] = [
   { key: 'water', x: 7000, y: 3400, w: 800, h: 600, ...TERRAIN_SPECS.water },
   { key: 'water', x: 1400, y: 100,  w: 500, h: 400, ...TERRAIN_SPECS.water },
   { key: 'water', x: 6100, y: 100,  w: 500, h: 400, ...TERRAIN_SPECS.water },
-  // --- Roads (connecting bases to center) ---
-  { key: 'road', x: 1200, y: 750,  w: 2800, h: 90, ...TERRAIN_SPECS.road },
-  { key: 'road', x: 4000, y: 750,  w: 2800, h: 90, ...TERRAIN_SPECS.road },
-  { key: 'road', x: 1200, y: 1650, w: 2800, h: 90, ...TERRAIN_SPECS.road },
-  { key: 'road', x: 4000, y: 1650, w: 2800, h: 90, ...TERRAIN_SPECS.road },
-  { key: 'road', x: 3950, y: 750,  w: 100, h: 3200, ...TERRAIN_SPECS.road },
-  { key: 'road', x: 1600, y: 2600, w: 2400, h: 90, ...TERRAIN_SPECS.road },
-  { key: 'road', x: 4000, y: 2600, w: 2400, h: 90, ...TERRAIN_SPECS.road },
   // Plain is the default — everything not covered above
 ];
 
@@ -232,6 +224,10 @@ interface LightningStrike {
   y: number;
   radius: number;
 }
+
+type FullscreenElement = HTMLElement & {
+  webkitRequestFullscreen?: () => Promise<void> | void;
+};
 
 interface MoveKeys {
   W: Phaser.Input.Keyboard.Key;
@@ -1197,6 +1193,7 @@ class MainScene extends Phaser.Scene {
   private snowSlideY = 0;
   private lastBattleZoneWarningAt = -10000;
   private audioContext?: AudioContext;
+  private nextUiSyncAt = 0;
 
   constructor() {
     super('main');
@@ -1564,7 +1561,6 @@ class MainScene extends Phaser.Scene {
                 <li>森林：绿色树形纹理。多数重型载具速度下降，摩托和越野车更适合穿林。</li>
                 <li>沼泽：黄绿泥泡。强减速，重型载具更吃亏，载具到期时可能沉没扣血。</li>
                 <li>荒漠：金色沙纹。焚烧工程车在荒漠有速度优势。</li>
-                <li>道路：灰色虚线。移动更快，适合赶路、拉开 Boss 和跨区支援。</li>
               </ul>
             </section>
             <section>
@@ -2766,9 +2762,9 @@ class MainScene extends Phaser.Scene {
 
   private requestLandscapeMode() {
     this.ensureAudioContext();
-    const fullscreenTarget = document.documentElement;
+    const fullscreenTarget = (this.game.canvas || document.getElementById('app') || document.documentElement) as FullscreenElement;
 
-    const tryLockOrientation = () => {
+    const tryLockOrientation = async () => {
       this.scale.refresh();
       const orientation = screen.orientation as ScreenOrientation & {
         lock?: (orientation: string) => Promise<void>;
@@ -2778,29 +2774,43 @@ class MainScene extends Phaser.Scene {
         return;
       }
 
-      orientation
-        .lock('landscape')
-        .then(() => {
-          this.scale.refresh();
-          this.showAnnouncement('已进入横屏全屏', 1800);
-        })
-        .catch(() => this.showAnnouncement('横屏切换被浏览器拦截，请手动旋转手机', 3000));
+      try {
+        await orientation.lock('landscape-primary').catch(() => orientation.lock?.('landscape'));
+        window.setTimeout(() => this.scale.refresh(), 220);
+        this.showAnnouncement('已进入横屏全屏', 1800);
+      } catch {
+        this.scale.refresh();
+        this.showAnnouncement('浏览器没有放行自动横屏，请打开系统自动旋转后横拿手机', 3600);
+      }
     };
 
     if (document.fullscreenElement) {
-      tryLockOrientation();
+      void tryLockOrientation();
       return;
     }
 
     const onFullscreenChange = () => {
       document.removeEventListener('fullscreenchange', onFullscreenChange);
-      tryLockOrientation();
+      void tryLockOrientation();
     };
     document.addEventListener('fullscreenchange', onFullscreenChange);
-    fullscreenTarget.requestFullscreen?.({ navigationUI: 'hide' }).catch(() => {
+    const requestFullscreen =
+      fullscreenTarget.requestFullscreen?.bind(fullscreenTarget) ??
+      fullscreenTarget.webkitRequestFullscreen?.bind(fullscreenTarget);
+
+    if (!requestFullscreen) {
+      void tryLockOrientation();
+      return;
+    }
+
+    Promise.resolve(requestFullscreen({ navigationUI: 'hide' } as FullscreenOptions)).catch(() => {
       document.removeEventListener('fullscreenchange', onFullscreenChange);
       this.showAnnouncement('全屏请求被浏览器拦截', 3000);
     });
+  }
+
+  private isLowFxMode() {
+    return this.scale.width <= 960 || this.scale.height <= 540 || (navigator.hardwareConcurrency ?? 8) <= 4;
   }
 
   private ensureAudioContext() {
@@ -3077,9 +3087,12 @@ class MainScene extends Phaser.Scene {
     this.drawHud();
     this.drawTargetRing();
     this.drawBattleRoyaleZone();
-    this.syncSummonButton();
-    this.syncExitButton();
-    this.syncMobileControls();
+    if (_time >= this.nextUiSyncAt) {
+      this.nextUiSyncAt = _time + 180;
+      this.syncSummonButton();
+      this.syncExitButton();
+      this.syncMobileControls();
+    }
 
     if (!this.isInMultiplayerRoom) {
       this.weatherOverlay?.clear();
@@ -3692,15 +3705,30 @@ class MainScene extends Phaser.Scene {
 
     const waterRegions = TERRAIN_REGIONS.filter((r) => r.key === 'water');
     for (const wr of waterRegions) {
-      terrainGfx.fillStyle(0x08315a, 0.34);
-      terrainGfx.fillRect(wr.x + 10, wr.y + 10, Math.max(0, wr.w - 20), Math.max(0, wr.h - 20));
+      const waterPoly = new Phaser.Geom.Polygon(this.getTerrainShapePoints(wr, 22));
       for (let wy = wr.y + 34; wy < wr.y + wr.h - 12; wy += 34) {
         terrainGfx.lineStyle(3, TERRAIN_ACCENT.water.pattern, 0.66);
         terrainGfx.beginPath();
-        terrainGfx.moveTo(wr.x + 18, wy);
+        let drawing = false;
         for (let wx = wr.x + 18; wx < wr.x + wr.w - 24; wx += 32) {
-          terrainGfx.lineTo(wx + 16, wy - 8);
-          terrainGfx.lineTo(wx + 32, wy);
+          const x1 = wx + 16;
+          const y1 = wy - 8;
+          const x2 = wx + 32;
+          const y2 = wy;
+          if (
+            Phaser.Geom.Polygon.Contains(waterPoly, wx, wy) &&
+            Phaser.Geom.Polygon.Contains(waterPoly, x1, y1) &&
+            Phaser.Geom.Polygon.Contains(waterPoly, x2, y2)
+          ) {
+            if (!drawing) {
+              terrainGfx.moveTo(wx, wy);
+              drawing = true;
+            }
+            terrainGfx.lineTo(x1, y1);
+            terrainGfx.lineTo(x2, y2);
+          } else {
+            drawing = false;
+          }
         }
         terrainGfx.strokePath();
       }
@@ -3708,23 +3736,42 @@ class MainScene extends Phaser.Scene {
 
     const forestRegions = TERRAIN_REGIONS.filter((r) => r.key === 'forest');
     for (const fr of forestRegions) {
+      const forestPoly = new Phaser.Geom.Polygon(this.getTerrainShapePoints(fr, 28));
       for (let ty = fr.y + 38; ty < fr.y + fr.h - 20; ty += 62) {
         for (let tx = fr.x + 36; tx < fr.x + fr.w - 20; tx += 74) {
           const ox = Math.sin((tx + ty) * 0.018) * 13;
           const oy = Math.cos((tx - ty) * 0.014) * 9;
+          const x = tx + ox;
+          const y = ty + oy;
+          if (
+            !Phaser.Geom.Polygon.Contains(forestPoly, x, y - 14) ||
+            !Phaser.Geom.Polygon.Contains(forestPoly, x - 13, y + 12) ||
+            !Phaser.Geom.Polygon.Contains(forestPoly, x + 13, y + 12)
+          ) {
+            continue;
+          }
           terrainGfx.fillStyle(0x072a18, 0.48);
-          terrainGfx.fillCircle(tx + ox, ty + oy + 8, 9);
+          terrainGfx.fillCircle(x, y + 8, 9);
           terrainGfx.fillStyle(TERRAIN_ACCENT.forest.pattern, 0.62);
-          terrainGfx.fillTriangle(tx + ox, ty + oy - 14, tx + ox - 13, ty + oy + 12, tx + ox + 13, ty + oy + 12);
+          terrainGfx.fillTriangle(x, y - 14, x - 13, y + 12, x + 13, y + 12);
         }
       }
     }
 
     const swampRegions = TERRAIN_REGIONS.filter((r) => r.key === 'swamp');
     for (const sr of swampRegions) {
+      const swampPoly = new Phaser.Geom.Polygon(this.getTerrainShapePoints(sr, 24));
       for (let by = sr.y + 34; by < sr.y + sr.h - 18; by += 48) {
         for (let bx = sr.x + 28; bx < sr.x + sr.w - 18; bx += 58) {
           const ox = Math.sin((bx + by) * 0.021) * 10;
+          if (
+            !Phaser.Geom.Polygon.Contains(swampPoly, bx + ox - 18, by) ||
+            !Phaser.Geom.Polygon.Contains(swampPoly, bx + ox + 18, by) ||
+            !Phaser.Geom.Polygon.Contains(swampPoly, bx + ox, by - 12) ||
+            !Phaser.Geom.Polygon.Contains(swampPoly, bx + ox, by + 12)
+          ) {
+            continue;
+          }
           terrainGfx.fillStyle(0x15200d, 0.44);
           terrainGfx.fillEllipse(bx + ox, by, 32, 12);
           terrainGfx.lineStyle(2, TERRAIN_ACCENT.swamp.pattern, 0.54);
@@ -3737,46 +3784,47 @@ class MainScene extends Phaser.Scene {
 
     const desertRegions = TERRAIN_REGIONS.filter((r) => r.key === 'desert');
     for (const dr of desertRegions) {
+      const desertPoly = new Phaser.Geom.Polygon(this.getTerrainShapePoints(dr, 26));
       terrainGfx.lineStyle(3, TERRAIN_ACCENT.desert.pattern, 0.42);
       for (let sy = dr.y + 36; sy < dr.y + dr.h - 20; sy += 72) {
         const shift = Math.sin(sy * 0.013) * 38;
         terrainGfx.beginPath();
-        terrainGfx.moveTo(dr.x + 24 + shift, sy);
+        let drawing = false;
         for (let sx = dr.x + 24; sx < dr.x + dr.w - 24; sx += 86) {
-          terrainGfx.lineTo(sx + 42 + shift, sy + Math.sin(sx * 0.04) * 16);
-          terrainGfx.lineTo(sx + 84 + shift, sy);
+          const x0 = sx + shift;
+          const x1 = sx + 42 + shift;
+          const y1 = sy + Math.sin(sx * 0.04) * 16;
+          const x2 = sx + 84 + shift;
+          if (
+            Phaser.Geom.Polygon.Contains(desertPoly, x0, sy) &&
+            Phaser.Geom.Polygon.Contains(desertPoly, x1, y1) &&
+            Phaser.Geom.Polygon.Contains(desertPoly, x2, sy)
+          ) {
+            if (!drawing) {
+              terrainGfx.moveTo(x0, sy);
+              drawing = true;
+            }
+            terrainGfx.lineTo(x1, y1);
+            terrainGfx.lineTo(x2, sy);
+          } else {
+            drawing = false;
+          }
         }
         terrainGfx.strokePath();
       }
     }
 
-    const roadRegions = TERRAIN_REGIONS.filter((r) => r.key === 'road');
-    for (const rr of roadRegions) {
-      terrainGfx.lineStyle(2, 0x15191c, 0.62);
-      terrainGfx.strokeRect(rr.x + 3, rr.y + 3, Math.max(0, rr.w - 6), Math.max(0, rr.h - 6));
-      terrainGfx.lineStyle(4, TERRAIN_ACCENT.road.pattern, 0.78);
-      if (rr.w > rr.h) {
-        for (let rx = rr.x + 16; rx < rr.x + rr.w - 16; rx += 46) {
-          terrainGfx.lineBetween(rx, rr.y + rr.h / 2, rx + 24, rr.y + rr.h / 2);
-        }
-      } else {
-        for (let ry = rr.y + 16; ry < rr.y + rr.h - 16; ry += 46) {
-          terrainGfx.lineBetween(rr.x + rr.w / 2, ry, rr.x + rr.w / 2, ry + 24);
-        }
-      }
-    }
-
-    TERRAIN_REGIONS.filter((r) => r.label).forEach((r) => {
+    TERRAIN_REGIONS.filter((r) => r.label && r.key !== 'road').forEach((r) => {
       this.add
         .text(r.x + r.w / 2, r.y + r.h / 2, r.label, {
           fontFamily: 'Inter, "Segoe UI", sans-serif',
-          fontSize: r.key === 'road' ? '18px' : '32px',
+          fontSize: '32px',
           color: TERRAIN_ACCENT[r.key].text,
           stroke: '#041014',
           strokeThickness: 5,
         })
         .setOrigin(0.5)
-        .setAlpha(r.key === 'road' ? 0.42 : 0.58)
+        .setAlpha(0.58)
         .setDepth(-13);
     });
 
@@ -4760,7 +4808,7 @@ class MainScene extends Phaser.Scene {
       }
 
       const lastTrailAt = (projectile.getData('lastTrailAt') as number | undefined) ?? 0;
-      if (this.elapsedMs - lastTrailAt > 45) {
+      if (this.elapsedMs - lastTrailAt > (this.isLowFxMode() ? 90 : 45)) {
         projectile.setData('lastTrailAt', this.elapsedMs);
         const trail = this.add.circle(projectile.x, projectile.y, 4, 0xff6961, 0.35).setDepth(22);
         this.tweens.add({
@@ -6807,7 +6855,8 @@ class MainScene extends Phaser.Scene {
     bolt.setLineWidth(width, Math.max(1, width * 0.35));
     const angle = Phaser.Math.Angle.Between(x1, y1, x2, y2);
     const distance = Phaser.Math.Distance.Between(x1, y1, x2, y2);
-    for (let i = 0; i < 3; i += 1) {
+    const sparkCount = this.isLowFxMode() ? 1 : 3;
+    for (let i = 0; i < sparkCount; i += 1) {
       const t = (i + 1) / 4;
       const jitter = Phaser.Math.Between(-14, 14);
       const spark = this.add
@@ -7155,6 +7204,7 @@ class MainScene extends Phaser.Scene {
     const vehicleSpec = this.getCurrentVehicleSpec();
     const vehicleRank = this.getVehicleRank(this.currentVehicle);
     const isMobileLandscape = width > height && width <= 960 && height <= 540;
+    const isMobilePortrait = height > width && width <= 680;
     const targetZoom = isMobileLandscape ? 0.78 : 1;
     const currentZoom = this.cameras.main.zoom;
     if (Math.abs(currentZoom - targetZoom) > 0.005) {
@@ -7162,22 +7212,32 @@ class MainScene extends Phaser.Scene {
     } else if (currentZoom !== targetZoom) {
       this.cameras.main.setZoom(targetZoom);
     }
-    const isCompact = width < 760 || isMobileLandscape;
-    const minimapSize = isMobileLandscape ? 76 : isCompact ? 104 : 150;
-    const minimapX = width - minimapSize - (isMobileLandscape ? 10 : 16);
-    const minimapY = isMobileLandscape ? 10 : 16;
-    const leftPanelWidth = isMobileLandscape ? Math.min(312, width * 0.38) : isCompact ? Math.min(360, width - 32) : 430;
-    const leftPanelHeight = isMobileLandscape ? 132 : 198;
-    const barWidth = isMobileLandscape ? Math.max(118, leftPanelWidth - 142) : 220;
-    const rightPanelWidth = isMobileLandscape ? Math.max(168, Math.min(222, width - leftPanelWidth - minimapSize - 38)) : Math.min(284, width - 32);
-    const rightPanelHeight = isMobileLandscape ? 88 : 128;
+    const isCompact = width < 760 || isMobileLandscape || isMobilePortrait;
+    const hudMargin = isMobileLandscape || isMobilePortrait ? 10 : 16;
+    const hudTextX = hudMargin + (isMobilePortrait ? 10 : 18);
+    const leftPanelX = hudMargin;
+    const leftPanelY = hudMargin;
+    const minimapSize = isMobileLandscape ? 76 : isMobilePortrait ? 72 : isCompact ? 104 : 150;
+    const minimapX = width - minimapSize - (isMobileLandscape || isMobilePortrait ? 10 : 16);
+    const minimapY = isMobileLandscape || isMobilePortrait ? 10 : 16;
+    const leftPanelWidth = isMobileLandscape
+      ? Math.min(312, width * 0.38)
+      : isMobilePortrait
+        ? Math.min(270, Math.max(168, width - minimapSize - 34))
+        : isCompact
+          ? Math.min(360, width - 32)
+          : 430;
+    const leftPanelHeight = isMobileLandscape ? 132 : isMobilePortrait ? 112 : 198;
+    const barWidth = isMobileLandscape ? Math.max(118, leftPanelWidth - 142) : isMobilePortrait ? Math.max(86, leftPanelWidth - 116) : 220;
+    const rightPanelWidth = isMobileLandscape ? Math.max(176, Math.min(236, width - leftPanelWidth - minimapSize - 48)) : Math.min(284, width - 32);
+    const rightPanelHeight = isMobileLandscape ? 118 : 128;
     const rightPanelX = isMobileLandscape
       ? Math.max(leftPanelWidth + 20, minimapX - rightPanelWidth - 10)
       : isCompact
         ? 16
         : width - rightPanelWidth - 16;
     const rightPanelY = isMobileLandscape
-      ? 10
+      ? minimapY + minimapSize + 8
       : isCompact
         ? Math.max(154, height - rightPanelHeight - 16)
         : minimapY + minimapSize + 12;
@@ -7197,41 +7257,54 @@ class MainScene extends Phaser.Scene {
     const teamScore = this.latestRoomState?.scores[this.localTeamKey] ?? 0;
     const roomModeName = this.latestRoomState?.room.modeName ?? this.currentRoom?.modeName ?? '普通模式';
     const battleZoneText = this.getBattleRoyaleZoneStatus();
+    const currentTerrain = this.getTerrainAt(this.player.x, this.player.y);
+    const terrainLabel = TERRAIN_SPECS[currentTerrain].label;
+    const terrainMod = this.getTerrainSpeedMod(this.player.x, this.player.y);
+    const terrainHudText = terrainLabel
+      ? `${terrainLabel} ${terrainMod < 1 ? `x${terrainMod.toFixed(2)}` : terrainMod > 1 ? `x${terrainMod.toFixed(2)}` : ''}`
+      : '';
 
     this.hud.clear();
     this.hud.fillStyle(0x050709, 0.78);
-    this.hud.fillRoundedRect(16, 16, leftPanelWidth, leftPanelHeight, 8);
+    this.hud.fillRoundedRect(leftPanelX, leftPanelY, leftPanelWidth, leftPanelHeight, 8);
     this.hud.lineStyle(1, 0x36f0d2, 0.52);
-    this.hud.strokeRoundedRect(16, 16, leftPanelWidth, leftPanelHeight, 8);
+    this.hud.strokeRoundedRect(leftPanelX, leftPanelY, leftPanelWidth, leftPanelHeight, 8);
 
+    const barY1 = isMobileLandscape ? 48 : isMobilePortrait ? 38 : 56;
+    const barY2 = isMobileLandscape ? 66 : isMobilePortrait ? 54 : 82;
+    const barY3 = isMobileLandscape ? 84 : isMobilePortrait ? 70 : 108;
+    const barH1 = isMobileLandscape ? 8 : isMobilePortrait ? 6 : 11;
+    const barH2 = isMobileLandscape ? 7 : isMobilePortrait ? 5 : 9;
     this.hud.fillStyle(0x132022, 1);
-    this.hud.fillRect(34, isMobileLandscape ? 48 : 56, barWidth, isMobileLandscape ? 8 : 11);
+    this.hud.fillRect(hudTextX, barY1, barWidth, barH1);
     this.hud.fillStyle(0xff6961, 1);
-    this.hud.fillRect(34, isMobileLandscape ? 48 : 56, barWidth * clamp(this.hp / this.maxHp, 0, 1), isMobileLandscape ? 8 : 11);
+    this.hud.fillRect(hudTextX, barY1, barWidth * clamp(this.hp / this.maxHp, 0, 1), barH1);
 
     this.hud.fillStyle(0x132022, 1);
-    this.hud.fillRect(34, isMobileLandscape ? 66 : 82, barWidth, isMobileLandscape ? 7 : 9);
+    this.hud.fillRect(hudTextX, barY2, barWidth, barH2);
     this.hud.fillStyle(0x36f0d2, 1);
-    this.hud.fillRect(34, isMobileLandscape ? 66 : 82, barWidth * clamp(this.xp / this.xpToNext, 0, 1), isMobileLandscape ? 7 : 9);
+    this.hud.fillRect(hudTextX, barY2, barWidth * clamp(this.xp / this.xpToNext, 0, 1), barH2);
 
     this.hud.fillStyle(0x132022, 1);
-    this.hud.fillRect(34, isMobileLandscape ? 84 : 108, barWidth, isMobileLandscape ? 7 : 9);
+    this.hud.fillRect(hudTextX, barY3, barWidth, barH2);
     this.hud.fillStyle(this.areaAlert > 68 ? 0xff6961 : this.areaAlert > 34 ? 0xffd166 : 0xa7e65d, 1);
-    this.hud.fillRect(34, isMobileLandscape ? 84 : 108, barWidth * (this.areaAlert / 100), isMobileLandscape ? 7 : 9);
+    this.hud.fillRect(hudTextX, barY3, barWidth * (this.areaAlert / 100), barH2);
 
     this.drawMiniMap(minimapX, minimapY, minimapSize);
 
-    this.hud.fillStyle(0x050709, 0.72);
-    this.hud.fillRoundedRect(rightPanelX, rightPanelY, rightPanelWidth, rightPanelHeight, 8);
-    this.hud.lineStyle(1, 0xffd166, 0.44);
-    this.hud.strokeRoundedRect(rightPanelX, rightPanelY, rightPanelWidth, rightPanelHeight, 8);
+    if (!isMobilePortrait) {
+      this.hud.fillStyle(0x050709, 0.72);
+      this.hud.fillRoundedRect(rightPanelX, rightPanelY, rightPanelWidth, rightPanelHeight, 8);
+      this.hud.lineStyle(1, 0xffd166, 0.44);
+      this.hud.strokeRoundedRect(rightPanelX, rightPanelY, rightPanelWidth, rightPanelHeight, 8);
 
-    if (this.currentVehicle !== 'mech') {
-      const vehicleBarWidth = rightPanelWidth - 34;
-      this.hud.fillStyle(0x132022, 1);
-      this.hud.fillRect(rightPanelX + 17, rightPanelY + 14, vehicleBarWidth, 10);
-      this.hud.fillStyle(this.currentVehicle === 'tank' ? 0xa7e65d : 0x36f0d2, 1);
-      this.hud.fillRect(rightPanelX + 17, rightPanelY + 14, vehicleBarWidth * remainingVehicle, 10);
+      if (this.currentVehicle !== 'mech') {
+        const vehicleBarWidth = rightPanelWidth - 34;
+        this.hud.fillStyle(0x132022, 1);
+        this.hud.fillRect(rightPanelX + 17, rightPanelY + 14, vehicleBarWidth, 10);
+        this.hud.fillStyle(this.currentVehicle === 'tank' ? 0xa7e65d : 0x36f0d2, 1);
+        this.hud.fillRect(rightPanelX + 17, rightPanelY + 14, vehicleBarWidth * remainingVehicle, 10);
+      }
     }
 
     const hudLines = isMobileLandscape
@@ -7242,26 +7315,33 @@ class MainScene extends Phaser.Scene {
         `${vehicle.name}${this.currentVehicle === 'mech' ? '' : ` Lv.${vehicleRank}`}   ${battleZoneText || this.getWeatherHudText()}`,
         this.getWeaponSlotText(),
       ]
-      : [
-        `生命 ${Math.ceil(this.hp)}/${this.maxHp}     等级 ${this.level}`,
-        `经验 ${this.xp}/${this.xpToNext}`,
-        `索敌 ${Math.round(this.targetRange)}   区域警戒 ${Math.round(this.areaAlert)}%`,
-        `击杀 ${this.kills}     剩余 ${remainingText}`,
-        `阵营 ${this.localTeamName || '未加入'}     积分 ${teamScore}`,
-        `模式 ${roomModeName}${battleZoneText ? `     ${battleZoneText}` : ''}`,
-        `载具 ${vehicle.name}${this.currentVehicle === 'mech' ? '' : ` Lv.${vehicleRank}`}`,
-        this.getWeatherHudText(),
-        this.getWeaponSlotText(),
-      ];
+      : isMobilePortrait
+        ? [
+          `生命 ${Math.ceil(this.hp)}/${this.maxHp}   Lv.${this.level}`,
+          `经验 ${this.xp}/${this.xpToNext}   警戒 ${Math.round(this.areaAlert)}%`,
+          `击杀 ${this.kills}   ${remainingText}   分 ${teamScore}`,
+          `${vehicle.name}${this.currentVehicle === 'mech' ? '' : ` Lv.${vehicleRank}`} ${battleZoneText || terrainHudText || this.getWeatherHudText()}`,
+        ]
+        : [
+          `生命 ${Math.ceil(this.hp)}/${this.maxHp}     等级 ${this.level}`,
+          `经验 ${this.xp}/${this.xpToNext}`,
+          `索敌 ${Math.round(this.targetRange)}   区域警戒 ${Math.round(this.areaAlert)}%`,
+          `击杀 ${this.kills}     剩余 ${remainingText}`,
+          `阵营 ${this.localTeamName || '未加入'}     积分 ${teamScore}`,
+          `模式 ${roomModeName}${battleZoneText ? `     ${battleZoneText}` : ''}`,
+          `载具 ${vehicle.name}${this.currentVehicle === 'mech' ? '' : ` Lv.${vehicleRank}`}`,
+          this.getWeatherHudText(),
+          this.getWeaponSlotText(),
+        ];
     this.hudText.setStyle({
       fontFamily: 'Inter, "Segoe UI", sans-serif',
-      fontSize: isMobileLandscape ? '10px' : isCompact ? '13px' : '15px',
+      fontSize: isMobileLandscape || isMobilePortrait ? '10px' : isCompact ? '13px' : '15px',
       color: '#e8f7f4',
-      lineSpacing: isMobileLandscape ? 3 : 7,
-      wordWrap: { width: leftPanelWidth - 32 },
+      lineSpacing: isMobileLandscape ? 3 : isMobilePortrait ? 2 : 7,
+      wordWrap: { width: leftPanelWidth - (isMobilePortrait ? 20 : 32) },
     });
     this.hudText.setText(hudLines.join('\n'));
-    this.hudText.setPosition(34, isMobileLandscape ? 24 : 28);
+    this.hudText.setPosition(hudTextX, isMobileLandscape ? 24 : isMobilePortrait ? 18 : 28);
 
     const rightText =
       this.currentVehicle === 'mech'
@@ -7275,8 +7355,14 @@ class MainScene extends Phaser.Scene {
     const buffTextY = rightPanelY + (isMobileLandscape ? 70 : 96);
     this.hudText.setDepth(901);
 
+    if (isMobilePortrait) {
+      ['vehicle-readout', 'stat-readout', 'control-readout', 'buff-readout', 'terrain-readout'].forEach((name) => {
+        (this.children.getByName(name) as Phaser.GameObjects.Text | null)?.setVisible(false);
+      });
+    } else {
     const existing = this.children.getByName('vehicle-readout') as Phaser.GameObjects.Text | null;
     if (existing) {
+      existing.setVisible(true);
       existing.setStyle({
         fontFamily: 'Inter, "Segoe UI", sans-serif',
         fontSize: isMobileLandscape ? '12px' : '18px',
@@ -7300,13 +7386,18 @@ class MainScene extends Phaser.Scene {
     const shieldText =
       this.currentVehicle === 'mech'
         ? ''
-        : `   护盾 ${Math.ceil(this.vehicleShield)}/${Math.ceil(this.maxVehicleShield)}`;
+        : isMobileLandscape
+          ? ` 盾 ${Math.ceil(this.vehicleShield)}/${Math.ceil(this.maxVehicleShield)}`
+          : `   护盾 ${Math.ceil(this.vehicleShield)}/${Math.ceil(this.maxVehicleShield)}`;
     const actualFireDelay = Math.max(52, vehicleSpec.fireDelay * this.getFireRateMultiplier());
     const shotsPerSecond = (vehicleSpec.shots * 1000) / actualFireDelay;
-    const statText = `火力 x${this.getDamageMultiplier().toFixed(2)}   射速 ${shotsPerSecond.toFixed(
-      1,
-    )}/s   冷却 ${Math.round(actualFireDelay)}ms${shieldText}`;
+    const statText = isMobileLandscape
+      ? `火x${this.getDamageMultiplier().toFixed(2)}  射${shotsPerSecond.toFixed(1)}/s  冷却${Math.round(actualFireDelay)}ms${shieldText}`
+      : `火力 x${this.getDamageMultiplier().toFixed(2)}   射速 ${shotsPerSecond.toFixed(
+          1,
+        )}/s   冷却 ${Math.round(actualFireDelay)}ms${shieldText}`;
     if (stat) {
+      stat.setVisible(true);
       stat.setStyle({
         fontFamily: 'Inter, "Segoe UI", sans-serif',
         fontSize: isMobileLandscape ? '10px' : '13px',
@@ -7331,6 +7422,7 @@ class MainScene extends Phaser.Scene {
     const controls = this.children.getByName('control-readout') as Phaser.GameObjects.Text | null;
     const controlText = isMobileLandscape ? '摇杆移动   Q/E索敌' : 'WASD移动   Q/E调索敌圈';
     if (controls) {
+      controls.setVisible(true);
       controls.setStyle({
         fontFamily: 'Inter, "Segoe UI", sans-serif',
         fontSize: isMobileLandscape ? '10px' : '12px',
@@ -7353,6 +7445,7 @@ class MainScene extends Phaser.Scene {
     const buffs = this.children.getByName('buff-readout') as Phaser.GameObjects.Text | null;
     const buffText = this.getActiveBuffText();
     if (buffs) {
+      buffs.setVisible(true);
       buffs.setStyle({
         fontFamily: 'Inter, "Segoe UI", sans-serif',
         fontSize: isMobileLandscape ? '10px' : '12px',
@@ -7375,14 +7468,9 @@ class MainScene extends Phaser.Scene {
     }
 
     const terrainIndicator = this.children.getByName('terrain-readout') as Phaser.GameObjects.Text | null;
-    const currentTerrain = this.getTerrainAt(this.player.x, this.player.y);
-    const terrainLabel = TERRAIN_SPECS[currentTerrain].label;
-    const terrainMod = this.getTerrainSpeedMod(this.player.x, this.player.y);
-    const terrainHudText = terrainLabel
-      ? `${terrainLabel} ${terrainMod < 1 ? `x${terrainMod.toFixed(2)}` : terrainMod > 1 ? `x${terrainMod.toFixed(2)}` : ''}`
-      : '';
     const terrainTextY = rightPanelY + (isMobileLandscape ? 82 : 110);
     if (terrainIndicator) {
+      terrainIndicator.setVisible(true);
       terrainIndicator.setStyle({
         fontFamily: 'Inter, "Segoe UI", sans-serif',
         fontSize: isMobileLandscape ? '12px' : '14px',
@@ -7405,6 +7493,7 @@ class MainScene extends Phaser.Scene {
         .setScrollFactor(0)
         .setDepth(901);
     }
+    }
 
     const vignetteAlpha = clamp(this.areaAlert / 100, 0, 0.34);
     this.hud.lineStyle(4, this.areaAlert > 65 ? 0xff6961 : 0xffd166, vignetteAlpha);
@@ -7417,9 +7506,13 @@ class MainScene extends Phaser.Scene {
     const systemAnnouncement = this.getSystemAnnouncementText();
     const showTransient = Boolean(this.invasionMessage);
     const showSystem = Boolean(systemAnnouncement);
+    const announcementCenterX = isMobileLandscape ? (16 + leftPanelWidth + minimapX) / 2 : width / 2;
+    const announcementMaxWidth = isMobileLandscape
+      ? Math.max(170, minimapX - (16 + leftPanelWidth) - 24)
+      : width - 32;
 
     // System countdown (gold) - always at top
-    const sysW = isMobileLandscape ? 220 : 340;
+    const sysW = isMobileLandscape ? Math.min(260, announcementMaxWidth) : 340;
     const sysH = isMobileLandscape ? 20 : 36;
     const sysY = isMobileLandscape ? 4 : 20;
     const sysCY = sysY + sysH / 2;
@@ -7427,9 +7520,9 @@ class MainScene extends Phaser.Scene {
 
     if (showSystem) {
       this.hud.fillStyle(0x050709, 0.68);
-      this.hud.fillRoundedRect(width / 2 - sysW / 2, sysY, sysW, sysH, 6);
+      this.hud.fillRoundedRect(announcementCenterX - sysW / 2, sysY, sysW, sysH, 6);
       this.hud.lineStyle(1, 0xffda8a, 0.55);
-      this.hud.strokeRoundedRect(width / 2 - sysW / 2, sysY, sysW, sysH, 6);
+      this.hud.strokeRoundedRect(announcementCenterX - sysW / 2, sysY, sysW, sysH, 6);
     }
 
     const sysText = this.children.getByName('system-readout') as Phaser.GameObjects.Text | null;
@@ -7443,11 +7536,11 @@ class MainScene extends Phaser.Scene {
           wordWrap: { width: sysW - 16 },
         });
         sysText.setText(systemAnnouncement);
-        sysText.setPosition(width / 2, sysCY);
+        sysText.setPosition(announcementCenterX, sysCY);
       }
     } else {
       this.add
-        .text(width / 2, sysCY, '', {
+        .text(announcementCenterX, sysCY, '', {
           fontFamily: 'Inter, "Segoe UI", sans-serif',
           fontSize: sysFont,
           color: '#ffda8a',
@@ -7461,18 +7554,18 @@ class MainScene extends Phaser.Scene {
     }
 
     // Transient announcement (red, with close) - below system when both exist
-    const tranW = isMobileLandscape ? Math.min(240, width - 260) : Math.min(364, width - 32);
+    const tranW = isMobileLandscape ? Math.min(280, announcementMaxWidth) : Math.min(364, width - 32);
     const tranH = isMobileLandscape ? 24 : 42;
     const tranY = showSystem ? sysY + sysH + (isMobileLandscape ? 2 : 4) : (isMobileLandscape ? 4 : 20);
     const tranCY = tranY + tranH / 2;
     const tranFont = isMobileLandscape ? '10px' : '18px';
-    const tranTextX = width / 2 - (isMobileLandscape ? 6 : 8);
+    const tranTextX = announcementCenterX - (isMobileLandscape ? 6 : 8);
 
     if (showTransient) {
       this.hud.fillStyle(0x050709, 0.76);
-      this.hud.fillRoundedRect(width / 2 - tranW / 2, tranY, tranW, tranH, 8);
+      this.hud.fillRoundedRect(announcementCenterX - tranW / 2, tranY, tranW, tranH, 8);
       this.hud.lineStyle(1, 0xff6961, 0.85);
-      this.hud.strokeRoundedRect(width / 2 - tranW / 2, tranY, tranW, tranH, 8);
+      this.hud.strokeRoundedRect(announcementCenterX - tranW / 2, tranY, tranW, tranH, 8);
     }
 
     const invasion = this.children.getByName('invasion-readout') as Phaser.GameObjects.Text | null;
@@ -7504,7 +7597,7 @@ class MainScene extends Phaser.Scene {
     }
 
     if (showTransient) {
-      const closeX = width / 2 + tranW / 2 - (isMobileLandscape ? 14 : 28);
+      const closeX = announcementCenterX + tranW / 2 - (isMobileLandscape ? 14 : 28);
       if (this.announcementClose) {
         this.announcementClose.setVisible(true);
         this.announcementClose.setStyle({
@@ -7554,7 +7647,7 @@ class MainScene extends Phaser.Scene {
       const rh = (r.h / WORLD_HEIGHT) * size;
       this.hud.fillStyle(r.color, r.key === 'water' ? 0.78 : 0.66);
       this.hud.fillRect(rx, ry, rw, rh);
-      this.hud.lineStyle(r.key === 'road' ? 1 : 1.4, TERRAIN_ACCENT[r.key].stroke, 0.9);
+      this.hud.lineStyle(1.4, TERRAIN_ACCENT[r.key].stroke, 0.9);
       this.hud.strokeRect(rx, ry, rw, rh);
     }
 
@@ -7621,7 +7714,8 @@ class MainScene extends Phaser.Scene {
       ease: 'Cubic.easeOut',
       onComplete: () => flame.destroy(),
     });
-    for (let i = 0; i < 3; i += 1) {
+    const sparkCount = this.isLowFxMode() ? 1 : 3;
+    for (let i = 0; i < sparkCount; i += 1) {
       const sa = angle + Phaser.Math.FloatBetween(-0.5, 0.5);
       const sd = Phaser.Math.Between(8, 22);
       const spark = this.add.circle(x, y, 2, 0xe8f7f4, 0.9).setDepth(33);
@@ -7640,7 +7734,7 @@ class MainScene extends Phaser.Scene {
 
   private emitProjectileTrail(projectile: Phaser.Physics.Arcade.Image) {
     const lastTrailAt = (projectile.getData('lastTrailAt') as number | undefined) ?? 0;
-    if (this.elapsedMs - lastTrailAt < 28) {
+    if (this.elapsedMs - lastTrailAt < (this.isLowFxMode() ? 56 : 28)) {
       return;
     }
 
@@ -7762,7 +7856,8 @@ class MainScene extends Phaser.Scene {
       return;
     }
 
-    this.nextEngineTrailAt = this.elapsedMs + (this.currentVehicle === 'fighter' ? 34 : 58);
+    const trailDelay = this.currentVehicle === 'fighter' ? 34 : 58;
+    this.nextEngineTrailAt = this.elapsedMs + (this.isLowFxMode() ? trailDelay * 1.8 : trailDelay);
     const color = this.getProjectileColor(vehicle.projectileTexture);
     const backAngle = angle + Math.PI;
     const x = this.player.x + Math.cos(backAngle) * (vehicle.bodyWidth * 0.55);
@@ -7780,7 +7875,7 @@ class MainScene extends Phaser.Scene {
       onComplete: () => trail.destroy(),
     });
 
-    if (this.currentVehicle !== 'mech') {
+    if (this.currentVehicle !== 'mech' && !this.isLowFxMode()) {
       const ox = Phaser.Math.Between(-4, 4);
       const oy = Phaser.Math.Between(-4, 4);
       const secondary = this.add.circle(x + ox, y + oy, 3, color, 0.2).setDepth(9);

@@ -25,6 +25,8 @@ body {
     sans-serif;
   touch-action: none;
   user-select: none;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 canvas {
@@ -132,8 +134,8 @@ canvas {
 
 .summon-button {
   position: fixed;
-  left: 24px;
-  bottom: 24px;
+  left: calc(24px + env(safe-area-inset-left));
+  bottom: calc(24px + env(safe-area-inset-bottom));
   z-index: 18;
   height: 42px;
   border: 1px solid rgba(255, 209, 102, 0.82);
@@ -152,8 +154,8 @@ canvas {
 
 .online-button {
   position: fixed;
-  left: 24px;
-  bottom: 76px;
+  left: calc(24px + env(safe-area-inset-left));
+  bottom: calc(76px + env(safe-area-inset-bottom));
   z-index: 18;
   height: 42px;
   border: 1px solid rgba(54, 240, 210, 0.78);
@@ -167,8 +169,8 @@ canvas {
 
 .exit-button {
   position: fixed;
-  right: 24px;
-  bottom: 24px;
+  right: calc(24px + env(safe-area-inset-right));
+  bottom: calc(24px + env(safe-area-inset-bottom));
   z-index: 18;
   height: 42px;
   border: 1px solid rgba(255, 105, 97, 0.78);
@@ -186,8 +188,8 @@ canvas {
 
 .mobile-controls {
   position: fixed;
-  top: 12px;
-  right: 12px;
+  top: calc(12px + env(safe-area-inset-top));
+  right: calc(12px + env(safe-area-inset-right));
   z-index: 18;
   display: flex;
   gap: 8px;
@@ -212,8 +214,8 @@ canvas {
 
 .virtual-joystick {
   position: fixed;
-  left: 22px;
-  bottom: 96px;
+  left: calc(22px + env(safe-area-inset-left));
+  bottom: calc(96px + env(safe-area-inset-bottom));
   z-index: 22;
   width: 132px;
   height: 132px;
@@ -317,8 +319,8 @@ canvas {
 
 .online-panel {
   position: fixed;
-  left: 24px;
-  bottom: 128px;
+  left: calc(24px + env(safe-area-inset-left));
+  bottom: calc(128px + env(safe-area-inset-bottom));
   z-index: 19;
   width: min(760px, calc(100vw - 48px));
   max-height: min(560px, calc(100vh - 160px));
@@ -701,30 +703,30 @@ canvas {
   }
 
   .summon-button {
-    left: 154px;
-    bottom: 12px;
+    left: calc(154px + env(safe-area-inset-left));
+    bottom: calc(12px + env(safe-area-inset-bottom));
     min-width: 112px;
     height: 46px;
   }
 
   .online-button {
-    left: 154px;
-    bottom: 68px;
+    left: calc(154px + env(safe-area-inset-left));
+    bottom: calc(68px + env(safe-area-inset-bottom));
     min-width: 112px;
     height: 46px;
   }
 
   .exit-button {
-    right: 12px;
-    bottom: 12px;
+    right: calc(12px + env(safe-area-inset-right));
+    bottom: calc(12px + env(safe-area-inset-bottom));
     min-width: 112px;
     height: 46px;
   }
 
   .online-panel {
-    left: 10px;
-    right: 10px;
-    bottom: 124px;
+    left: calc(10px + env(safe-area-inset-left));
+    right: calc(10px + env(safe-area-inset-right));
+    bottom: calc(124px + env(safe-area-inset-bottom));
     width: auto;
     max-height: calc(100vh - 140px);
   }
@@ -791,8 +793,8 @@ canvas {
   }
 
   .mobile-controls {
-    top: 6px;
-    right: 6px;
+    top: calc(108px + env(safe-area-inset-top));
+    right: calc(6px + env(safe-area-inset-right));
     gap: 5px;
     transform: scale(0.78);
     transform-origin: top right;
@@ -815,24 +817,24 @@ canvas {
   }
 
   .summon-button {
-    left: 132px;
-    bottom: 8px;
+    left: calc(132px + env(safe-area-inset-left));
+    bottom: calc(8px + env(safe-area-inset-bottom));
   }
 
   .online-button {
-    left: 132px;
-    bottom: 48px;
+    left: calc(132px + env(safe-area-inset-left));
+    bottom: calc(48px + env(safe-area-inset-bottom));
   }
 
   .exit-button {
-    right: 8px;
-    bottom: 8px;
+    right: calc(8px + env(safe-area-inset-right));
+    bottom: calc(8px + env(safe-area-inset-bottom));
   }
 
   .online-panel {
-    left: 132px;
-    bottom: 86px;
-    width: min(560px, calc(100vw - 16px));
+    left: calc(132px + env(safe-area-inset-left));
+    bottom: calc(86px + env(safe-area-inset-bottom));
+    width: min(560px, calc(100vw - 148px - env(safe-area-inset-left) - env(safe-area-inset-right)));
     max-height: calc(100vh - 96px);
     transform: scale(0.82);
     transform-origin: left bottom;
@@ -958,8 +960,8 @@ canvas {
   }
 
   .virtual-joystick {
-    left: 12px;
-    bottom: 10px;
+    left: calc(12px + env(safe-area-inset-left));
+    bottom: calc(10px + env(safe-area-inset-bottom));
     width: 104px;
     height: 104px;
   }
