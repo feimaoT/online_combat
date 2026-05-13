@@ -6,6 +6,7 @@ body,
   margin: 0;
   overflow: hidden;
   background: #080b10;
+  touch-action: none;
 }
 
 html.privacy-mode,
@@ -1008,6 +1009,49 @@ canvas {
   }
 
   .virtual-joystick {
+    display: none;
+  }
+}
+
+/* Portrait hint on mobile: suggests rotating to landscape */
+.portrait-hint {
+  position: fixed;
+  bottom: calc(180px + env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 24;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 22px;
+  border-radius: 10px;
+  background: rgba(17, 26, 31, 0.94);
+  border: 1px solid rgba(159, 255, 224, 0.42);
+  color: #e8f7f4;
+  font: 700 14px Inter, "Segoe UI", sans-serif;
+  pointer-events: auto;
+  cursor: pointer;
+  animation: portrait-hint-pulse 2.4s ease-in-out infinite;
+}
+
+.portrait-hint-icon {
+  font-size: 22px;
+  animation: portrait-hint-rotate 2.4s ease-in-out infinite;
+}
+
+@keyframes portrait-hint-pulse {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; }
+}
+
+@keyframes portrait-hint-rotate {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(90deg); }
+}
+
+/* Landscape override: ensure mobile controls stay visible on touch devices */
+@media (orientation: landscape) and (pointer: coarse) {
+  .portrait-hint {
     display: none;
   }
 }

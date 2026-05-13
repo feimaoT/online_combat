@@ -1081,6 +1081,7 @@ class MainScene extends Phaser.Scene {
   private onlineButton?: HTMLButtonElement;
   private exitButton?: HTMLButtonElement;
   private mobileControls?: HTMLDivElement;
+  private portraitHint?: HTMLDivElement;
   private joystick?: HTMLDivElement;
   private joystickKnob?: HTMLDivElement;
   private joystickPointerId?: number;
@@ -1287,8 +1288,51 @@ class MainScene extends Phaser.Scene {
       .setDepth(901);
 
     this.physics.pause();
+    this.setupOrientationHandling();
     this.connectLobby();
     this.showLobbyOverlay();
+  }
+
+  private setupOrientationHandling() {
+    const refresh = () => {
+      this.scale.refresh();
+      this.updatePortraitHint();
+    };
+    window.addEventListener('resize', refresh);
+    screen.orientation?.addEventListener?.('change', refresh);
+
+    this.updatePortraitHint();
+  }
+
+  private updatePortraitHint() {
+    const isMobileLike = matchMedia('(pointer: coarse)').matches;
+    if (!isMobileLike) {
+      this.portraitHint?.remove();
+      this.portraitHint = undefined;
+      return;
+    }
+
+    const isPortrait = window.innerWidth < window.innerHeight;
+    if (!isPortrait || !this.isInMultiplayerRoom || this.isGameOver) {
+      this.portraitHint?.remove();
+      this.portraitHint = undefined;
+      return;
+    }
+
+    if (this.portraitHint) {
+      return;
+    }
+
+    const hint = document.createElement('div');
+    hint.className = 'portrait-hint';
+    hint.innerHTML = '<div class="portrait-hint-icon">&#x1F4F2;</div><div>横拿手机获得最佳体验</div>';
+    document.body.appendChild(hint);
+    this.portraitHint = hint;
+
+    hint.addEventListener('click', () => {
+      hint.remove();
+      this.portraitHint = undefined;
+    });
   }
 
   private resetRunState(preservePermanentVehicles = false) {
@@ -1998,12 +2042,11 @@ class MainScene extends Phaser.Scene {
     }
 
     this.lastNetworkSendAt = this.elapsedMs;
-    const reportingAlive = !this.isGameOver && this.elapsedMs >= this.serverCorrectionUntil;
     this.socket.emit('player:state', {
       x: this.player.x,
       y: this.player.y,
       angle: this.player.rotation,
-      alive: reportingAlive,
+      alive: !this.isGameOver,
       hp: this.hp,
       maxHp: this.maxHp,
     });
@@ -2762,7 +2805,6 @@ class MainScene extends Phaser.Scene {
 
   private requestLandscapeMode() {
     this.ensureAudioContext();
-    const fullscreenTarget = (this.game.canvas || document.getElementById('app') || document.documentElement) as FullscreenElement;
 
     const tryLockOrientation = async () => {
       this.scale.refresh();
@@ -2770,17 +2812,17 @@ class MainScene extends Phaser.Scene {
         lock?: (orientation: string) => Promise<void>;
       };
       if (!orientation?.lock) {
-        this.showAnnouncement('已进入全屏。当前浏览器不支持自动横屏，请手动旋转手机', 3000);
+        this.showAnnouncement('已进入全屏，请手动旋转手机到横屏', 3000);
         return;
       }
 
       try {
         await orientation.lock('landscape-primary').catch(() => orientation.lock?.('landscape'));
-        window.setTimeout(() => this.scale.refresh(), 220);
+        window.setTimeout(() => this.scale.refresh(), 280);
         this.showAnnouncement('已进入横屏全屏', 1800);
       } catch {
         this.scale.refresh();
-        this.showAnnouncement('浏览器没有放行自动横屏，请打开系统自动旋转后横拿手机', 3600);
+        this.showAnnouncement('请打开系统自动旋转后横拿手机', 3600);
       }
     };
 
@@ -2791,12 +2833,17 @@ class MainScene extends Phaser.Scene {
 
     const onFullscreenChange = () => {
       document.removeEventListener('fullscreenchange', onFullscreenChange);
-      void tryLockOrientation();
+      window.setTimeout(() => void tryLockOrientation(), 120);
     };
     document.addEventListener('fullscreenchange', onFullscreenChange);
+
+    const target =
+      (this.game.canvas as FullscreenElement) ||
+      document.documentElement;
+
     const requestFullscreen =
-      fullscreenTarget.requestFullscreen?.bind(fullscreenTarget) ??
-      fullscreenTarget.webkitRequestFullscreen?.bind(fullscreenTarget);
+      target.requestFullscreen?.bind(target) ??
+      (target as FullscreenElement & { webkitRequestFullscreen?: typeof target.requestFullscreen }).webkitRequestFullscreen?.bind(target);
 
     if (!requestFullscreen) {
       void tryLockOrientation();
@@ -2805,7 +2852,7 @@ class MainScene extends Phaser.Scene {
 
     Promise.resolve(requestFullscreen({ navigationUI: 'hide' } as FullscreenOptions)).catch(() => {
       document.removeEventListener('fullscreenchange', onFullscreenChange);
-      this.showAnnouncement('全屏请求被浏览器拦截', 3000);
+      this.showAnnouncement('全屏请求被浏览器拦截，请手动旋转手机', 3000);
     });
   }
 
@@ -7960,6 +8007,8 @@ class MainScene extends Phaser.Scene {
     }
 
     this.isGameOver = true;
+    this.portraitHint?.remove();
+    this.portraitHint = undefined;
     this.socket?.emit('player:defeated', { defeatedBy: this.lastDefeatedBy });
     this.physics.pause();
     this.removeJoystick();
