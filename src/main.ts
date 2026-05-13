@@ -22,8 +22,80 @@ function installPrivacyModeToggle() {
 
 const GAME_WIDTH = 1280;
 const GAME_HEIGHT = 720;
-const WORLD_WIDTH = 5200;
-const WORLD_HEIGHT = 3600;
+const WORLD_WIDTH = 8000;
+const WORLD_HEIGHT = 5600;
+
+type TerrainKey = 'plain' | 'desert' | 'forest' | 'swamp' | 'water' | 'road';
+interface TerrainRegion {
+  key: TerrainKey;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  color: number;
+  alpha: number;
+  speedMod: number;
+  label: string;
+}
+const TERRAIN_SPECS: Record<TerrainKey, { color: number; alpha: number; speedMod: number; label: string }> = {
+  plain:   { color: 0x141e24, alpha: 0,    speedMod: 1,    label: '' },
+  desert:  { color: 0x8a6630, alpha: 0.58, speedMod: 1,    label: '荒漠' },
+  forest:  { color: 0x17683a, alpha: 0.62, speedMod: 0.82, label: '森林' },
+  swamp:   { color: 0x43511e, alpha: 0.66, speedMod: 0.6,  label: '沼泽' },
+  water:   { color: 0x125da2, alpha: 0.76, speedMod: 0,    label: '水域' },
+  road:    { color: 0x555b60, alpha: 0.62, speedMod: 1.18, label: '道路' },
+};
+
+const TERRAIN_ACCENT: Record<TerrainKey, { stroke: number; pattern: number; text: string }> = {
+  plain: { stroke: 0x27363d, pattern: 0x27363d, text: '#a9c7c1' },
+  desert: { stroke: 0xd2a04c, pattern: 0xf0c66f, text: '#ffd98f' },
+  forest: { stroke: 0x3ed07a, pattern: 0x8bea82, text: '#9fffc2' },
+  swamp: { stroke: 0xa0b35a, pattern: 0xd0d66f, text: '#d6e57d' },
+  water: { stroke: 0x61c7ff, pattern: 0xa8e8ff, text: '#9edfff' },
+  road: { stroke: 0xd2d6d8, pattern: 0xf1f3f4, text: '#e8f0f2' },
+};
+
+const VEHICLE_TERRAIN: Partial<Record<VehicleKey, Partial<Record<TerrainKey, number>>>> = {
+  fighter:    { water: 0.9, swamp: 1 },
+  hovercraft: { water: 0.85, swamp: 1 },
+  motorcycle: { forest: 1, swamp: 0.7 },
+  buggy:      { forest: 0.95, swamp: 0.7 },
+  tank:       { forest: 0.6, swamp: 0.4 },
+  artillery:  { forest: 0.6, swamp: 0.4 },
+  railgun:    { forest: 0.65, swamp: 0.45 },
+  walker:     { forest: 0.7, swamp: 0.5 },
+  laserVan:   { forest: 0.65, swamp: 0.45 },
+  flameRig:   { desert: 1.15, forest: 0.55, swamp: 0.4 },
+};
+
+const TERRAIN_REGIONS: TerrainRegion[] = [
+  // --- Deserts (top-left and top-right near bases) ---
+  { key: 'desert', x: 100,  y: 100,  w: 1600, h: 1400, ...TERRAIN_SPECS.desert },
+  { key: 'desert', x: 6300, y: 100,  w: 1600, h: 1400, ...TERRAIN_SPECS.desert },
+  // --- Forest (bottom-center, near C base) ---
+  { key: 'forest', x: 2200, y: 3200, w: 3600, h: 2000, ...TERRAIN_SPECS.forest },
+  { key: 'forest', x: 1000, y: 2000, w: 1200, h: 1200, ...TERRAIN_SPECS.forest },
+  { key: 'forest', x: 5800, y: 2000, w: 1200, h: 1200, ...TERRAIN_SPECS.forest },
+  // --- Swamps (mid-left and mid-right, natural barriers) ---
+  { key: 'swamp', x: 1000, y: 1600, w: 1000, h: 800, ...TERRAIN_SPECS.swamp },
+  { key: 'swamp', x: 6000, y: 1600, w: 1000, h: 800, ...TERRAIN_SPECS.swamp },
+  { key: 'swamp', x: 3200, y: 2400, w: 800, h: 600, ...TERRAIN_SPECS.swamp },
+  // --- Water bodies ---
+  { key: 'water', x: 3400, y: 1800, w: 1200, h: 500, ...TERRAIN_SPECS.water },
+  { key: 'water', x: 200,  y: 3400, w: 800, h: 600, ...TERRAIN_SPECS.water },
+  { key: 'water', x: 7000, y: 3400, w: 800, h: 600, ...TERRAIN_SPECS.water },
+  { key: 'water', x: 1400, y: 100,  w: 500, h: 400, ...TERRAIN_SPECS.water },
+  { key: 'water', x: 6100, y: 100,  w: 500, h: 400, ...TERRAIN_SPECS.water },
+  // --- Roads (connecting bases to center) ---
+  { key: 'road', x: 1200, y: 750,  w: 2800, h: 90, ...TERRAIN_SPECS.road },
+  { key: 'road', x: 4000, y: 750,  w: 2800, h: 90, ...TERRAIN_SPECS.road },
+  { key: 'road', x: 1200, y: 1650, w: 2800, h: 90, ...TERRAIN_SPECS.road },
+  { key: 'road', x: 4000, y: 1650, w: 2800, h: 90, ...TERRAIN_SPECS.road },
+  { key: 'road', x: 3950, y: 750,  w: 100, h: 3200, ...TERRAIN_SPECS.road },
+  { key: 'road', x: 1600, y: 2600, w: 2400, h: 90, ...TERRAIN_SPECS.road },
+  { key: 'road', x: 4000, y: 2600, w: 2400, h: 90, ...TERRAIN_SPECS.road },
+  // Plain is the default — everything not covered above
+];
 
 type VehicleKey =
   | 'mech'
@@ -232,6 +304,19 @@ interface RoomState {
   teamSummonRemainingMs?: Record<string, number>;
 }
 
+interface ServerRewardDrop {
+  type: 'chest' | 'buff' | 'vehicle' | 'bossVehicle' | 'heal';
+  vehicle?: VehicleKey;
+  buff?: BuffKey;
+  amount?: number;
+}
+
+interface ServerKillReward {
+  xp?: number;
+  score?: number;
+  drops?: ServerRewardDrop[];
+}
+
 interface TeamInfo {
   key: TeamKey;
   name: string;
@@ -251,6 +336,9 @@ interface RemotePlayerView {
   sprite: Phaser.Physics.Arcade.Sprite;
   label: Phaser.GameObjects.Text;
   crown: Phaser.GameObjects.Text;
+  targetX: number;
+  targetY: number;
+  targetAngle: number;
 }
 
 interface RemotePlayerTarget {
@@ -885,9 +973,9 @@ const WEAPON_ORDER: WeaponKey[] = [
   'ionLance',
 ];
 const TEAM_OPTIONS: TeamInfo[] = [
-  { key: 'A', name: 'A 阵营', color: '#36f0d2', spawnX: 850, spawnY: 820 },
-  { key: 'B', name: 'B 阵营', color: '#ff6961', spawnX: 4350, spawnY: 820 },
-  { key: 'C', name: 'C 阵营', color: '#ffd166', spawnX: 2600, spawnY: 2850 },
+  { key: 'A', name: 'A 阵营', color: '#36f0d2', spawnX: 900, spawnY: 800 },
+  { key: 'B', name: 'B 阵营', color: '#ff6961', spawnX: 7100, spawnY: 800 },
+  { key: 'C', name: 'C 阵营', color: '#ffd166', spawnX: 4000, spawnY: 4400 },
 ];
 const MAX_WEAPON_SLOTS = 5;
 const PERFECT_WEAPON_LEVEL = 6;
@@ -902,11 +990,11 @@ const BOSS_FLEE_MS = 4200;
 const BOSS_HEAL_RATE = 0.055;
 const BOSS_HEAL_COOLDOWN_MS = 3600;
 const BOSS_SPAWNS = [
-  { x: 820, y: 720 },
-  { x: WORLD_WIDTH - 820, y: 720 },
+  { x: 900, y: 700 },
+  { x: WORLD_WIDTH - 900, y: 700 },
   { x: WORLD_WIDTH / 2, y: WORLD_HEIGHT / 2 },
-  { x: 940, y: WORLD_HEIGHT - 760 },
-  { x: WORLD_WIDTH - 940, y: WORLD_HEIGHT - 760 },
+  { x: 1100, y: WORLD_HEIGHT - 900 },
+  { x: WORLD_WIDTH - 1100, y: WORLD_HEIGHT - 900 },
 ];
 const WEATHER_SPECS: Record<WeatherKey, WeatherSpec> = {
   sunny: {
@@ -1004,6 +1092,7 @@ class MainScene extends Phaser.Scene {
   private onlinePanel?: HTMLDivElement;
   private gameOverPanel?: HTMLDivElement;
   private moveTarget?: Phaser.Math.Vector2;
+  private serverCorrectionUntil = 0;
   private lastDefeatedBy = '未知单位';
   private weaponSlots: WeaponKey[] = [];
   private weaponLevels: Record<WeaponKey, number> = {
@@ -1044,6 +1133,7 @@ class MainScene extends Phaser.Scene {
 
   private hp = 120;
   private maxHp = 120;
+  private displayHp = 120;
   private xp = 0;
   private level = 1;
   private xpToNext = 32;
@@ -1213,6 +1303,7 @@ class MainScene extends Phaser.Scene {
     this.speedBonus = 0;
     this.magnetRadius = 0;
     this.hp = 120;
+    this.displayHp = 120;
     this.maxHp = 120;
     this.xp = 0;
     this.level = 1;
@@ -1353,6 +1444,9 @@ class MainScene extends Phaser.Scene {
       this.renderRoomList(rooms);
     });
     this.socket.on('room:state', (state: RoomState) => {
+      if (this.currentRoom && state.room.id !== this.currentRoom.id) {
+        return;
+      }
       this.latestRoomState = state;
       this.currentRoom = state.room;
       this.roomStateSyncedAt = this.elapsedMs;
@@ -1361,6 +1455,7 @@ class MainScene extends Phaser.Scene {
       if (localPlayer) {
         this.localCrown = localPlayer.crown ?? 0;
         this.isTeamLeader = Boolean(localPlayer.teamLeader);
+        this.reconcileLocalPlayerFromServer(localPlayer);
         const summonRemainingMs = state.teamSummonRemainingMs?.[localPlayer.teamKey] ?? 0;
         this.summonReadyAt = this.elapsedMs + summonRemainingMs;
         this.syncSummonButton();
@@ -1459,6 +1554,17 @@ class MainScene extends Phaser.Scene {
                 <li>掠空战机、磁悬浮艇：速度和火力均衡。</li>
                 <li>轨道炮车、棱镜装甲车：远距离高伤害直线打击。</li>
                 <li>四足机甲：多弹道持续输出。</li>
+              </ul>
+            </section>
+            <section>
+              <h3>地形</h3>
+              <p>地图上的地形不是装饰，会影响路线和载具选择。不同地形用轮廓、纹理和小地图颜色区分。</p>
+              <ul>
+                <li>水域：蓝色波纹。普通地面载具会明显变慢，载具到期时停在水里会直接坠毁；战机和磁悬浮艇可通行。</li>
+                <li>森林：绿色树形纹理。多数重型载具速度下降，摩托和越野车更适合穿林。</li>
+                <li>沼泽：黄绿泥泡。强减速，重型载具更吃亏，载具到期时可能沉没扣血。</li>
+                <li>荒漠：金色沙纹。焚烧工程车在荒漠有速度优势。</li>
+                <li>道路：灰色虚线。移动更快，适合赶路、拉开 Boss 和跨区支援。</li>
               </ul>
             </section>
             <section>
@@ -1829,6 +1935,9 @@ class MainScene extends Phaser.Scene {
   }
 
   private updateBattleRoyaleZone() {
+    if (!this.isBattleRoyaleRoom()) {
+      return;
+    }
     const zone = this.getBattleRoyaleZone();
     if (!zone || !zone.outsideIsLethal || this.isGameOver) {
       return;
@@ -1847,6 +1956,42 @@ class MainScene extends Phaser.Scene {
     }
   }
 
+  private reconcileLocalPlayerFromServer(player: NetworkPlayer) {
+    if (!this.isInMultiplayerRoom || !this.player?.active) {
+      return;
+    }
+
+    if (!player.alive) {
+      this.executeLocalPlayer('服务端判定');
+      return;
+    }
+
+    const dx = player.x - this.player.x;
+    const dy = player.y - this.player.y;
+    const distance = Math.hypot(dx, dy);
+    if (distance > 1800) {
+      this.player.setPosition(player.x, player.y);
+      this.moveTarget = undefined;
+      this.serverCorrectionUntil = this.elapsedMs + 220;
+    } else if (distance > 36) {
+      const pull = distance > 520 ? 0.22 : 0.08;
+      this.player.setPosition(this.player.x + dx * pull, this.player.y + dy * pull);
+      this.serverCorrectionUntil = this.elapsedMs + 180;
+    }
+
+    const serverMaxHp = clamp(player.maxHp ?? this.maxHp, 1, 900);
+    if (serverMaxHp > this.maxHp || this.maxHp - serverMaxHp > 80) {
+      this.maxHp = serverMaxHp;
+    }
+
+    const serverHp = clamp(player.hp ?? this.hp, 0, this.maxHp);
+    if (serverHp <= 0) {
+      this.executeLocalPlayer('服务端判定');
+    } else if (serverHp < this.hp || Math.abs(serverHp - this.hp) > 35) {
+      this.hp = serverHp;
+    }
+  }
+
   private sendNetworkState() {
     if (!this.socket?.connected || !this.isInMultiplayerRoom) {
       return;
@@ -1857,22 +2002,89 @@ class MainScene extends Phaser.Scene {
     }
 
     this.lastNetworkSendAt = this.elapsedMs;
+    const reportingAlive = !this.isGameOver && this.elapsedMs >= this.serverCorrectionUntil;
     this.socket.emit('player:state', {
       x: this.player.x,
       y: this.player.y,
       angle: this.player.rotation,
-      alive: !this.isGameOver,
+      alive: reportingAlive,
       hp: this.hp,
       maxHp: this.maxHp,
     });
   }
 
-  private addTeamScore(amount: number) {
+  private requestEnemyKillReward(
+    enemy: Phaser.Physics.Arcade.Sprite,
+    onReward: (reward: ServerKillReward) => void,
+  ) {
     if (!this.socket?.connected || !this.isInMultiplayerRoom) {
       return;
     }
 
-    this.socket.emit('score:add', { amount });
+    this.socket.emit(
+      'pve:enemy-killed',
+      {
+        kind: enemy.getData('kind'),
+        tier: enemy.getData('tier'),
+        x: enemy.x,
+        y: enemy.y,
+      },
+      (response: { ok?: boolean; error?: string; reward?: ServerKillReward }) => {
+        if (!response?.ok || !response.reward) {
+          if (response?.error) {
+            this.showAnnouncement(response.error, 1800);
+          }
+          return;
+        }
+
+        onReward(response.reward);
+      },
+    );
+  }
+
+  private requestChestReward(x: number, y: number, onReward: (reward: ServerKillReward) => void) {
+    if (!this.socket?.connected || !this.isInMultiplayerRoom) {
+      return;
+    }
+
+    this.socket.emit(
+      'loot:chest-opened',
+      { x, y },
+      (response: { ok?: boolean; error?: string; reward?: ServerKillReward }) => {
+        if (!response?.ok || !response.reward) {
+          if (response?.error) {
+            this.showAnnouncement(response.error, 1800);
+          }
+          return;
+        }
+
+        onReward(response.reward);
+      },
+    );
+  }
+
+  private applyServerReward(reward: ServerKillReward, x: number, y: number) {
+    const xp = clamp(reward.xp ?? 0, 0, 2000);
+    if (xp > 0) {
+      this.gainXp(xp);
+      this.spawnXpOrb(x, y, xp);
+    }
+
+    reward.drops?.forEach((drop) => {
+      if (drop.type === 'chest') {
+        this.spawnChestAt(x, y);
+      } else if (drop.type === 'buff' && drop.buff) {
+        this.spawnBuffAt(x, y, drop.buff);
+      } else if (drop.type === 'vehicle' && drop.vehicle) {
+        this.spawnVehiclePod(x, y, drop.vehicle);
+      } else if (drop.type === 'bossVehicle' && drop.vehicle) {
+        this.grantPermanentVehicle(x, y, drop.vehicle);
+      } else if (drop.type === 'heal') {
+        const amount = clamp(drop.amount ?? 0, 0, this.maxHp);
+        this.hp = clamp(this.hp + amount, 0, this.maxHp);
+        this.healPulse(x, y, 46);
+      }
+    });
   }
 
   private handleInvasionWave(wave: number) {
@@ -2256,22 +2468,21 @@ class MainScene extends Phaser.Scene {
           .setOrigin(0.5)
           .setDepth(23);
 
-        view = { sprite, label, crown };
+        view = { sprite, label, crown, targetX: player.x, targetY: player.y, targetAngle: player.angle };
         this.remotePlayers.set(player.socketId, view);
       }
 
+      view.targetX = player.x;
+      view.targetY = player.y;
+      view.targetAngle = player.angle;
       const tint = player.teamKey === this.localTeamKey ? this.localTeamTint : this.cssColorToNumber(player.color);
-      view.sprite.setPosition(player.x, player.y);
-      view.sprite.setRotation(player.angle);
       view.sprite.setTint(tint);
       view.sprite.setAlpha(player.alive ? 0.86 : 0.18);
       view.sprite.setVisible(player.alive);
       view.label.setText(player.name);
-      view.label.setPosition(player.x, player.y - 42);
       view.label.setColor(player.teamKey === this.localTeamKey ? '#9fffe0' : '#ffb4ae');
       view.label.setVisible(player.alive);
-      view.crown.setText(player.crown ? `👑${Math.min(9, player.crown)}` : '');
-      view.crown.setPosition(player.x, player.y - 62);
+      view.crown.setText(player.crown ? `\u{1F451}${Math.min(9, player.crown)}` : '');
       view.crown.setVisible(player.alive && Boolean(player.crown));
     });
 
@@ -2293,6 +2504,20 @@ class MainScene extends Phaser.Scene {
     }
 
     this.syncRemotePlayers(this.latestRoomState.players);
+
+    const lerpFactor = 0.14;
+    this.remotePlayers.forEach((view) => {
+      const dx = view.targetX - view.sprite.x;
+      const dy = view.targetY - view.sprite.y;
+      if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
+        const nx = view.sprite.x + dx * lerpFactor;
+        const ny = view.sprite.y + dy * lerpFactor;
+        view.sprite.setPosition(nx, ny);
+        view.label.setPosition(nx, ny - 42);
+        view.crown.setPosition(nx, ny - 62);
+      }
+      view.sprite.setRotation(Phaser.Math.Angle.RotateTo(view.sprite.rotation, view.targetAngle, 0.18));
+    });
   }
 
   private updateLocalCrownView() {
@@ -2542,11 +2767,8 @@ class MainScene extends Phaser.Scene {
   private requestLandscapeMode() {
     this.ensureAudioContext();
     const fullscreenTarget = document.documentElement;
-    const fullscreenPromise = document.fullscreenElement
-      ? Promise.resolve()
-      : (fullscreenTarget.requestFullscreen?.({ navigationUI: 'hide' }).catch(() => undefined) ?? Promise.resolve());
 
-    fullscreenPromise.then(() => {
+    const tryLockOrientation = () => {
       this.scale.refresh();
       const orientation = screen.orientation as ScreenOrientation & {
         lock?: (orientation: string) => Promise<void>;
@@ -2563,6 +2785,21 @@ class MainScene extends Phaser.Scene {
           this.showAnnouncement('已进入横屏全屏', 1800);
         })
         .catch(() => this.showAnnouncement('横屏切换被浏览器拦截，请手动旋转手机', 3000));
+    };
+
+    if (document.fullscreenElement) {
+      tryLockOrientation();
+      return;
+    }
+
+    const onFullscreenChange = () => {
+      document.removeEventListener('fullscreenchange', onFullscreenChange);
+      tryLockOrientation();
+    };
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    fullscreenTarget.requestFullscreen?.({ navigationUI: 'hide' }).catch(() => {
+      document.removeEventListener('fullscreenchange', onFullscreenChange);
+      this.showAnnouncement('全屏请求被浏览器拦截', 3000);
     });
   }
 
@@ -3399,12 +3636,151 @@ class MainScene extends Phaser.Scene {
     graphics.destroy();
   }
 
+  private getTerrainShapePoints(region: TerrainRegion, inset = 0) {
+    if (region.key === 'road') {
+      return [
+        new Phaser.Geom.Point(region.x + inset, region.y + inset),
+        new Phaser.Geom.Point(region.x + region.w - inset, region.y + inset),
+        new Phaser.Geom.Point(region.x + region.w - inset, region.y + region.h - inset),
+        new Phaser.Geom.Point(region.x + inset, region.y + region.h - inset),
+      ];
+    }
+
+    const cx = region.x + region.w / 2;
+    const cy = region.y + region.h / 2;
+    const rx = Math.max(16, region.w / 2 - inset);
+    const ry = Math.max(16, region.h / 2 - inset);
+    const points: Phaser.Geom.Point[] = [];
+    const count = 36;
+    for (let i = 0; i < count; i += 1) {
+      const angle = (i / count) * Math.PI * 2;
+      const wave =
+        0.92 +
+        Math.sin(i * 1.73 + region.x * 0.003 + region.y * 0.002) * 0.06 +
+        Math.cos(i * 2.41 + region.w * 0.004) * 0.045;
+      points.push(new Phaser.Geom.Point(cx + Math.cos(angle) * rx * wave, cy + Math.sin(angle) * ry * wave));
+    }
+    return points;
+  }
+
+  private drawTerrainRegionShape(graphics: Phaser.GameObjects.Graphics, region: TerrainRegion) {
+    const accent = TERRAIN_ACCENT[region.key];
+    const points = this.getTerrainShapePoints(region);
+    const innerPoints = this.getTerrainShapePoints(region, Math.min(24, Math.min(region.w, region.h) * 0.08));
+
+    graphics.fillStyle(region.color, region.alpha);
+    graphics.fillPoints(points, true, true);
+    graphics.fillStyle(accent.stroke, 0.12);
+    graphics.fillPoints(innerPoints, true, true);
+    graphics.lineStyle(region.key === 'road' ? 4 : 5, accent.stroke, region.key === 'road' ? 0.88 : 0.72);
+    graphics.strokePoints(points, true, true);
+    graphics.lineStyle(1, 0x050709, 0.42);
+    graphics.strokePoints(innerPoints, true, true);
+  }
+
   private addMap() {
     this.add
       .tileSprite(0, 0, WORLD_WIDTH, WORLD_HEIGHT, 'grid-tile')
       .setOrigin(0)
       .setDepth(-20);
 
+    const terrainGfx = this.add.graphics().setDepth(-15);
+    for (const r of TERRAIN_REGIONS) {
+      if (r.alpha <= 0) continue;
+      this.drawTerrainRegionShape(terrainGfx, r);
+    }
+
+    const waterRegions = TERRAIN_REGIONS.filter((r) => r.key === 'water');
+    for (const wr of waterRegions) {
+      terrainGfx.fillStyle(0x08315a, 0.34);
+      terrainGfx.fillRect(wr.x + 10, wr.y + 10, Math.max(0, wr.w - 20), Math.max(0, wr.h - 20));
+      for (let wy = wr.y + 34; wy < wr.y + wr.h - 12; wy += 34) {
+        terrainGfx.lineStyle(3, TERRAIN_ACCENT.water.pattern, 0.66);
+        terrainGfx.beginPath();
+        terrainGfx.moveTo(wr.x + 18, wy);
+        for (let wx = wr.x + 18; wx < wr.x + wr.w - 24; wx += 32) {
+          terrainGfx.lineTo(wx + 16, wy - 8);
+          terrainGfx.lineTo(wx + 32, wy);
+        }
+        terrainGfx.strokePath();
+      }
+    }
+
+    const forestRegions = TERRAIN_REGIONS.filter((r) => r.key === 'forest');
+    for (const fr of forestRegions) {
+      for (let ty = fr.y + 38; ty < fr.y + fr.h - 20; ty += 62) {
+        for (let tx = fr.x + 36; tx < fr.x + fr.w - 20; tx += 74) {
+          const ox = Math.sin((tx + ty) * 0.018) * 13;
+          const oy = Math.cos((tx - ty) * 0.014) * 9;
+          terrainGfx.fillStyle(0x072a18, 0.48);
+          terrainGfx.fillCircle(tx + ox, ty + oy + 8, 9);
+          terrainGfx.fillStyle(TERRAIN_ACCENT.forest.pattern, 0.62);
+          terrainGfx.fillTriangle(tx + ox, ty + oy - 14, tx + ox - 13, ty + oy + 12, tx + ox + 13, ty + oy + 12);
+        }
+      }
+    }
+
+    const swampRegions = TERRAIN_REGIONS.filter((r) => r.key === 'swamp');
+    for (const sr of swampRegions) {
+      for (let by = sr.y + 34; by < sr.y + sr.h - 18; by += 48) {
+        for (let bx = sr.x + 28; bx < sr.x + sr.w - 18; bx += 58) {
+          const ox = Math.sin((bx + by) * 0.021) * 10;
+          terrainGfx.fillStyle(0x15200d, 0.44);
+          terrainGfx.fillEllipse(bx + ox, by, 32, 12);
+          terrainGfx.lineStyle(2, TERRAIN_ACCENT.swamp.pattern, 0.54);
+          terrainGfx.strokeEllipse(bx + ox, by, 24, 10);
+          terrainGfx.fillStyle(0xd7ea85, 0.52);
+          terrainGfx.fillCircle(bx + ox + 15, by - 9, 3);
+        }
+      }
+    }
+
+    const desertRegions = TERRAIN_REGIONS.filter((r) => r.key === 'desert');
+    for (const dr of desertRegions) {
+      terrainGfx.lineStyle(3, TERRAIN_ACCENT.desert.pattern, 0.42);
+      for (let sy = dr.y + 36; sy < dr.y + dr.h - 20; sy += 72) {
+        const shift = Math.sin(sy * 0.013) * 38;
+        terrainGfx.beginPath();
+        terrainGfx.moveTo(dr.x + 24 + shift, sy);
+        for (let sx = dr.x + 24; sx < dr.x + dr.w - 24; sx += 86) {
+          terrainGfx.lineTo(sx + 42 + shift, sy + Math.sin(sx * 0.04) * 16);
+          terrainGfx.lineTo(sx + 84 + shift, sy);
+        }
+        terrainGfx.strokePath();
+      }
+    }
+
+    const roadRegions = TERRAIN_REGIONS.filter((r) => r.key === 'road');
+    for (const rr of roadRegions) {
+      terrainGfx.lineStyle(2, 0x15191c, 0.62);
+      terrainGfx.strokeRect(rr.x + 3, rr.y + 3, Math.max(0, rr.w - 6), Math.max(0, rr.h - 6));
+      terrainGfx.lineStyle(4, TERRAIN_ACCENT.road.pattern, 0.78);
+      if (rr.w > rr.h) {
+        for (let rx = rr.x + 16; rx < rr.x + rr.w - 16; rx += 46) {
+          terrainGfx.lineBetween(rx, rr.y + rr.h / 2, rx + 24, rr.y + rr.h / 2);
+        }
+      } else {
+        for (let ry = rr.y + 16; ry < rr.y + rr.h - 16; ry += 46) {
+          terrainGfx.lineBetween(rr.x + rr.w / 2, ry, rr.x + rr.w / 2, ry + 24);
+        }
+      }
+    }
+
+    TERRAIN_REGIONS.filter((r) => r.label).forEach((r) => {
+      this.add
+        .text(r.x + r.w / 2, r.y + r.h / 2, r.label, {
+          fontFamily: 'Inter, "Segoe UI", sans-serif',
+          fontSize: r.key === 'road' ? '18px' : '32px',
+          color: TERRAIN_ACCENT[r.key].text,
+          stroke: '#041014',
+          strokeThickness: 5,
+        })
+        .setOrigin(0.5)
+        .setAlpha(r.key === 'road' ? 0.42 : 0.58)
+        .setDepth(-13);
+    });
+
+    // Circuit decorations
     const circuits = this.add.graphics().setDepth(-10);
     circuits.lineStyle(2, 0x36f0d2, 0.22);
     circuits.fillStyle(0xffd166, 0.38);
@@ -3455,7 +3831,8 @@ class MainScene extends Phaser.Scene {
     }
 
     const length = Math.hypot(moveX, moveY);
-    const speed = (vehicle.speed + this.speedBonus + this.getBuffSpeedBonus()) * this.getWeatherSpeedMultiplier();
+    const terrainMod = this.getTerrainSpeedMod(this.player.x, this.player.y);
+    const speed = (vehicle.speed + this.speedBonus + this.getBuffSpeedBonus()) * this.getWeatherSpeedMultiplier() * terrainMod;
 
     if (length > 0) {
       const vx = (moveX / length) * speed;
@@ -3481,7 +3858,7 @@ class MainScene extends Phaser.Scene {
     if (target) {
       this.lastAimAngle = Phaser.Math.Angle.Between(this.player.x, this.player.y, target.x, target.y);
     }
-    this.player.setRotation(this.lastAimAngle);
+    this.player.setRotation(Phaser.Math.Angle.RotateTo(this.player.rotation, this.lastAimAngle, Math.PI * deltaSeconds * 10));
 
     if (this.magnetRadius > 0) {
       this.pullChests(deltaSeconds);
@@ -4590,7 +4967,8 @@ class MainScene extends Phaser.Scene {
     });
 
     const averageAggro = activeCount > 0 ? aggroTotal / activeCount : 0;
-    this.areaAlert = clamp(averageAggro * 0.58 + hunterCount * 5.5, 0, 100);
+    const targetAlert = clamp(averageAggro * 0.58 + hunterCount * 5.5, 0, 100);
+    this.areaAlert += (targetAlert - this.areaAlert) * Math.min(1, deltaSeconds * 3.5);
   }
 
   private updateBoss(
@@ -4718,7 +5096,7 @@ class MainScene extends Phaser.Scene {
   private moveBossAway(enemy: Phaser.Physics.Arcade.Sprite, target: BossTarget, speed: number) {
     const angle = Phaser.Math.Angle.Between(target.x, target.y, enemy.x, enemy.y);
     enemy.setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
-    enemy.setRotation(angle);
+    enemy.setRotation(Phaser.Math.Angle.RotateTo(enemy.rotation, angle, 0.25));
   }
 
   private updateBossSkill(enemy: Phaser.Physics.Arcade.Sprite, spec: EnemySpec, target: BossTarget, distance: number) {
@@ -4860,7 +5238,7 @@ class MainScene extends Phaser.Scene {
       Math.cos(angle + strafe) * speed,
       Math.sin(angle + strafe) * speed,
     );
-    enemy.setRotation(angle);
+    enemy.setRotation(Phaser.Math.Angle.RotateTo(enemy.rotation, angle, 0.25));
   }
 
   private chasePlayer(
@@ -4886,7 +5264,7 @@ class MainScene extends Phaser.Scene {
   ) {
     const angle = Phaser.Math.Angle.Between(enemy.x, enemy.y, targetX, targetY);
     enemy.setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
-    enemy.setRotation(angle);
+    enemy.setRotation(Phaser.Math.Angle.RotateTo(enemy.rotation, angle, 0.25));
   }
 
   private enemyAttack(enemy: Phaser.Physics.Arcade.Sprite, spec: EnemySpec) {
@@ -5292,16 +5670,9 @@ class MainScene extends Phaser.Scene {
     }
 
     chest.setData('broken', true);
-    const roll = Phaser.Math.Between(1, 100);
-    if (roll <= 46) {
-      const vehicle = Phaser.Utils.Array.GetRandom(VEHICLE_ORDER);
-      this.spawnVehiclePod(chest.x, chest.y, vehicle);
-    } else if (roll <= 76) {
-      this.spawnBuffAt(chest.x, chest.y);
-    } else {
-      this.hp = clamp(this.hp + 6, 0, this.maxHp);
-      this.healPulse(chest.x, chest.y, 46);
-    }
+    const chestX = chest.x;
+    const chestY = chest.y;
+    this.requestChestReward(chestX, chestY, (reward) => this.applyServerReward(reward, chestX, chestY));
     this.flashAt(chest.x, chest.y, 0xffd166, 14);
     this.shockwave(chest.x, chest.y, 86, 0xffd166);
     this.playCue('chest');
@@ -5315,10 +5686,6 @@ class MainScene extends Phaser.Scene {
     const xp = enemy.getData('xp') as number;
     const killX = enemy.x;
     const killY = enemy.y;
-    this.kills += 1;
-    this.gainXp(xp);
-    this.spawnXpOrb(killX, killY, xp);
-    this.addTeamScore(xp);
     const isBoss = kind === 'boss';
     const tierColor = isBoss ? BOSS_MINIMAP_COLOR : ENEMY_TIERS[tier].color;
     if (isBoss) {
@@ -5332,15 +5699,10 @@ class MainScene extends Phaser.Scene {
       }
     }
 
-    if (isBoss) {
-      this.grantPermanentVehicle(killX, killY);
-    } else if (Phaser.Math.Between(1, 100) <= 5) {
-      this.spawnChestAt(killX, killY);
-    }
-
-    if (!isBoss && (tier === 'purple' || tier === 'red')) {
-      this.spawnBuffAt(killX, killY);
-    }
+    this.requestEnemyKillReward(enemy, (reward) => {
+      this.kills += 1;
+      this.applyServerReward({ ...reward, xp: reward.xp ?? xp }, killX, killY);
+    });
 
     enemy.destroy();
     if (isBoss) {
@@ -5370,7 +5732,7 @@ class MainScene extends Phaser.Scene {
       from: 0,
       to: 1,
       duration: 560,
-      ease: 'Cubic.easeInOut',
+      ease: 'Linear',
       onUpdate: (tween) => {
         if (!this.player?.active || !this.isInMultiplayerRoom) {
           return;
@@ -5396,8 +5758,8 @@ class MainScene extends Phaser.Scene {
     });
   }
 
-  private grantPermanentVehicle(x: number, y: number) {
-    const vehicle = Phaser.Utils.Array.GetRandom(VEHICLE_ORDER);
+  private grantPermanentVehicle(x: number, y: number, grantedVehicle?: VehicleKey) {
+    const vehicle = grantedVehicle ?? Phaser.Utils.Array.GetRandom(VEHICLE_ORDER);
     const nextRank = clamp(
       Math.max(this.permanentVehicleRanks[vehicle] ?? 0, this.vehicleRanks[vehicle] ?? 0) + 1,
       1,
@@ -5407,7 +5769,6 @@ class MainScene extends Phaser.Scene {
     this.vehicleRanks[vehicle] = nextRank;
     this.applyVehicle(vehicle, true, false);
     this.hp = clamp(this.hp + 28, 0, this.maxHp);
-    this.addTeamScore(150);
     this.flashAt(x, y, BOSS_MINIMAP_COLOR, 24);
     this.shockwave(x, y, 240, BOSS_MINIMAP_COLOR);
     this.playCue('boss');
@@ -5936,6 +6297,15 @@ class MainScene extends Phaser.Scene {
   }
 
   private pickSpawnPosition() {
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
+      const distance = Phaser.Math.Between(560, 880);
+      const x = clamp(this.player.x + Math.cos(angle) * distance, 60, WORLD_WIDTH - 60);
+      const y = clamp(this.player.y + Math.sin(angle) * distance, 60, WORLD_HEIGHT - 60);
+      if (this.getTerrainAt(x, y) !== 'water') {
+        return { x, y };
+      }
+    }
     const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
     const distance = Phaser.Math.Between(560, 880);
     return {
@@ -5964,6 +6334,15 @@ class MainScene extends Phaser.Scene {
   }
 
   private spawnChestNearPlayer(distance: number) {
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
+      const x = clamp(this.player.x + Math.cos(angle) * distance, 80, WORLD_WIDTH - 80);
+      const y = clamp(this.player.y + Math.sin(angle) * distance, 80, WORLD_HEIGHT - 80);
+      if (this.getTerrainAt(x, y) !== 'water') {
+        this.spawnChestAt(x, y);
+        return;
+      }
+    }
     const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
     this.spawnChestAt(
       clamp(this.player.x + Math.cos(angle) * distance, 80, WORLD_WIDTH - 80),
@@ -6017,8 +6396,8 @@ class MainScene extends Phaser.Scene {
     });
   }
 
-  private spawnBuffAt(x: number, y: number) {
-    const buff = Phaser.Utils.Array.GetRandom(BUFF_ORDER);
+  private spawnBuffAt(x: number, y: number, forcedBuff?: BuffKey) {
+    const buff = forcedBuff ?? Phaser.Utils.Array.GetRandom(BUFF_ORDER);
     const spec = BUFFS[buff];
     const pickup = this.physics.add.image(x, y, 'buff-core');
     pickup.setDepth(17);
@@ -6129,6 +6508,37 @@ class MainScene extends Phaser.Scene {
     }
   }
 
+  private getTerrainAt(x: number, y: number): TerrainKey {
+    for (let i = TERRAIN_REGIONS.length - 1; i >= 0; i--) {
+      const r = TERRAIN_REGIONS[i];
+      if (r.key === 'road') continue;
+      if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) {
+        return r.key;
+      }
+    }
+    for (let i = TERRAIN_REGIONS.length - 1; i >= 0; i--) {
+      const r = TERRAIN_REGIONS[i];
+      if (r.key !== 'road') continue;
+      if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) {
+        return r.key;
+      }
+    }
+    return 'plain';
+  }
+
+  private getTerrainSpeedMod(x: number, y: number): number {
+    const terrain = this.getTerrainAt(x, y);
+    const baseMod = TERRAIN_SPECS[terrain].speedMod;
+    const vehicleOverrides = VEHICLE_TERRAIN[this.currentVehicle];
+    if (vehicleOverrides && vehicleOverrides[terrain] !== undefined) {
+      return vehicleOverrides[terrain]!;
+    }
+    if (baseMod === 0) {
+      return 0.28;
+    }
+    return baseMod;
+  }
+
   private timeoutVehicle() {
     if (this.currentVehicle === 'mech') {
       return;
@@ -6154,6 +6564,27 @@ class MainScene extends Phaser.Scene {
     this.shockwave(this.player.x, this.player.y, 120, blastColor);
     this.flashAt(this.player.x, this.player.y, blastColor, 24);
     this.cameras.main.shake(160, 0.005);
+
+    const terrain = this.getTerrainAt(this.player.x, this.player.y);
+    const isFlyingVehicle = expiredVehicle === 'fighter';
+    const isHoverVehicle = expiredVehicle === 'hovercraft';
+    if (terrain === 'water' && !isFlyingVehicle && !isHoverVehicle) {
+      this.hp = 0;
+      this.applyVehicle('mech', false, false);
+      this.showAnnouncement(`${VEHICLES[expiredVehicle].name} 在水域坠毁，直接阵亡`, 2600);
+      this.showGameOver();
+      return;
+    }
+    if (terrain === 'swamp') {
+      this.hp = Math.max(0, this.hp - this.maxHp * 0.4);
+      if (this.hp <= 0) {
+        this.applyVehicle('mech', false, false);
+        this.showAnnouncement(`${VEHICLES[expiredVehicle].name} 在沼泽沉没，直接阵亡`, 2600);
+        this.showGameOver();
+        return;
+      }
+    }
+
     this.hp = Math.max(1, this.hp - this.maxHp * 0.18);
     this.applyVehicle('mech', false, false);
     this.showAnnouncement(`${VEHICLES[expiredVehicle].name} 护盾破碎爆炸，生命扣除 18%`, 2600);
@@ -6637,7 +7068,7 @@ class MainScene extends Phaser.Scene {
     }
 
     this.battleZoneGraphics.clear();
-    if (!this.isInMultiplayerRoom) {
+    if (!this.isInMultiplayerRoom || !this.isBattleRoyaleRoom()) {
       return;
     }
 
@@ -6725,7 +7156,10 @@ class MainScene extends Phaser.Scene {
     const vehicleRank = this.getVehicleRank(this.currentVehicle);
     const isMobileLandscape = width > height && width <= 960 && height <= 540;
     const targetZoom = isMobileLandscape ? 0.78 : 1;
-    if (this.cameras.main.zoom !== targetZoom) {
+    const currentZoom = this.cameras.main.zoom;
+    if (Math.abs(currentZoom - targetZoom) > 0.005) {
+      this.cameras.main.setZoom(currentZoom + (targetZoom - currentZoom) * 0.08);
+    } else if (currentZoom !== targetZoom) {
       this.cameras.main.setZoom(targetZoom);
     }
     const isCompact = width < 760 || isMobileLandscape;
@@ -6940,6 +7374,38 @@ class MainScene extends Phaser.Scene {
         .setDepth(901);
     }
 
+    const terrainIndicator = this.children.getByName('terrain-readout') as Phaser.GameObjects.Text | null;
+    const currentTerrain = this.getTerrainAt(this.player.x, this.player.y);
+    const terrainLabel = TERRAIN_SPECS[currentTerrain].label;
+    const terrainMod = this.getTerrainSpeedMod(this.player.x, this.player.y);
+    const terrainHudText = terrainLabel
+      ? `${terrainLabel} ${terrainMod < 1 ? `x${terrainMod.toFixed(2)}` : terrainMod > 1 ? `x${terrainMod.toFixed(2)}` : ''}`
+      : '';
+    const terrainTextY = rightPanelY + (isMobileLandscape ? 82 : 110);
+    if (terrainIndicator) {
+      terrainIndicator.setStyle({
+        fontFamily: 'Inter, "Segoe UI", sans-serif',
+        fontSize: isMobileLandscape ? '12px' : '14px',
+        color: TERRAIN_ACCENT[currentTerrain].text,
+        backgroundColor: currentTerrain === 'plain' ? 'transparent' : 'rgba(5, 7, 9, 0.62)',
+        padding: { x: 6, y: 3 },
+      });
+      terrainIndicator.setText(terrainHudText);
+      terrainIndicator.setPosition(rightPanelX + 18, terrainTextY);
+    } else {
+      this.add
+        .text(rightPanelX + 18, terrainTextY, terrainHudText, {
+          fontFamily: 'Inter, "Segoe UI", sans-serif',
+          fontSize: isMobileLandscape ? '12px' : '14px',
+          color: TERRAIN_ACCENT[currentTerrain].text,
+          backgroundColor: currentTerrain === 'plain' ? 'transparent' : 'rgba(5, 7, 9, 0.62)',
+          padding: { x: 6, y: 3 },
+        })
+        .setName('terrain-readout')
+        .setScrollFactor(0)
+        .setDepth(901);
+    }
+
     const vignetteAlpha = clamp(this.areaAlert / 100, 0, 0.34);
     this.hud.lineStyle(4, this.areaAlert > 65 ? 0xff6961 : 0xffd166, vignetteAlpha);
     this.hud.strokeRect(2, 2, width - 4, height - 4);
@@ -7079,6 +7545,18 @@ class MainScene extends Phaser.Scene {
 
     const toMiniX = (worldX: number) => x + clamp(worldX / WORLD_WIDTH, 0, 1) * size;
     const toMiniY = (worldY: number) => y + clamp(worldY / WORLD_HEIGHT, 0, 1) * size;
+
+    for (const r of TERRAIN_REGIONS) {
+      if (r.alpha <= 0) continue;
+      const rx = toMiniX(r.x);
+      const ry = toMiniY(r.y);
+      const rw = (r.w / WORLD_WIDTH) * size;
+      const rh = (r.h / WORLD_HEIGHT) * size;
+      this.hud.fillStyle(r.color, r.key === 'water' ? 0.78 : 0.66);
+      this.hud.fillRect(rx, ry, rw, rh);
+      this.hud.lineStyle(r.key === 'road' ? 1 : 1.4, TERRAIN_ACCENT[r.key].stroke, 0.9);
+      this.hud.strokeRect(rx, ry, rw, rh);
+    }
 
     const zone = this.getBattleRoyaleZone();
     if (zone) {

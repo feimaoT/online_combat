@@ -17,8 +17,28 @@ const INVASION_INTERVAL_MS = 3 * 60 * 1000;
 const RAMPAGE_START_MS = 5 * 60 * 1000;
 const RAMPAGE_INTERVAL_MS = 60 * 1000;
 const TEAM_SUMMON_COOLDOWN_MS = 3 * 60 * 1000;
-const WORLD_WIDTH = 5200;
-const WORLD_HEIGHT = 3600;
+const WORLD_WIDTH = 8000;
+const WORLD_HEIGHT = 5600;
+const MAX_PLAYER_SPEED_PER_SEC = 1350;
+const PLAYER_POSITION_GRACE = 140;
+const MAX_PLAYER_HP = 900;
+const MAX_HP_GAIN_PER_SEC = 44;
+const MAX_TRUSTED_HEAL_PER_SEC = 95;
+const MAX_REMOTE_DAMAGE = 340;
+const MAX_REMOTE_DAMAGE_RANGE = 1800;
+const MAX_REMOTE_DAMAGE_PER_2S = 1900;
+const MAX_TEAM_HEAL = 110;
+const MAX_TEAM_HEAL_RANGE = 1400;
+const MAX_TEAM_HEAL_PER_5S = 300;
+const MAX_PVE_KILLS_PER_5S = 42;
+const MAX_PVE_SCORE_PER_10S = 4200;
+const MAX_CHEST_OPENS_PER_5S = 4;
+const MAX_PVE_REWARD_DISTANCE = 2600;
+const MAX_CHEST_REWARD_DISTANCE = 1800;
+const MAX_BOSS_KILLS_PER_30S = 2;
+const INITIAL_CHEST_CREDITS = 6;
+const MAX_CHEST_CREDITS = 10;
+const CHEST_CREDIT_INTERVAL_MS = 13 * 1000;
 const ROOM_CONFIGS = [
   { name: '阿尔法普通战区', mode: 'normal', modeName: '普通模式' },
   { name: '贝塔普通战区', mode: 'normal', modeName: '普通模式' },
@@ -27,18 +47,82 @@ const ROOM_CONFIGS = [
 const BATTLE_ROYALE_ZONE = {
   centerX: WORLD_WIDTH / 2,
   centerY: WORLD_HEIGHT / 2,
-  initialRadius: 3220,
-  minRadius: 720,
+  initialRadius: 4400,
+  minRadius: 920,
   shrinkStartsAtMs: 45 * 1000,
   shrinkDurationMs: 9 * 60 * 1000,
 };
 
 const TEAM_COLORS = [
-  { key: 'A', name: 'A 阵营', color: '#36f0d2', spawnX: 850, spawnY: 820 },
-  { key: 'B', name: 'B 阵营', color: '#ff6961', spawnX: 4350, spawnY: 820 },
-  { key: 'C', name: 'C 阵营', color: '#ffd166', spawnX: 2600, spawnY: 2850 },
+  { key: 'A', name: 'A 阵营', color: '#36f0d2', spawnX: 900, spawnY: 800 },
+  { key: 'B', name: 'B 阵营', color: '#ff6961', spawnX: 7100, spawnY: 800 },
+  { key: 'C', name: 'C 阵营', color: '#ffd166', spawnX: 4000, spawnY: 4400 },
 ];
 const TEAM_BY_KEY = new Map(TEAM_COLORS.map((team) => [team.key, team]));
+const ENEMY_XP = {
+  drone: 5,
+  stalker: 9,
+  warden: 14,
+  crusher: 24,
+  mender: 13,
+  sniper: 16,
+  bomber: 18,
+  turret: 20,
+  raider: 11,
+  mortar: 22,
+  shielder: 21,
+  spark: 15,
+  boss: 190,
+};
+const TIER_XP_MULTIPLIERS = {
+  white: 1,
+  green: 1.45,
+  blue: 2.1,
+  purple: 3.2,
+  red: 5,
+};
+const VEHICLE_KEYS = ['motorcycle', 'tank', 'fighter', 'hovercraft', 'railgun', 'walker', 'artillery', 'buggy', 'laserVan', 'flameRig'];
+const BUFF_KEYS = ['overclock', 'rapid', 'barrier', 'regen'];
+
+// Terrain water regions (must match client TERRAIN_REGIONS water entries)
+const WATER_REGIONS = [
+  { x: 3400, y: 1800, w: 1200, h: 500 },
+  { x: 200,  y: 3400, w: 800,  h: 600 },
+  { x: 7000, y: 3400, w: 800,  h: 600 },
+  { x: 1400, y: 100,  w: 500,  h: 400 },
+  { x: 6100, y: 100,  w: 500,  h: 400 },
+];
+
+function isInWater(px, py) {
+  for (const r of WATER_REGIONS) {
+    if (px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function makeGuardState() {
+  return {
+    lastStateAt: 0,
+    teleportGraceUntil: 0,
+    lastScoreAt: 0,
+    scoreWindowAt: 0,
+    scoreWindowAmount: 0,
+    damageWindowAt: 0,
+    damageWindowAmount: 0,
+    healWindowAt: 0,
+    healWindowAmount: 0,
+    pveKillsWindowAt: 0,
+    pveKillsWindowAmount: 0,
+    pveScoreWindowAt: 0,
+    pveScoreWindowAmount: 0,
+    bossKillsWindowAt: 0,
+    bossKillsWindowAmount: 0,
+    chestWindowAt: 0,
+    chestWindowAmount: 0,
+  };
+}
 
 const rooms = new Map();
 const userCrowns = new Map();
@@ -231,6 +315,22 @@ function markUserDefeated(room, userId) {
   }
 }
 
+function resetRewardBudget(player, t = now()) {
+  player.chestCredits = INITIAL_CHEST_CREDITS;
+  player.lastChestCreditAt = t;
+}
+
+function refillChestCredits(player, t = now()) {
+  const lastAt = player.lastChestCreditAt ?? t;
+  const earned = Math.floor((t - lastAt) / CHEST_CREDIT_INTERVAL_MS);
+  if (earned <= 0) {
+    return;
+  }
+
+  player.chestCredits = Math.min(MAX_CHEST_CREDITS, (player.chestCredits ?? 0) + earned);
+  player.lastChestCreditAt = lastAt + earned * CHEST_CREDIT_INTERVAL_MS;
+}
+
 function revivePlayer(room, userId, socketId) {
   room.deadUserIds.delete(userId);
   const player = room.players.get(socketId) ?? [...room.players.values()].find((entry) => entry.userId === userId);
@@ -248,6 +348,9 @@ function revivePlayer(room, userId, socketId) {
   player.alive = true;
   player.aliveSince = now();
   player.updatedAt = now();
+  player.guard = makeGuardState();
+  player.guard.teleportGraceUntil = player.updatedAt + 1500;
+  resetRewardBudget(player, player.updatedAt);
   if (!room.teamLeaders[player.teamKey]) {
     room.teamLeaders[player.teamKey] = player.userId;
   }
@@ -316,6 +419,9 @@ function restartRoomRound(room) {
     player.crown = userCrowns.get(player.userId) ?? 0;
     player.updatedAt = createdAt;
     player.aliveSince = createdAt;
+    player.guard = makeGuardState();
+    player.guard.teleportGraceUntil = createdAt + 1500;
+    resetRewardBudget(player, createdAt);
     teamIndexes[player.teamKey] = index + 1;
   }
 }
@@ -372,7 +478,10 @@ function joinPlayerToRoom(io, socket, room, payload = {}, ack) {
     joinedAt: now(),
     aliveSince: now(),
     updatedAt: now(),
+    guard: makeGuardState(),
   };
+  resetRewardBudget(player, player.updatedAt);
+  player.guard.teleportGraceUntil = player.updatedAt + 1500;
 
   socket.join(room.id);
   socket.data.roomId = room.id;
@@ -403,24 +512,194 @@ function pickQuickRoom() {
 
 function getSpawnPoint(teamKey, index, room) {
   const zone = room ? getBattleRoyaleZone(room) : undefined;
+  let result;
   if (zone) {
     const teamIndex = Math.max(0, TEAM_COLORS.findIndex((entry) => entry.key === teamKey));
     const angle = teamIndex * (Math.PI * 2 / TEAM_COLORS.length) + index * 0.42;
     const radius = Math.max(90, Math.min(zone.radius - 140, 980));
     const rowOffset = Math.floor(index / 6) * 46;
-    return {
+    result = {
       x: clampNumber(zone.centerX + Math.cos(angle) * Math.max(60, radius - rowOffset), 80, WORLD_WIDTH - 80),
       y: clampNumber(zone.centerY + Math.sin(angle) * Math.max(60, radius - rowOffset), 80, WORLD_HEIGHT - 80),
     };
+  } else {
+    const team = TEAM_BY_KEY.get(teamKey) ?? TEAM_COLORS[0];
+    const column = index % 5;
+    const row = Math.floor(index / 5);
+    result = {
+      x: clampNumber(team.spawnX + column * 52 - 104, 80, WORLD_WIDTH - 80),
+      y: clampNumber(team.spawnY + row * 52 - 52, 80, WORLD_HEIGHT - 80),
+    };
+  }
+  // Nudge out of water if spawned in it
+  if (isInWater(result.x, result.y)) {
+    for (let offset = 80; offset <= 400; offset += 40) {
+      for (const dir of [[offset, 0], [-offset, 0], [0, offset], [0, -offset]]) {
+        const nx = clampNumber(result.x + dir[0], 80, WORLD_WIDTH - 80);
+        const ny = clampNumber(result.y + dir[1], 80, WORLD_HEIGHT - 80);
+        if (!isInWater(nx, ny)) {
+          return { x: nx, y: ny };
+        }
+      }
+    }
+  }
+  return result;
+}
+
+function getGuard(player) {
+  if (!player.guard) {
+    player.guard = makeGuardState();
+  }
+  return player.guard;
+}
+
+function clampTrustedMovement(player, payload, t) {
+  const guard = getGuard(player);
+  const targetX = clampNumber(payload.x, 0, WORLD_WIDTH);
+  const targetY = clampNumber(payload.y, 0, WORLD_HEIGHT);
+  const previousAt = guard.lastStateAt || player.updatedAt || t;
+  const elapsedSeconds = Math.max(0.016, (t - previousAt) / 1000);
+  guard.lastStateAt = t;
+
+  if (!player.alive || !Number.isFinite(player.x) || !Number.isFinite(player.y)) {
+    return { x: targetX, y: targetY };
+  }
+  if ((guard.teleportGraceUntil ?? 0) > t) {
+    return { x: targetX, y: targetY };
   }
 
-  const team = TEAM_BY_KEY.get(teamKey) ?? TEAM_COLORS[0];
-  const column = index % 5;
-  const row = Math.floor(index / 5);
+  const distance = Math.hypot(targetX - player.x, targetY - player.y);
+  const maxDistance = MAX_PLAYER_SPEED_PER_SEC * elapsedSeconds + PLAYER_POSITION_GRACE;
+  if (distance <= maxDistance || distance <= 1) {
+    return { x: targetX, y: targetY };
+  }
+
+  const ratio = maxDistance / distance;
   return {
-    x: clampNumber(team.spawnX + column * 52 - 104, 80, WORLD_WIDTH - 80),
-    y: clampNumber(team.spawnY + row * 52 - 52, 80, WORLD_HEIGHT - 80),
+    x: clampNumber(player.x + (targetX - player.x) * ratio, 0, WORLD_WIDTH),
+    y: clampNumber(player.y + (targetY - player.y) * ratio, 0, WORLD_HEIGHT),
   };
+}
+
+function applyTrustedHealthReport(player, payload, t) {
+  const previousAt = player.updatedAt || t;
+  const elapsedSeconds = Math.max(0.016, (t - previousAt) / 1000);
+  const currentMaxHp = clampNumber(player.maxHp ?? 120, 1, MAX_PLAYER_HP);
+  const reportedMaxHp = clampNumber(payload.maxHp, 1, MAX_PLAYER_HP);
+  const maxHpIncrease = MAX_HP_GAIN_PER_SEC * elapsedSeconds + 24;
+  player.maxHp = Math.max(currentMaxHp, Math.min(reportedMaxHp, currentMaxHp + maxHpIncrease, MAX_PLAYER_HP));
+
+  const currentHp = clampNumber(player.hp ?? player.maxHp, 0, player.maxHp);
+  const reportedHp = clampNumber(payload.hp, 0, player.maxHp);
+  if (reportedHp <= currentHp) {
+    player.hp = reportedHp;
+    return;
+  }
+
+  const trustedHeal = MAX_TRUSTED_HEAL_PER_SEC * elapsedSeconds + 18;
+  player.hp = Math.min(player.maxHp, currentHp + trustedHeal, reportedHp);
+}
+
+function consumeWindow(guard, startKey, amountKey, windowMs, maxAmount, amount, t) {
+  if (!guard[startKey] || t - guard[startKey] > windowMs) {
+    guard[startKey] = t;
+    guard[amountKey] = 0;
+  }
+
+  if (guard[amountKey] + amount > maxAmount) {
+    return false;
+  }
+
+  guard[amountKey] += amount;
+  return true;
+}
+
+function safeNearbyPoint(x, y, index = 0) {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const angle = ((index * 1.93 + attempt * 0.77) % 1) * Math.PI * 2;
+    const radius = 42 + attempt * 18;
+    const nx = clampNumber(x + Math.cos(angle) * radius, 80, WORLD_WIDTH - 80);
+    const ny = clampNumber(y + Math.sin(angle) * radius, 80, WORLD_HEIGHT - 80);
+    if (!isInWater(nx, ny)) {
+      return { x: nx, y: ny };
+    }
+  }
+
+  return { x: clampNumber(x, 80, WORLD_WIDTH - 80), y: clampNumber(y, 80, WORLD_HEIGHT - 80) };
+}
+
+function emitPlayerDefeated(io, room, player, defeatedBy) {
+  io.to(room.id).emit('room:player-defeated', {
+    socketId: player.socketId,
+    name: player.name,
+    teamKey: player.teamKey,
+    defeatedBy,
+    message: `${player.name} 被 ${defeatedBy} 击败`,
+  });
+}
+
+function getEnemyRewardXp(kind, tier) {
+  const baseXp = ENEMY_XP[kind];
+  const multiplier = TIER_XP_MULTIPLIERS[tier];
+  if (!baseXp || !multiplier) {
+    return 0;
+  }
+
+  return Math.max(1, Math.round(baseXp * multiplier));
+}
+
+function pickFrom(list) {
+  return list[Math.floor(Math.random() * list.length)] ?? list[0];
+}
+
+function addRoomScore(room, teamKey, amount) {
+  const score = clampNumber(amount, 0, MAX_PVE_SCORE_PER_10S);
+  if (score <= 0) {
+    return;
+  }
+
+  room.scores[teamKey] = Math.round((room.scores[teamKey] ?? 0) + score);
+}
+
+function makeEnemyReward(payload) {
+  const kind = String(payload.kind || '');
+  const tier = String(payload.tier || '');
+  const xp = getEnemyRewardXp(kind, tier);
+  if (xp <= 0) {
+    return undefined;
+  }
+
+  const drops = [];
+  if (kind === 'boss') {
+    drops.push({ type: 'bossVehicle', vehicle: pickFrom(VEHICLE_KEYS) });
+    drops.push({ type: 'heal', amount: 28 });
+  } else {
+    if (Math.random() <= 0.05) {
+      drops.push({ type: 'chest' });
+    }
+    if (tier === 'purple' || tier === 'red') {
+      drops.push({ type: 'buff', buff: pickFrom(BUFF_KEYS) });
+    }
+  }
+
+  return {
+    kind,
+    tier,
+    xp,
+    score: kind === 'boss' ? xp + 150 : xp,
+    drops,
+  };
+}
+
+function makeChestReward() {
+  const roll = Math.random();
+  if (roll <= 0.46) {
+    return { drops: [{ type: 'vehicle', vehicle: pickFrom(VEHICLE_KEYS) }] };
+  }
+  if (roll <= 0.76) {
+    return { drops: [{ type: 'buff', buff: pickFrom(BUFF_KEYS) }] };
+  }
+  return { drops: [{ type: 'heal', amount: 6 }] };
 }
 
 const app = express();
@@ -492,12 +771,13 @@ io.on('connection', (socket) => {
       return;
     }
 
+    const t = now();
     const wasAlive = player.alive;
-    player.x = clampNumber(payload.x, 0, WORLD_WIDTH);
-    player.y = clampNumber(payload.y, 0, WORLD_HEIGHT);
+    const position = clampTrustedMovement(player, payload, t);
+    player.x = position.x;
+    player.y = position.y;
     player.angle = clampNumber(payload.angle, -Math.PI * 2, Math.PI * 2);
-    player.maxHp = clampNumber(payload.maxHp, 1, 10000);
-    player.hp = clampNumber(payload.hp, 0, player.maxHp);
+    applyTrustedHealthReport(player, payload, t);
     if (payload.alive === false) {
       markUserDefeated(room, player.userId);
       reassignTeamLeader(room, player.teamKey);
@@ -513,35 +793,23 @@ io.on('connection', (socket) => {
       markUserDefeated(room, player.userId);
       reassignTeamLeader(room, player.teamKey);
       socket.emit('battle:zone-kill', { defeatedBy: '缩圈闪电' });
-      io.to(room.id).emit('room:player-defeated', {
-        socketId: socket.id,
-        name: player.name,
-        teamKey: player.teamKey,
-        defeatedBy: '缩圈闪电',
-        message: `${player.name} 被缩圈闪电击败`,
-      });
+      emitPlayerDefeated(io, room, player, '缩圈闪电');
       io.to(room.id).emit('room:state', buildRoomState(room));
     }
-    player.updatedAt = now();
+    player.updatedAt = t;
   });
 
   socket.on('player:defeated', (payload = {}) => {
     const room = rooms.get(socket.data.roomId);
     const player = room?.players.get(socket.id);
-    if (!room || !player) {
+    if (!room || !player || !player.alive) {
       return;
     }
 
     markUserDefeated(room, player.userId);
     reassignTeamLeader(room, player.teamKey);
     const defeatedBy = String(payload.defeatedBy || '未知单位').slice(0, 32);
-    io.to(room.id).emit('room:player-defeated', {
-      socketId: socket.id,
-      name: player.name,
-      teamKey: player.teamKey,
-      defeatedBy,
-      message: `${player.name} 被 ${defeatedBy} 击败`,
-    });
+    emitPlayerDefeated(io, room, player, defeatedBy);
     io.to(room.id).emit('room:state', buildRoomState(room));
   });
 
@@ -590,6 +858,20 @@ io.on('connection', (socket) => {
     }
 
     room.teamSummonReadyAt[player.teamKey] = t + TEAM_SUMMON_COOLDOWN_MS;
+    let teammateIndex = 0;
+    for (const teammate of room.players.values()) {
+      if (teammate.teamKey !== player.teamKey || teammate.userId === player.userId || !teammate.alive) {
+        continue;
+      }
+
+      const point = safeNearbyPoint(player.x, player.y, teammateIndex);
+      teammate.x = point.x;
+      teammate.y = point.y;
+      teammate.updatedAt = t;
+      teammate.guard = makeGuardState();
+      teammate.guard.teleportGraceUntil = t + 1500;
+      teammateIndex += 1;
+    }
     io.to(room.id).emit('team:summon', {
       teamKey: player.teamKey,
       leaderSocketId: socket.id,
@@ -600,6 +882,7 @@ io.on('connection', (socket) => {
       message: `${player.name} 召集了 ${player.teamName}`,
     });
     ack?.({ ok: true, cooldownMs: TEAM_SUMMON_COOLDOWN_MS });
+    io.to(room.id).emit('room:state', buildRoomState(room));
   });
 
   socket.on('team:heal', (payload = {}) => {
@@ -615,12 +898,26 @@ io.on('connection', (socket) => {
       return;
     }
 
-    const amount = clampNumber(payload.amount, 0, 200);
+    const distance = Math.hypot(target.x - healer.x, target.y - healer.y);
+    if (distance > MAX_TEAM_HEAL_RANGE) {
+      return;
+    }
+
+    const t = now();
+    const guard = getGuard(healer);
+    const amount = clampNumber(payload.amount, 0, MAX_TEAM_HEAL);
+    if (amount <= 0 || !consumeWindow(guard, 'healWindowAt', 'healWindowAmount', 5000, MAX_TEAM_HEAL_PER_5S, amount, t)) {
+      return;
+    }
+
+    target.hp = Math.min(target.maxHp ?? 120, (target.hp ?? 120) + amount);
+    target.updatedAt = t;
     io.to(targetSocketId).emit('team:heal-applied', {
       amount,
       healerSocketId: socket.id,
       healerName: healer.name,
     });
+    io.to(room.id).emit('room:state', buildRoomState(room));
   });
 
   socket.on('player:damage', (payload = {}) => {
@@ -636,28 +933,119 @@ io.on('connection', (socket) => {
       return;
     }
 
-    const amount = clampNumber(payload.amount, 0, 500);
-    if (amount <= 0) {
+    const distance = Math.hypot(target.x - attacker.x, target.y - attacker.y);
+    if (distance > MAX_REMOTE_DAMAGE_RANGE) {
       return;
     }
 
+    const t = now();
+    const guard = getGuard(attacker);
+    const amount = clampNumber(payload.amount, 0, MAX_REMOTE_DAMAGE);
+    if (
+      amount <= 0 ||
+      !consumeWindow(guard, 'damageWindowAt', 'damageWindowAmount', 2000, MAX_REMOTE_DAMAGE_PER_2S, amount, t)
+    ) {
+      return;
+    }
+
+    target.hp = Math.max(0, (target.hp ?? target.maxHp ?? 120) - amount);
+    target.updatedAt = t;
     io.to(targetSocketId).emit('player:damage-applied', {
       amount,
       attackerSocketId: socket.id,
       attackerName: attacker.name,
       attackerTeamKey: attacker.teamKey,
     });
+
+    if (target.hp <= 0) {
+      markUserDefeated(room, target.userId);
+      reassignTeamLeader(room, target.teamKey);
+      emitPlayerDefeated(io, room, target, `${attacker.name}（敌对玩家）`);
+    }
+    io.to(room.id).emit('room:state', buildRoomState(room));
   });
 
-  socket.on('score:add', (payload = {}) => {
+  socket.on('pve:enemy-killed', (payload = {}, ack) => {
     const room = rooms.get(socket.data.roomId);
     const player = room?.players.get(socket.id);
-    if (!room || !player) {
+    if (!room || !player || !player.alive) {
+      ack?.({ ok: false, error: '还没有加入房间。' });
       return;
     }
 
-    const amount = clampNumber(payload.amount, 0, 1000);
-    room.scores[player.teamKey] = Math.round((room.scores[player.teamKey] ?? 0) + amount);
+    const t = now();
+    const guard = getGuard(player);
+    const killX = clampNumber(payload.x, 0, WORLD_WIDTH);
+    const killY = clampNumber(payload.y, 0, WORLD_HEIGHT);
+    if (Math.hypot(killX - player.x, killY - player.y) > MAX_PVE_REWARD_DISTANCE) {
+      ack?.({ ok: false, error: '击杀距离异常。' });
+      return;
+    }
+
+    const reward = makeEnemyReward(payload);
+    if (!reward) {
+      ack?.({ ok: false, error: '敌人奖励无效。' });
+      return;
+    }
+
+    if (
+      !consumeWindow(guard, 'pveKillsWindowAt', 'pveKillsWindowAmount', 5000, MAX_PVE_KILLS_PER_5S, 1, t) ||
+      !consumeWindow(guard, 'pveScoreWindowAt', 'pveScoreWindowAmount', 10000, MAX_PVE_SCORE_PER_10S, reward.score, t)
+    ) {
+      ack?.({ ok: false, error: '击杀奖励过快。' });
+      return;
+    }
+    if (
+      reward.kind === 'boss' &&
+      !consumeWindow(guard, 'bossKillsWindowAt', 'bossKillsWindowAmount', 30000, MAX_BOSS_KILLS_PER_30S, 1, t)
+    ) {
+      ack?.({ ok: false, error: 'Boss 奖励过快。' });
+      return;
+    }
+
+    const chestDrops = reward.drops.filter((drop) => drop.type === 'chest').length;
+    if (chestDrops > 0) {
+      refillChestCredits(player, t);
+      player.chestCredits = Math.min(MAX_CHEST_CREDITS, (player.chestCredits ?? 0) + chestDrops);
+    }
+    addRoomScore(room, player.teamKey, reward.score);
+    ack?.({ ok: true, reward });
+    io.to(room.id).emit('room:state', buildRoomState(room));
+  });
+
+  socket.on('loot:chest-opened', (payload = {}, ack) => {
+    const room = rooms.get(socket.data.roomId);
+    const player = room?.players.get(socket.id);
+    if (!room || !player || !player.alive) {
+      ack?.({ ok: false, error: '还没有加入房间。' });
+      return;
+    }
+
+    const t = now();
+    const guard = getGuard(player);
+    const chestX = clampNumber(payload.x, 0, WORLD_WIDTH);
+    const chestY = clampNumber(payload.y, 0, WORLD_HEIGHT);
+    if (Math.hypot(chestX - player.x, chestY - player.y) > MAX_CHEST_REWARD_DISTANCE) {
+      ack?.({ ok: false, error: '宝箱距离异常。' });
+      return;
+    }
+
+    if (!consumeWindow(guard, 'chestWindowAt', 'chestWindowAmount', 5000, MAX_CHEST_OPENS_PER_5S, 1, t)) {
+      ack?.({ ok: false, error: '开启宝箱过快。' });
+      return;
+    }
+    refillChestCredits(player, t);
+    if ((player.chestCredits ?? 0) <= 0) {
+      ack?.({ ok: false, error: '没有可领取的宝箱奖励。' });
+      return;
+    }
+
+    player.chestCredits -= 1;
+    ack?.({ ok: true, reward: makeChestReward() });
+  });
+
+  socket.on('score:add', (_payload = {}, ack) => {
+    ack?.({ ok: false, error: '积分由服务端 PvE/PvP 奖励仲裁。' });
   });
 
   socket.on('disconnect', () => {
