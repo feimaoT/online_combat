@@ -104,6 +104,8 @@ type VehicleKey =
 type EnemyKind =
   | 'drone'
   | 'stalker'
+  | 'hopper'
+  | 'leaper'
   | 'warden'
   | 'crusher'
   | 'mender'
@@ -118,7 +120,7 @@ type EnemyKind =
 type EnemyTier = 'white' | 'green' | 'blue' | 'purple' | 'red';
 type TeamKey = 'A' | 'B' | 'C';
 type UpgradeKey = 'damage' | 'rate' | 'speed' | 'armor' | 'magnet';
-type BuffKey = 'overclock' | 'rapid' | 'barrier' | 'regen';
+type BuffKey = 'overclock' | 'rapid' | 'barrier' | 'regen' | 'magnet';
 type WeatherKey = 'sunny' | 'wind' | 'snow' | 'fog' | 'storm' | 'heat' | 'meteor';
 type WeaponKey =
   | 'attackDrone'
@@ -327,6 +329,8 @@ interface BossTarget {
   y: number;
   isLocal: boolean;
 }
+
+type BossVariantKey = 'annihilator' | 'stormLord' | 'siegeCore';
 
 interface RemotePlayerView {
   sprite: Phaser.Physics.Arcade.Sprite;
@@ -610,6 +614,40 @@ const ENEMIES: Record<EnemyKind, EnemySpec> = {
     patrolRadius: 340,
     tint: 0xffbd59,
   },
+  hopper: {
+    name: '跳跃侦察兵',
+    texture: 'enemy-hopper',
+    hp: 58,
+    speed: 112,
+    damage: 11,
+    xp: 10,
+    noticeRadius: 410,
+    chaseThreshold: 34,
+    attackRange: 42,
+    attackDelay: 760,
+    proximityGain: 23,
+    noiseMultiplier: 0.8,
+    decay: 6,
+    patrolRadius: 330,
+    tint: 0x64f5ff,
+  },
+  leaper: {
+    name: '重跃破甲机',
+    texture: 'enemy-leaper',
+    hp: 128,
+    speed: 88,
+    damage: 21,
+    xp: 20,
+    noticeRadius: 470,
+    chaseThreshold: 38,
+    attackRange: 56,
+    attackDelay: 980,
+    proximityGain: 25,
+    noiseMultiplier: 0.9,
+    decay: 5,
+    patrolRadius: 270,
+    tint: 0xff8bd1,
+  },
   warden: {
     name: '区域守卫者',
     texture: 'enemy-warden',
@@ -864,6 +902,11 @@ const BUFFS: Record<BuffKey, BuffSpec> = {
     detail: '持续回血',
     color: 0xa7e65d,
   },
+  magnet: {
+    name: '吸铁石',
+    detail: '短时间吸附远处经验球和掉落物',
+    color: 0x64f5ff,
+  },
 };
 
 const WEAPONS: Record<WeaponKey, WeaponSpec> = {
@@ -953,7 +996,7 @@ const VEHICLE_ORDER: VehicleKey[] = [
   'laserVan',
   'flameRig',
 ];
-const BUFF_ORDER: BuffKey[] = ['overclock', 'rapid', 'barrier', 'regen'];
+const BUFF_ORDER: BuffKey[] = ['overclock', 'rapid', 'barrier', 'regen', 'magnet'];
 const WEAPON_ORDER: WeaponKey[] = [
   'attackDrone',
   'healDrone',
@@ -975,6 +1018,7 @@ const TEAM_OPTIONS: TeamInfo[] = [
 ];
 const MAX_WEAPON_SLOTS = 5;
 const PERFECT_WEAPON_LEVEL = 6;
+const PERFECT_VEHICLE_RANK = 6;
 const TARGET_RANGE_MIN = 220;
 const TARGET_RANGE_MAX = 980;
 const TARGET_RANGE_STEP = 60;
@@ -985,6 +1029,34 @@ const BOSS_FIXATION_MS = 13000;
 const BOSS_FLEE_MS = 4200;
 const BOSS_HEAL_RATE = 0.055;
 const BOSS_HEAL_COOLDOWN_MS = 3600;
+const BOSS_VARIANTS: Record<BossVariantKey, { name: string; color: number; hp: number; speed: number; damage: number; skillDelay: [number, number] }> = {
+  annihilator: { name: '橙色歼灭者', color: 0xff9f1c, hp: 1, speed: 1, damage: 1, skillDelay: [2400, 3600] },
+  stormLord: { name: '雷暴统御者', color: 0x64f5ff, hp: 0.86, speed: 1.18, damage: 0.92, skillDelay: [1900, 3000] },
+  siegeCore: { name: '堡垒母核', color: 0xff6961, hp: 1.25, speed: 0.78, damage: 1.14, skillDelay: [3100, 4600] },
+};
+const BOSS_VARIANT_ORDER: BossVariantKey[] = ['annihilator', 'stormLord', 'siegeCore'];
+
+type SkillKey = 'sprint' | 'airstrike';
+interface SkillSpec {
+  key: SkillKey;
+  name: string;
+  icon: string;
+  cooldownMs: number;
+  durationMs: number;
+  color: number;
+}
+const SKILLS: Record<SkillKey, SkillSpec> = {
+  sprint:    { key: 'sprint',    name: '急速冲刺', icon: '冲', cooldownMs: 12000, durationMs: 1600, color: 0x36f0d2 },
+  airstrike: { key: 'airstrike', name: '空袭信标', icon: '炸', cooldownMs: 32000, durationMs: 2400, color: 0xffd166 },
+};
+const SKILL_ORDER: SkillKey[] = ['sprint', 'airstrike'];
+const SPRINT_SPEED_BONUS = 200;
+const AIRSTRIKE_DELAY_MS = 1400;
+const AIRSTRIKE_STRIKE_INTERVAL = 320;
+const AIRSTRIKE_STRIKE_COUNT = 3;
+const AIRSTRIKE_RADIUS = 140;
+const AIRSTRIKE_DAMAGE = 95;
+const AIRSTRIKE_RANGE = 520;
 const BOSS_SPAWNS = [
   { x: 900, y: 700 },
   { x: WORLD_WIDTH - 900, y: 700 },
@@ -1035,11 +1107,13 @@ class MainScene extends Phaser.Scene {
   private projectiles!: Phaser.Physics.Arcade.Group;
   private enemyProjectiles!: Phaser.Physics.Arcade.Group;
   private chests!: Phaser.Physics.Arcade.Group;
+  private xpOrbs!: Phaser.Physics.Arcade.Group;
   private vehiclePods!: Phaser.Physics.Arcade.Group;
   private buffPickups!: Phaser.Physics.Arcade.Group;
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private keys!: MoveKeys;
   private rangeKeys!: RangeKeys;
+  private skillKeys!: { SHIFT: Phaser.Input.Keyboard.Key; F: Phaser.Input.Keyboard.Key };
   private upgradeHotkeys: Phaser.Input.Keyboard.Key[] = [];
   private hud!: Phaser.GameObjects.Graphics;
   private weatherOverlay!: Phaser.GameObjects.Graphics;
@@ -1047,6 +1121,7 @@ class MainScene extends Phaser.Scene {
   private targetRing!: Phaser.GameObjects.Graphics;
   private enemyHud!: Phaser.GameObjects.Graphics;
   private hudText!: Phaser.GameObjects.Text;
+  private skillHudTexts: Partial<Record<SkillKey, Phaser.GameObjects.Text>> = {};
   private modal?: Phaser.GameObjects.Container;
   private gameOverLayer?: Phaser.GameObjects.Container;
   private currentUpgradeChoices: UpgradeSpec[] = [];
@@ -1070,6 +1145,7 @@ class MainScene extends Phaser.Scene {
   private latestRoomState?: RoomState;
   private roomStateSyncedAt = 0;
   private remotePlayers = new Map<string, RemotePlayerView>();
+  private nextEntityId = 1;
   private lastNetworkSendAt = 0;
   private invasionMessageUntil = 0;
   private invasionMessage = '';
@@ -1086,8 +1162,11 @@ class MainScene extends Phaser.Scene {
   private joystickKnob?: HTMLDivElement;
   private joystickPointerId?: number;
   private joystickVector = new Phaser.Math.Vector2(0, 0);
+  private mobileSkillPanel?: HTMLDivElement;
+  private mobileSkillButtons: Partial<Record<SkillKey, HTMLButtonElement>> = {};
   private onlinePanel?: HTMLDivElement;
   private gameOverPanel?: HTMLDivElement;
+  private lockedBossVehicle?: VehicleKey;
   private moveTarget?: Phaser.Math.Vector2;
   private serverCorrectionUntil = 0;
   private lastDefeatedBy = '未知单位';
@@ -1171,6 +1250,7 @@ class MainScene extends Phaser.Scene {
     rapid: 0,
     barrier: 0,
     regen: 0,
+    magnet: 0,
   };
   private vehicleExpiresAt = 0;
   private vehicleShield = 0;
@@ -1179,6 +1259,9 @@ class MainScene extends Phaser.Scene {
   private areaAlert = 0;
   private isChoosingUpgrade = false;
   private isGameOver = false;
+  private skillReadyAt: Record<SkillKey, number> = { sprint: 0, airstrike: 0 };
+  private skillActiveUntil: Record<SkillKey, number> = { sprint: 0, airstrike: 0 };
+  private nextSprintTrailAt = 0;
   private lastAimAngle = 0;
   private nextEngineTrailAt = 0;
   private upgradeChoiceExpiresAt = 0;
@@ -1193,6 +1276,10 @@ class MainScene extends Phaser.Scene {
   private snowSlideX = 0;
   private snowSlideY = 0;
   private lastBattleZoneWarningAt = -10000;
+  private nextDamageSfxAt = 0;
+  private nextProjectileSfxAt = 0;
+  private nextKillCueAt = 0;
+  private nextCritCueAt = 0;
   private audioContext?: AudioContext;
   private nextUiSyncAt = 0;
 
@@ -1214,6 +1301,7 @@ class MainScene extends Phaser.Scene {
     this.projectiles = this.physics.add.group({ allowGravity: false, maxSize: 260 });
     this.enemyProjectiles = this.physics.add.group({ allowGravity: false, maxSize: 120 });
     this.chests = this.physics.add.group({ allowGravity: false });
+    this.xpOrbs = this.physics.add.group({ allowGravity: false, maxSize: 420 });
     this.vehiclePods = this.physics.add.group({ allowGravity: false });
     this.buffPickups = this.physics.add.group({ allowGravity: false });
 
@@ -1231,6 +1319,7 @@ class MainScene extends Phaser.Scene {
     this.cursors = this.input.keyboard!.createCursorKeys();
     this.keys = this.input.keyboard!.addKeys('W,A,S,D') as MoveKeys;
     this.rangeKeys = this.input.keyboard!.addKeys('Q,E') as RangeKeys;
+    this.skillKeys = this.input.keyboard!.addKeys('SHIFT,F') as { SHIFT: Phaser.Input.Keyboard.Key; F: Phaser.Input.Keyboard.Key };
     this.upgradeHotkeys = [
       Phaser.Input.Keyboard.KeyCodes.ONE,
       Phaser.Input.Keyboard.KeyCodes.TWO,
@@ -1269,6 +1358,7 @@ class MainScene extends Phaser.Scene {
       this,
     );
     this.physics.add.overlap(this.player, this.enemyProjectiles, this.handleEnemyProjectileHit, undefined, this);
+    this.physics.add.overlap(this.player, this.xpOrbs, this.handleXpOrbPickup, undefined, this);
     this.physics.add.overlap(this.player, this.vehiclePods, this.handleVehiclePodPickup, undefined, this);
     this.physics.add.overlap(this.player, this.buffPickups, this.handleBuffPickup, undefined, this);
 
@@ -1339,6 +1429,7 @@ class MainScene extends Phaser.Scene {
     const savedPermanentVehicleRanks = preservePermanentVehicles
       ? { ...this.permanentVehicleRanks }
       : undefined;
+    const savedLockedBossVehicle = preservePermanentVehicles ? this.lockedBossVehicle : undefined;
     this.damageMultiplier = 1;
     this.fireRateMultiplier = 1;
     this.speedBonus = 0;
@@ -1393,14 +1484,19 @@ class MainScene extends Phaser.Scene {
       rapid: 0,
       barrier: 0,
       regen: 0,
+      magnet: 0,
     };
     this.vehicleExpiresAt = 0;
     this.vehicleShield = 0;
     this.maxVehicleShield = 0;
+    this.lockedBossVehicle = savedLockedBossVehicle;
     this.targetRange = 560;
     this.areaAlert = 0;
     this.isChoosingUpgrade = false;
     this.isGameOver = false;
+    this.skillReadyAt = { sprint: 0, airstrike: 0 };
+    this.skillActiveUntil = { sprint: 0, airstrike: 0 };
+    this.nextSprintTrailAt = 0;
     this.lastAimAngle = 0;
     this.nextEngineTrailAt = 0;
     this.upgradeChoiceExpiresAt = 0;
@@ -1415,6 +1511,11 @@ class MainScene extends Phaser.Scene {
     this.snowSlideX = 0;
     this.snowSlideY = 0;
     this.lastBattleZoneWarningAt = -10000;
+    this.nextDamageSfxAt = 0;
+    this.nextProjectileSfxAt = 0;
+    this.nextKillCueAt = 0;
+    this.nextCritCueAt = 0;
+    this.nextEntityId = 1;
     this.moveTarget = undefined;
     this.joystickVector.set(0, 0);
     this.lastDefeatedBy = '未知单位';
@@ -1570,7 +1671,7 @@ class MainScene extends Phaser.Scene {
           <div class="guide-grid">
             <section>
               <h3>武器</h3>
-              <p>武器槽最多 5 个。6 级会变成完全体，但不是等级上限，之后仍可继续强化。</p>
+              <p>武器槽最多 5 个。武器 6 级封顶并变成完全体。</p>
               <ul>
                 <li>攻击无人机：环绕射击，完全体多发高速弹并带范围爆破。</li>
                 <li>治疗无人机：修复自己或队友，完全体治疗更快并有更大治疗脉冲。</li>
@@ -1588,7 +1689,7 @@ class MainScene extends Phaser.Scene {
             </section>
             <section>
               <h3>载具</h3>
-              <p>宝箱更容易掉落载具。载具临时替换机体，带独立护盾、速度、射速和武器形态。</p>
+              <p>载具存在时不能被其他普通载具替换；相同载具可升级/续时。Boss 载具直接变成 6 级永久完全体。</p>
               <ul>
                 <li>疾电摩托、突击越野车：高速机动，适合拉扯。</li>
                 <li>重装坦克、火箭炮车、焚烧工程车：慢但硬，范围火力强。</li>
@@ -1862,7 +1963,12 @@ class MainScene extends Phaser.Scene {
   }
 
   private clearRunObjects() {
-    [this.enemies, this.projectiles, this.enemyProjectiles, this.chests, this.vehiclePods, this.buffPickups].forEach((group) => {
+    this.xpOrbs?.getChildren().forEach((rawOrb) => {
+      const orb = rawOrb as Phaser.Physics.Arcade.Image;
+      (orb.getData('halo') as Phaser.GameObjects.Arc | undefined)?.destroy();
+      (orb.getData('label') as Phaser.GameObjects.Text | undefined)?.destroy();
+    });
+    [this.enemies, this.projectiles, this.enemyProjectiles, this.chests, this.xpOrbs, this.vehiclePods, this.buffPickups].forEach((group) => {
       group?.clear(true, true);
     });
     Object.values(this.weaponVisuals).forEach((visual) => visual?.destroy());
@@ -2052,27 +2158,79 @@ class MainScene extends Phaser.Scene {
     });
   }
 
+  private makeLocalEntityId(prefix: string) {
+    const socketPart = this.localSocketId || this.socket?.id || 'local';
+    const id = `${prefix}:${socketPart}:${this.elapsedMs.toFixed(0)}:${this.nextEntityId}`;
+    this.nextEntityId += 1;
+    return id;
+  }
+
+  private registerPveEntity(enemy: Phaser.Physics.Arcade.Sprite) {
+    const id = enemy.getData('entityId') as string | undefined;
+    if (!id || !this.socket?.connected || !this.isInMultiplayerRoom) {
+      return;
+    }
+
+    this.socket.emit('pve:entity-spawned', {
+      id,
+      kind: enemy.getData('kind'),
+      tier: enemy.getData('tier'),
+      x: enemy.x,
+      y: enemy.y,
+    });
+  }
+
+  private registerChestEntity(chest: Phaser.Physics.Arcade.Image) {
+    const id = chest.getData('entityId') as string | undefined;
+    if (!id || !this.socket?.connected || !this.isInMultiplayerRoom) {
+      return;
+    }
+
+    this.socket.emit('loot:chest-spawned', {
+      id,
+      x: chest.x,
+      y: chest.y,
+    });
+  }
+
   private requestEnemyKillReward(
     enemy: Phaser.Physics.Arcade.Sprite,
     onReward: (reward: ServerKillReward) => void,
+    onFailure?: () => void,
   ) {
     if (!this.socket?.connected || !this.isInMultiplayerRoom) {
+      onFailure?.();
+      return;
+    }
+
+    this.requestEnemyKillRewardById({
+      id: enemy.getData('entityId'),
+      kind: enemy.getData('kind'),
+      tier: enemy.getData('tier'),
+      x: enemy.x,
+      y: enemy.y,
+    }, onReward, onFailure);
+  }
+
+  private requestEnemyKillRewardById(
+    snapshot: { id: unknown; kind: unknown; tier: unknown; x: number; y: number },
+    onReward: (reward: ServerKillReward) => void,
+    onFailure?: () => void,
+  ) {
+    if (!this.socket?.connected || !this.isInMultiplayerRoom) {
+      onFailure?.();
       return;
     }
 
     this.socket.emit(
       'pve:enemy-killed',
-      {
-        kind: enemy.getData('kind'),
-        tier: enemy.getData('tier'),
-        x: enemy.x,
-        y: enemy.y,
-      },
+      snapshot,
       (response: { ok?: boolean; error?: string; reward?: ServerKillReward }) => {
         if (!response?.ok || !response.reward) {
           if (response?.error) {
             this.showAnnouncement(response.error, 1800);
           }
+          onFailure?.();
           return;
         }
 
@@ -2081,19 +2239,23 @@ class MainScene extends Phaser.Scene {
     );
   }
 
-  private requestChestReward(x: number, y: number, onReward: (reward: ServerKillReward) => void) {
+  private requestChestReward(chest: Phaser.Physics.Arcade.Image, onReward: (reward: ServerKillReward) => void, onFailure?: () => void) {
     if (!this.socket?.connected || !this.isInMultiplayerRoom) {
+      onFailure?.();
       return;
     }
 
+    const x = chest.x;
+    const y = chest.y;
     this.socket.emit(
       'loot:chest-opened',
-      { x, y },
+      { id: chest.getData('entityId'), x, y },
       (response: { ok?: boolean; error?: string; reward?: ServerKillReward }) => {
         if (!response?.ok || !response.reward) {
           if (response?.error) {
             this.showAnnouncement(response.error, 1800);
           }
+          onFailure?.();
           return;
         }
 
@@ -2102,11 +2264,12 @@ class MainScene extends Phaser.Scene {
     );
   }
 
-  private applyServerReward(reward: ServerKillReward, x: number, y: number) {
-    const xp = clamp(reward.xp ?? 0, 0, 2000);
-    if (xp > 0) {
-      this.gainXp(xp);
-      this.spawnXpOrb(x, y, xp);
+  private applyServerReward(reward: ServerKillReward, x: number, y: number, options?: { skipXp?: boolean }) {
+    if (!options?.skipXp) {
+      const xp = clamp(reward.xp ?? 0, 0, 2000);
+      if (xp > 0) {
+        this.spawnXpOrb(x, y, xp);
+      }
     }
 
     reward.drops?.forEach((drop) => {
@@ -2694,6 +2857,7 @@ class MainScene extends Phaser.Scene {
       this.mobileControls?.remove();
       this.mobileControls = undefined;
       this.removeJoystick();
+      this.removeMobileSkillPanel();
       return;
     }
 
@@ -2721,6 +2885,70 @@ class MainScene extends Phaser.Scene {
       this.mobileControls = panel;
     }
     this.syncJoystick();
+    this.syncMobileSkillPanel();
+  }
+
+  private syncMobileSkillPanel() {
+    if (!this.isInMultiplayerRoom || this.isGameOver) {
+      this.removeMobileSkillPanel();
+      return;
+    }
+    if (this.mobileSkillPanel) {
+      this.refreshMobileSkillButtons();
+      return;
+    }
+    const panel = document.createElement('div');
+    panel.className = 'mobile-skills';
+    SKILL_ORDER.forEach((key) => {
+      const spec = SKILLS[key];
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = `mobile-skill mobile-skill-${key}`;
+      button.dataset.skill = key;
+      button.innerHTML = `<span class="mobile-skill-icon">${spec.icon}</span><span class="mobile-skill-label">就绪</span>`;
+      const activate = (event: Event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        this.activateSkill(key);
+      };
+      button.addEventListener('pointerdown', activate);
+      panel.appendChild(button);
+      this.mobileSkillButtons[key] = button;
+    });
+    document.body.appendChild(panel);
+    this.mobileSkillPanel = panel;
+    this.refreshMobileSkillButtons();
+  }
+
+  private refreshMobileSkillButtons() {
+    SKILL_ORDER.forEach((key) => {
+      const button = this.mobileSkillButtons[key];
+      if (!button) {
+        return;
+      }
+      const ready = this.elapsedMs >= this.skillReadyAt[key];
+      const active = this.isSkillActive(key);
+      const cooldownMs = Math.max(0, this.skillReadyAt[key] - this.elapsedMs);
+      const labelEl = button.querySelector<HTMLSpanElement>('.mobile-skill-label');
+      if (labelEl) {
+        if (active) {
+          labelEl.textContent = '进行';
+        } else if (ready) {
+          labelEl.textContent = '就绪';
+        } else {
+          labelEl.textContent = `${(cooldownMs / 1000).toFixed(1)}s`;
+        }
+      }
+      button.classList.toggle('is-ready', ready && !active);
+      button.classList.toggle('is-active', active);
+      button.classList.toggle('is-cooldown', !ready && !active);
+    });
+  }
+
+  private removeMobileSkillPanel() {
+    this.mobileSkillPanel?.remove();
+    this.mobileSkillPanel = undefined;
+    this.mobileSkillButtons = {};
   }
 
   private syncJoystick() {
@@ -2752,7 +2980,17 @@ class MainScene extends Phaser.Scene {
       const scale = distance > maxDistance ? maxDistance / distance : 1;
       const x = rawX * scale;
       const y = rawY * scale;
-      this.joystickVector.set(x / maxDistance, y / maxDistance);
+      const normX = x / maxDistance;
+      const normY = y / maxDistance;
+      const normLen = Math.hypot(normX, normY);
+      const deadzone = 0.18;
+      if (normLen < deadzone) {
+        this.joystickVector.set(0, 0);
+      } else {
+        const eased = (normLen - deadzone) / (1 - deadzone);
+        const scaled = Math.min(1, eased);
+        this.joystickVector.set((normX / normLen) * scaled, (normY / normLen) * scaled);
+      }
       knob.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`;
     };
 
@@ -2894,20 +3132,217 @@ class MainScene extends Phaser.Scene {
     oscillator.stop(context.currentTime + durationMs / 1000 + 0.03);
   }
 
-  private playCue(kind: 'upgrade' | 'chest' | 'boss' | 'death' | 'weather' | 'rampage' | 'vehicle') {
-    const cues: Record<typeof kind, Array<[number, number, number?, OscillatorType?]>> = {
-      upgrade: [[620, 90], [880, 120, 0.03]],
-      chest: [[420, 80, 0.03, 'triangle'], [640, 90, 0.026, 'triangle']],
-      boss: [[140, 260, 0.055, 'sawtooth'], [82, 360, 0.045, 'sawtooth']],
-      death: [[190, 240, 0.05, 'sawtooth'], [120, 360, 0.04, 'triangle']],
-      weather: [[520, 160, 0.025, 'sine'], [740, 120, 0.02, 'sine']],
-      rampage: [[250, 90, 0.04, 'square'], [340, 120, 0.04, 'square'], [220, 180, 0.035, 'sawtooth']],
-      vehicle: [[360, 80, 0.035, 'triangle'], [720, 120, 0.028, 'triangle']],
-    };
+  // --- Advanced procedural sound engine (jsfxr-style synthesis) ---
+  private sfxNoise(duration: number, gain: number, hpFreq?: number, lpFreq?: number) {
+    const ctx = this.ensureAudioContext();
+    if (!ctx) return;
+    const len = Math.max(1, Math.floor(ctx.sampleRate * duration));
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    let node: AudioNode = src;
+    if (hpFreq) {
+      const hp = ctx.createBiquadFilter();
+      hp.type = 'highpass';
+      hp.frequency.value = hpFreq;
+      node.connect(hp);
+      node = hp;
+    }
+    if (lpFreq) {
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = lpFreq;
+      node.connect(lp);
+      node = lp;
+    }
+    const env = ctx.createGain();
+    env.gain.setValueAtTime(gain, ctx.currentTime);
+    env.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration);
+    node.connect(env);
+    env.connect(ctx.destination);
+    src.start();
+    src.stop(ctx.currentTime + duration + 0.02);
+  }
 
-    cues[kind].forEach(([frequency, duration, gain, type], index) => {
-      this.time.delayedCall(index * 90, () => this.playTone(frequency, duration, gain, type));
-    });
+  private sfxSweep(startFreq: number, endFreq: number, duration: number, gain: number, type: OscillatorType = 'sine') {
+    const ctx = this.ensureAudioContext();
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    osc.type = type;
+    osc.frequency.setValueAtTime(startFreq, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(Math.max(20, endFreq), ctx.currentTime + duration);
+    const env = ctx.createGain();
+    env.gain.setValueAtTime(gain, ctx.currentTime);
+    env.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration);
+    osc.connect(env);
+    env.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + duration + 0.02);
+  }
+
+  private sfxNoiseSweep(hpStart: number, hpEnd: number, lpStart: number, lpEnd: number, duration: number, gain: number) {
+    const ctx = this.ensureAudioContext();
+    if (!ctx) return;
+    const len = Math.max(1, Math.floor(ctx.sampleRate * duration));
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const hp = ctx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.setValueAtTime(hpStart, ctx.currentTime);
+    hp.frequency.exponentialRampToValueAtTime(Math.max(20, hpEnd), ctx.currentTime + duration);
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(lpStart, ctx.currentTime);
+    lp.frequency.exponentialRampToValueAtTime(Math.max(20, lpEnd), ctx.currentTime + duration);
+    const env = ctx.createGain();
+    env.gain.setValueAtTime(gain, ctx.currentTime);
+    env.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration);
+    src.connect(hp);
+    hp.connect(lp);
+    lp.connect(env);
+    env.connect(ctx.destination);
+    src.start();
+    src.stop(ctx.currentTime + duration + 0.02);
+  }
+
+  private sfxLaserShot() {
+    this.sfxSweep(1200, 150, 0.12, 0.09, 'sawtooth');
+    this.sfxNoise(0.06, 0.04, 2000);
+  }
+
+  private sfxRocketShot() {
+    this.sfxNoiseSweep(800, 200, 4000, 600, 0.2, 0.07);
+    this.sfxSweep(180, 80, 0.25, 0.05, 'sawtooth');
+  }
+
+  private sfxExplosion() {
+    this.sfxNoise(0.35, 0.12, 60, 3500);
+    this.sfxSweep(120, 30, 0.4, 0.08, 'sawtooth');
+  }
+
+  private sfxHit() {
+    this.sfxNoise(0.05, 0.06, 800, 5000);
+    this.sfxSweep(600, 200, 0.06, 0.04, 'square');
+  }
+
+  private sfxDamage() {
+    this.sfxNoise(0.1, 0.08, 400, 3000);
+    this.sfxSweep(300, 100, 0.15, 0.06, 'sawtooth');
+  }
+
+  private sfxHeal() {
+    this.sfxSweep(400, 800, 0.15, 0.04, 'sine');
+    this.time.delayedCall(80, () => this.sfxSweep(600, 1200, 0.15, 0.035, 'sine'));
+  }
+
+  private sfxPickup() {
+    this.sfxSweep(500, 900, 0.08, 0.04, 'sine');
+    this.time.delayedCall(70, () => this.sfxSweep(700, 1100, 0.12, 0.035, 'sine'));
+  }
+
+  private sfxShoot(texture: string) {
+    switch (texture) {
+      case 'shot-missile':
+      case 'shot-shell':
+        this.sfxRocketShot();
+        break;
+      case 'shot-grenade':
+        this.sfxRocketShot();
+        break;
+      case 'shot-saw':
+        this.sfxNoiseSweep(300, 1500, 2000, 6000, 0.12, 0.05);
+        this.sfxSweep(200, 400, 0.1, 0.03, 'sawtooth');
+        break;
+      case 'shot-cryo':
+        this.sfxNoiseSweep(3000, 6000, 6000, 12000, 0.1, 0.04);
+        this.sfxSweep(1200, 2400, 0.1, 0.03, 'sine');
+        break;
+      case 'shot-tesla':
+        this.sfxNoise(0.08, 0.06, 1500, 5000);
+        this.sfxSweep(200, 800, 0.08, 0.04, 'square');
+        break;
+      case 'shot-beam':
+        this.sfxSweep(300, 1800, 0.15, 0.05, 'sine');
+        this.sfxNoise(0.1, 0.03, 3000);
+        break;
+      case 'shot-orbital':
+        this.sfxExplosion();
+        break;
+      case 'shot-ion':
+        this.sfxSweep(400, 2200, 0.2, 0.06, 'sawtooth');
+        this.sfxNoise(0.06, 0.05, 2000);
+        break;
+      case 'shot-flame':
+        this.sfxNoiseSweep(300, 900, 3600, 1400, 0.09, 0.045);
+        break;
+      default:
+        this.sfxLaserShot();
+        break;
+    }
+  }
+
+  private playCue(kind: 'upgrade' | 'chest' | 'boss' | 'death' | 'weather' | 'rampage' | 'vehicle' | 'levelup' | 'kill' | 'crit' | 'bossKill') {
+    switch (kind) {
+      case 'upgrade':
+        this.sfxSweep(400, 800, 0.1, 0.05, 'sine');
+        this.time.delayedCall(80, () => this.sfxSweep(600, 1200, 0.15, 0.045, 'sine'));
+        this.time.delayedCall(160, () => this.sfxSweep(800, 1600, 0.12, 0.035, 'sine'));
+        break;
+      case 'levelup':
+        this.sfxSweep(523, 784, 0.12, 0.06, 'triangle');
+        this.time.delayedCall(90, () => this.sfxSweep(659, 988, 0.14, 0.055, 'triangle'));
+        this.time.delayedCall(180, () => this.sfxSweep(784, 1318, 0.18, 0.05, 'sine'));
+        this.time.delayedCall(260, () => this.sfxSweep(1046, 1568, 0.2, 0.045, 'sine'));
+        break;
+      case 'kill':
+        this.sfxSweep(720, 320, 0.06, 0.045, 'square');
+        this.sfxNoise(0.04, 0.025, 1600, 5200);
+        break;
+      case 'crit':
+        this.sfxSweep(1400, 480, 0.09, 0.07, 'sawtooth');
+        this.sfxNoise(0.06, 0.05, 2200, 6000);
+        this.time.delayedCall(40, () => this.sfxSweep(900, 280, 0.08, 0.05, 'square'));
+        break;
+      case 'bossKill':
+        this.sfxSweep(220, 80, 0.45, 0.09, 'sawtooth');
+        this.sfxNoise(0.45, 0.11, 60, 3200);
+        this.time.delayedCall(180, () => this.sfxSweep(440, 880, 0.3, 0.07, 'triangle'));
+        this.time.delayedCall(340, () => this.sfxSweep(660, 1320, 0.34, 0.06, 'sine'));
+        break;
+      case 'chest':
+        this.sfxSweep(300, 600, 0.08, 0.04, 'triangle');
+        this.time.delayedCall(70, () => this.sfxSweep(500, 900, 0.1, 0.04, 'triangle'));
+        this.time.delayedCall(140, () => { this.sfxSweep(700, 1400, 0.15, 0.04, 'sine'); this.sfxNoise(0.05, 0.02, 3000, 8000); });
+        break;
+      case 'boss':
+        this.sfxNoise(0.4, 0.1, 50, 2000);
+        this.sfxSweep(100, 40, 0.5, 0.07, 'sawtooth');
+        this.time.delayedCall(200, () => this.sfxSweep(80, 30, 0.4, 0.06, 'square'));
+        break;
+      case 'death':
+        this.sfxNoise(0.3, 0.09, 100, 3000);
+        this.sfxSweep(400, 60, 0.5, 0.07, 'sawtooth');
+        this.time.delayedCall(200, () => this.sfxSweep(200, 40, 0.4, 0.05, 'triangle'));
+        break;
+      case 'weather':
+        this.sfxNoiseSweep(200, 400, 3000, 800, 0.3, 0.04);
+        this.time.delayedCall(150, () => this.sfxSweep(300, 100, 0.3, 0.035, 'sine'));
+        break;
+      case 'rampage':
+        this.sfxSweep(200, 600, 0.1, 0.05, 'square');
+        this.time.delayedCall(100, () => this.sfxSweep(300, 800, 0.1, 0.05, 'square'));
+        this.time.delayedCall(200, () => { this.sfxNoise(0.12, 0.06, 200, 3000); this.sfxSweep(250, 100, 0.2, 0.04, 'sawtooth'); });
+        break;
+      case 'vehicle':
+        this.sfxSweep(200, 600, 0.1, 0.05, 'triangle');
+        this.time.delayedCall(80, () => { this.sfxSweep(500, 1000, 0.12, 0.04, 'triangle'); this.sfxNoise(0.08, 0.03, 1000, 4000); });
+        break;
+    }
   }
 
   private adjustTargetRange(delta: number) {
@@ -3114,7 +3549,7 @@ class MainScene extends Phaser.Scene {
       const statePlayer = this.latestRoomState?.players.find((player) => player.socketId === this.localSocketId);
       const spawn = statePlayer ?? this.getTeamSpawnPosition();
       this.player.setPosition(spawn.x, spawn.y);
-      this.applyVehicle('mech', false);
+      this.applyPreservedBossVehicleOrMech(false);
       this.player.setTint(this.localTeamTint || 0xffffff);
       this.spawnInitialWorld();
       this.physics.resume();
@@ -3165,7 +3600,9 @@ class MainScene extends Phaser.Scene {
     this.updateBattleRoyaleZone();
     if (!this.isChoosingUpgrade) {
       this.handleTargetRangeInput();
+      this.handleSkillInput();
       this.updatePlayer(deltaSeconds);
+      this.updateSprintTrail();
     } else {
       this.player.setVelocity(0, 0);
       this.handleUpgradeHotkeys();
@@ -3378,6 +3815,34 @@ class MainScene extends Phaser.Scene {
       g.lineBetween(24, 23, 19, 32);
       g.lineBetween(14, 9, 6, 2);
       g.lineBetween(27, 9, 35, 2);
+    });
+
+    this.makeTexture('enemy-hopper', 44, 42, (g) => {
+      g.fillStyle(0x0f1c22, 1);
+      g.fillRoundedRect(10, 10, 24, 18, 5);
+      g.lineStyle(2, 0x64f5ff, 1);
+      g.strokeRoundedRect(10, 10, 24, 18, 5);
+      g.fillStyle(0xff6961, 1);
+      g.fillCircle(28, 18, 4);
+      g.lineStyle(3, 0x64f5ff, 0.92);
+      g.lineBetween(14, 27, 6, 40);
+      g.lineBetween(30, 27, 38, 40);
+      g.lineBetween(14, 10, 7, 3);
+      g.lineBetween(30, 10, 37, 3);
+    });
+
+    this.makeTexture('enemy-leaper', 58, 50, (g) => {
+      g.fillStyle(0x23121f, 1);
+      g.fillRoundedRect(10, 9, 34, 26, 6);
+      g.lineStyle(3, 0xff8bd1, 1);
+      g.strokeRoundedRect(10, 9, 34, 26, 6);
+      g.fillStyle(0xffd166, 1);
+      g.fillTriangle(39, 16, 55, 25, 39, 34);
+      g.lineStyle(3, 0xff8bd1, 0.9);
+      g.lineBetween(15, 34, 4, 48);
+      g.lineBetween(39, 34, 51, 48);
+      g.lineBetween(18, 9, 10, 1);
+      g.lineBetween(36, 9, 47, 1);
     });
 
     this.makeTexture('enemy-warden', 52, 52, (g) => {
@@ -3927,7 +4392,8 @@ class MainScene extends Phaser.Scene {
 
     const length = Math.hypot(moveX, moveY);
     const terrainMod = this.getTerrainSpeedMod(this.player.x, this.player.y);
-    const speed = (vehicle.speed + this.speedBonus + this.getBuffSpeedBonus()) * this.getWeatherSpeedMultiplier() * terrainMod;
+    const sprintBonus = this.isSkillActive('sprint') ? SPRINT_SPEED_BONUS : 0;
+    const speed = (vehicle.speed + this.speedBonus + this.getBuffSpeedBonus() + sprintBonus) * this.getWeatherSpeedMultiplier() * terrainMod;
 
     if (length > 0) {
       const vx = (moveX / length) * speed;
@@ -3955,12 +4421,49 @@ class MainScene extends Phaser.Scene {
     }
     this.player.setRotation(Phaser.Math.Angle.RotateTo(this.player.rotation, this.lastAimAngle, Math.PI * deltaSeconds * 10));
 
-    if (this.magnetRadius > 0) {
-      this.pullChests(deltaSeconds);
-    }
+    this.pullLoot(deltaSeconds);
   }
 
-  private pullChests(deltaSeconds: number) {
+  private getMagnetPickupRadius() {
+    return this.magnetRadius + (this.isBuffActive('magnet') ? 420 : 0);
+  }
+
+  private pullLoot(deltaSeconds: number) {
+    const magnetPickupRadius = this.getMagnetPickupRadius();
+    this.xpOrbs.getChildren().forEach((rawOrb) => {
+      const orb = rawOrb as Phaser.Physics.Arcade.Image;
+      if (!orb.active) {
+        return;
+      }
+
+      const expiresAt = (orb.getData('expiresAt') as number | undefined) ?? 0;
+      if (expiresAt > 0 && this.elapsedMs >= expiresAt) {
+        (orb.getData('halo') as Phaser.GameObjects.Arc | undefined)?.destroy();
+        (orb.getData('label') as Phaser.GameObjects.Text | undefined)?.destroy();
+        orb.destroy();
+        return;
+      }
+
+      const distance = Phaser.Math.Distance.Between(orb.x, orb.y, this.player.x, this.player.y);
+      const pickupRadius = 160 + magnetPickupRadius;
+      if (distance > pickupRadius || distance < 18) {
+        return;
+      }
+
+      const angle = Phaser.Math.Angle.Between(orb.x, orb.y, this.player.x, this.player.y);
+      const pull = clamp(1 - distance / pickupRadius, 0.35, 1);
+      const speed = (magnetPickupRadius > 0 ? 620 : 380) * pull;
+      orb.x += Math.cos(angle) * speed * deltaSeconds;
+      orb.y += Math.sin(angle) * speed * deltaSeconds;
+      (orb.body as Phaser.Physics.Arcade.Body).updateFromGameObject();
+      (orb.getData('halo') as Phaser.GameObjects.Arc | undefined)?.setPosition(orb.x, orb.y);
+      (orb.getData('label') as Phaser.GameObjects.Text | undefined)?.setPosition(orb.x, orb.y - 22);
+    });
+
+    if (magnetPickupRadius <= 0) {
+      return;
+    }
+
     this.chests.getChildren().forEach((rawChest) => {
       const chest = rawChest as Phaser.Physics.Arcade.Image;
       if (!chest.active) {
@@ -3968,13 +4471,14 @@ class MainScene extends Phaser.Scene {
       }
 
       const distance = Phaser.Math.Distance.Between(chest.x, chest.y, this.player.x, this.player.y);
-      if (distance > this.magnetRadius || distance < 18) {
+      if (distance > magnetPickupRadius || distance < 18) {
         return;
       }
 
       const angle = Phaser.Math.Angle.Between(chest.x, chest.y, this.player.x, this.player.y);
       chest.x += Math.cos(angle) * 120 * deltaSeconds;
       chest.y += Math.sin(angle) * 120 * deltaSeconds;
+      (chest.body as Phaser.Physics.Arcade.Body).updateFromGameObject();
     });
 
     [...this.vehiclePods.getChildren(), ...this.buffPickups.getChildren()].forEach((rawLoot) => {
@@ -3984,13 +4488,14 @@ class MainScene extends Phaser.Scene {
       }
 
       const distance = Phaser.Math.Distance.Between(loot.x, loot.y, this.player.x, this.player.y);
-      if (distance > this.magnetRadius || distance < 18) {
+      if (distance > magnetPickupRadius || distance < 18) {
         return;
       }
 
       const angle = Phaser.Math.Angle.Between(loot.x, loot.y, this.player.x, this.player.y);
       loot.x += Math.cos(angle) * 145 * deltaSeconds;
       loot.y += Math.sin(angle) * 145 * deltaSeconds;
+      (loot.body as Phaser.Physics.Arcade.Body).updateFromGameObject();
       const icon = loot.getData('icon') as Phaser.GameObjects.Image | undefined;
       if (icon) {
         icon.x = loot.x;
@@ -4007,6 +4512,112 @@ class MainScene extends Phaser.Scene {
     if (Phaser.Input.Keyboard.JustDown(this.rangeKeys.E)) {
       this.adjustTargetRange(TARGET_RANGE_STEP);
     }
+  }
+
+  private handleSkillInput() {
+    if (!this.isInMultiplayerRoom || this.isGameOver || this.isChoosingUpgrade) {
+      return;
+    }
+    if (Phaser.Input.Keyboard.JustDown(this.skillKeys.SHIFT)) {
+      this.activateSkill('sprint');
+    }
+    if (Phaser.Input.Keyboard.JustDown(this.skillKeys.F)) {
+      this.activateSkill('airstrike');
+    }
+  }
+
+  private activateSkill(key: SkillKey) {
+    const spec = SKILLS[key];
+    if (this.elapsedMs < this.skillReadyAt[key]) {
+      return;
+    }
+    this.skillReadyAt[key] = this.elapsedMs + spec.cooldownMs;
+    this.skillActiveUntil[key] = this.elapsedMs + spec.durationMs;
+    this.ensureAudioContext();
+    if (key === 'sprint') {
+      this.triggerSprintEffect();
+    } else if (key === 'airstrike') {
+      this.triggerAirstrike();
+    }
+  }
+
+  private triggerSprintEffect() {
+    this.shockwave(this.player.x, this.player.y, 70, SKILLS.sprint.color);
+    this.flashAt(this.player.x, this.player.y, SKILLS.sprint.color, 8);
+    this.sfxSweep(420, 820, 0.18, 0.06, 'triangle');
+    this.sfxNoise(0.08, 0.04, 1800, 6000);
+    this.showAnnouncement('急速冲刺', 900);
+  }
+
+  private isSkillActive(key: SkillKey) {
+    return this.elapsedMs < this.skillActiveUntil[key];
+  }
+
+  private triggerAirstrike() {
+    const target = this.findNearestTarget(AIRSTRIKE_RANGE) ?? { x: this.player.x, y: this.player.y };
+    const cx = target.x;
+    const cy = target.y;
+    const warning = this.add
+      .circle(cx, cy, AIRSTRIKE_RADIUS, SKILLS.airstrike.color, 0.18)
+      .setStrokeStyle(3, SKILLS.airstrike.color, 0.92)
+      .setDepth(64);
+    this.tweens.add({
+      targets: warning,
+      scale: 0.85,
+      alpha: 0.45,
+      yoyo: true,
+      repeat: 3,
+      duration: AIRSTRIKE_DELAY_MS / 8,
+      ease: 'Sine.easeInOut',
+      onComplete: () => warning.destroy(),
+    });
+    this.sfxSweep(220, 90, 0.5, 0.07, 'sawtooth');
+    this.showAnnouncement('空袭信标已锁定', 1200);
+
+    for (let i = 0; i < AIRSTRIKE_STRIKE_COUNT; i += 1) {
+      const delay = AIRSTRIKE_DELAY_MS + i * AIRSTRIKE_STRIKE_INTERVAL;
+      const angle = (i / AIRSTRIKE_STRIKE_COUNT) * Math.PI * 2;
+      const offset = i === 0 ? 0 : AIRSTRIKE_RADIUS * 0.45;
+      const strikeX = cx + Math.cos(angle) * offset;
+      const strikeY = cy + Math.sin(angle) * offset;
+      this.time.delayedCall(delay, () => {
+        if (this.isGameOver || !this.isInMultiplayerRoom) {
+          return;
+        }
+        this.resolveAirstrike(strikeX, strikeY);
+      });
+    }
+  }
+
+  private resolveAirstrike(x: number, y: number) {
+    const damage = AIRSTRIKE_DAMAGE * this.getDamageMultiplier();
+    const radius = AIRSTRIKE_RADIUS;
+    this.splashDamage(x, y, radius, damage);
+    this.splashDamageRemotePlayers(x, y, radius, damage);
+    this.splashDamageChests(x, y, radius, 60);
+    this.drawArcBolt(x, y - 460, x, y, SKILLS.airstrike.color, 7, 220);
+    this.shockwave(x, y, radius, SKILLS.airstrike.color);
+    this.flashAt(x, y, SKILLS.airstrike.color, 22);
+    this.cameras.main.shake(140, 0.0055);
+    this.sfxExplosion();
+  }
+
+  private updateSprintTrail() {
+    if (!this.isSkillActive('sprint') || this.elapsedMs < this.nextSprintTrailAt) {
+      return;
+    }
+    this.nextSprintTrailAt = this.elapsedMs + 36;
+    const trail = this.add
+      .circle(this.player.x, this.player.y, 12, SKILLS.sprint.color, 0.45)
+      .setDepth(19);
+    this.tweens.add({
+      targets: trail,
+      alpha: 0,
+      scale: 0.3,
+      duration: 320,
+      ease: 'Cubic.easeOut',
+      onComplete: () => trail.destroy(),
+    });
   }
 
   private autoFire() {
@@ -4028,6 +4639,7 @@ class MainScene extends Phaser.Scene {
       const offset = (i - (shotCount - 1) / 2) * vehicle.spread;
       this.spawnProjectile(baseAngle + offset, vehicle);
     }
+    this.spawnPerfectVehicleEffect(baseAngle, vehicle, this.getProjectileColor(vehicle.projectileTexture));
 
     this.lastAimAngle = baseAngle;
     this.player.setRotation(baseAngle);
@@ -4322,6 +4934,7 @@ class MainScene extends Phaser.Scene {
 
   private applyLocalHeal(amount: number) {
     this.hp = clamp(this.hp + amount, 0, this.maxHp);
+    this.sfxHeal();
     if (this.currentVehicle !== 'mech' && this.maxVehicleShield > 0) {
       this.vehicleShield = clamp(this.vehicleShield + amount * 0.8, 0, this.maxVehicleShield);
     }
@@ -4362,7 +4975,7 @@ class MainScene extends Phaser.Scene {
 
     this.addThreatNoise(this.player.x, this.player.y, 34 + level * 4 + (perfect ? 10 : 0), 560 + level * 40);
     this.weaponCooldowns.rocketLauncher =
-      this.elapsedMs + Math.max(perfect ? 420 : 560, (2100 - level * 220 - (perfect ? 180 : 0)) * this.getFireRateMultiplier());
+      this.elapsedMs + Math.max(perfect ? 720 : 820, (2450 - level * 170 - (perfect ? 80 : 0)) * this.getFireRateMultiplier());
   }
 
   private updateGrenadeLauncher() {
@@ -4401,7 +5014,7 @@ class MainScene extends Phaser.Scene {
 
     this.addThreatNoise(this.player.x, this.player.y, 24 + level * 4 + (perfect ? 8 : 0), 480 + level * 38);
     this.weaponCooldowns.grenadeLauncher =
-      this.elapsedMs + Math.max(perfect ? 520 : 700, (2600 - level * 260 - (perfect ? 220 : 0)) * this.getFireRateMultiplier());
+      this.elapsedMs + Math.max(perfect ? 860 : 980, (3050 - level * 190 - (perfect ? 120 : 0)) * this.getFireRateMultiplier());
   }
 
   private updateTeslaEmitter() {
@@ -4412,15 +5025,15 @@ class MainScene extends Phaser.Scene {
 
     const perfect = this.isWeaponPerfect('teslaEmitter');
     const targets = this.getTargetsInRange(
-      230 + level * 58 + (perfect ? 170 : 0),
-      perfect ? 7 : 1 + Math.floor(level / 2),
+      215 + level * 46 + (perfect ? 70 : 0),
+      perfect ? 5 : 1 + Math.floor(level / 2),
     );
     if (targets.length === 0) {
       return;
     }
 
     targets.forEach((target, index) => {
-      const damage = (12 + level * 10 + (perfect ? 16 : 0)) * this.getDamageMultiplier() * Math.max(0.35, 1 - index * (perfect ? 0.1 : 0.18));
+      const damage = (11 + level * 8 + (perfect ? 8 : 0)) * this.getDamageMultiplier() * Math.max(0.35, 1 - index * (perfect ? 0.14 : 0.18));
       this.damageTarget(target, damage);
       this.drawLightningBolt(
         index === 0 ? this.player.x : targets[index - 1].x,
@@ -4428,8 +5041,8 @@ class MainScene extends Phaser.Scene {
         target.x,
         target.y,
         perfect ? 0xe8f7f4 : WEAPONS.teslaEmitter.color,
-        2 + level * 0.55 + (perfect ? 1.2 : 0),
-        perfect ? 230 : 180,
+        1.7 + level * 0.42 + (perfect ? 0.65 : 0),
+        perfect ? 175 : 150,
       );
       if (perfect) {
         this.shockwave(target.x, target.y, 26, WEAPONS.teslaEmitter.color);
@@ -4437,7 +5050,7 @@ class MainScene extends Phaser.Scene {
     });
 
     this.weaponCooldowns.teslaEmitter =
-      this.elapsedMs + Math.max(perfect ? 240 : 380, (1300 - level * 145 - (perfect ? 160 : 0)) * this.getFireRateMultiplier());
+      this.elapsedMs + Math.max(perfect ? 440 : 520, (1420 - level * 115 - (perfect ? 80 : 0)) * this.getFireRateMultiplier());
   }
 
   private updateBeamCannon() {
@@ -4487,7 +5100,7 @@ class MainScene extends Phaser.Scene {
       this.shockwave(target.x, target.y, 72, WEAPONS.beamCannon.color);
     }
     this.weaponCooldowns.beamCannon =
-      this.elapsedMs + Math.max(perfect ? 620 : 820, (2700 - level * 235 - (perfect ? 220 : 0)) * this.getFireRateMultiplier());
+      this.elapsedMs + Math.max(perfect ? 980 : 1150, (3300 - level * 180 - (perfect ? 120 : 0)) * this.getFireRateMultiplier());
   }
 
   private updateOrbitalBeacon() {
@@ -4502,17 +5115,17 @@ class MainScene extends Phaser.Scene {
       return;
     }
 
-    const radius = 92 + level * 25 + (perfect ? 64 : 0);
-    const strikes = perfect ? 3 : 1;
+    const radius = 100 + level * 28 + (perfect ? 98 : 0);
+    const strikes = perfect ? 5 : 1;
     this.time.delayedCall(260, () => {
       if (this.isGameOver) {
         return;
       }
       for (let i = 0; i < strikes; i += 1) {
         const angle = (i / strikes) * Math.PI * 2 + this.elapsedMs * 0.001;
-        const strikeX = target.x + (perfect ? Math.cos(angle) * 68 : 0);
-        const strikeY = target.y + (perfect ? Math.sin(angle) * 68 : 0);
-        const damage = (32 + level * 27 + (perfect ? 38 : 0)) * this.getDamageMultiplier();
+        const strikeX = target.x + (perfect ? Math.cos(angle) * 92 : 0);
+        const strikeY = target.y + (perfect ? Math.sin(angle) * 92 : 0);
+        const damage = (34 + level * 29 + (perfect ? 64 : 0)) * this.getDamageMultiplier();
         this.splashDamage(strikeX, strikeY, radius, damage);
         this.splashDamageRemotePlayers(strikeX, strikeY, radius, damage);
         this.splashDamageChests(strikeX, strikeY, radius, 24 + level * 20 + (perfect ? 28 : 0));
@@ -4524,7 +5137,7 @@ class MainScene extends Phaser.Scene {
     });
     this.shockwave(target.x, target.y, radius * 0.7, WEAPONS.orbitalBeacon.color);
     this.weaponCooldowns.orbitalBeacon =
-      this.elapsedMs + Math.max(perfect ? 900 : 1200, (3600 - level * 320 - (perfect ? 360 : 0)) * this.getFireRateMultiplier());
+      this.elapsedMs + Math.max(perfect ? 1550 : 1850, (4300 - level * 240 - (perfect ? 120 : 0)) * this.getFireRateMultiplier());
   }
 
   private updateSawLauncher() {
@@ -4698,7 +5311,7 @@ class MainScene extends Phaser.Scene {
       });
     }
     this.weaponCooldowns.gravityWell =
-      this.elapsedMs + Math.max(perfect ? 1250 : 1600, (3900 - level * 310 - (perfect ? 360 : 0)) * this.getFireRateMultiplier());
+      this.elapsedMs + Math.max(perfect ? 1800 : 2150, (4700 - level * 235 - (perfect ? 180 : 0)) * this.getFireRateMultiplier());
   }
 
   private updateIonLance() {
@@ -4752,6 +5365,97 @@ class MainScene extends Phaser.Scene {
       trailColor: color,
       impactColor: color,
     });
+  }
+
+  private spawnPerfectVehicleEffect(angle: number, vehicle: VehicleSpec, color: number) {
+    if (this.currentVehicle === 'mech' || this.getVehicleRank(this.currentVehicle) < PERFECT_VEHICLE_RANK) {
+      return;
+    }
+
+    switch (this.currentVehicle) {
+      case 'motorcycle':
+      case 'buggy':
+        [-0.34, 0.34].forEach((offset) => {
+          this.spawnProjectileFrom({
+            x: this.player.x + Math.cos(angle + offset) * 24,
+            y: this.player.y + Math.sin(angle + offset) * 24,
+            angle: angle + offset,
+            texture: 'shot-pulse',
+            damage: vehicle.damage * 0.42 * this.getDamageMultiplier(),
+            projectileSpeed: vehicle.projectileSpeed * 1.12,
+            ttl: 760,
+            aoe: 0,
+            scale: 0.72,
+            tint: 0x64f5ff,
+            trailColor: 0x64f5ff,
+            impactColor: 0x64f5ff,
+          });
+        });
+        break;
+      case 'tank':
+      case 'artillery':
+      case 'flameRig':
+        this.time.delayedCall(180, () => {
+          if (!this.player.active || this.currentVehicle === 'mech') {
+            return;
+          }
+          const target = this.findNearestTarget(this.targetRange + 180);
+          const strikeX = target?.x ?? this.player.x + Math.cos(angle) * 360;
+          const strikeY = target?.y ?? this.player.y + Math.sin(angle) * 360;
+          const radius = vehicle.aoe > 0 ? vehicle.aoe * 1.35 : 96;
+          this.splashDamage(strikeX, strikeY, radius, vehicle.damage * 0.72 * this.getDamageMultiplier());
+          this.splashDamageRemotePlayers(strikeX, strikeY, radius, vehicle.damage * 0.58 * this.getDamageMultiplier());
+          this.shockwave(strikeX, strikeY, radius, color);
+          this.flashAt(strikeX, strikeY, color, 16);
+        });
+        break;
+      case 'fighter':
+      case 'hovercraft':
+        for (let i = 0; i < 2; i += 1) {
+          const offset = (i === 0 ? -1 : 1) * 0.22;
+          this.spawnProjectileFrom({
+            x: this.player.x + Math.cos(angle + offset) * 32,
+            y: this.player.y + Math.sin(angle + offset) * 32,
+            angle: angle + offset,
+            texture: 'shot-missile',
+            damage: vehicle.damage * 0.5 * this.getDamageMultiplier(),
+            projectileSpeed: vehicle.projectileSpeed * 0.92,
+            ttl: 1180,
+            aoe: 54,
+            scale: 0.82,
+            tint: 0xffd166,
+            trailColor: 0xffd166,
+            impactColor: 0xffd166,
+          });
+        }
+        break;
+      case 'railgun':
+      case 'laserVan':
+        this.drawBeam(this.player.x, this.player.y, this.player.x + Math.cos(angle) * 840, this.player.y + Math.sin(angle) * 840, 0xe8f7f4, 3.2, 170);
+        this.enemies.getChildren().forEach((rawEnemy) => {
+          const enemy = rawEnemy as Phaser.Physics.Arcade.Sprite;
+          if (!enemy.active) {
+            return;
+          }
+          const distance = Phaser.Math.Distance.Between(this.player.x, this.player.y, enemy.x, enemy.y);
+          if (distance > 840) {
+            return;
+          }
+          const enemyAngle = Phaser.Math.Angle.Between(this.player.x, this.player.y, enemy.x, enemy.y);
+          if (Math.abs(Phaser.Math.Angle.Wrap(enemyAngle - angle)) < 0.075) {
+            this.damageEnemy(enemy, vehicle.damage * 0.36 * this.getDamageMultiplier());
+          }
+        });
+        this.splashDamageRemotePlayers(this.player.x + Math.cos(angle) * 420, this.player.y + Math.sin(angle) * 420, 90, vehicle.damage * 0.32 * this.getDamageMultiplier());
+        break;
+      case 'walker':
+        this.shockwave(this.player.x, this.player.y, 112, 0xba7cff);
+        this.getTargetsInRange(240, 4).forEach((target, index) => {
+          this.damageTarget(target, vehicle.damage * (0.22 - index * 0.025) * this.getDamageMultiplier());
+          this.drawArcBolt(this.player.x, this.player.y, target.x, target.y, 0xba7cff, 2.2, 130);
+        });
+        break;
+    }
   }
 
   private spawnProjectileFrom(config: {
@@ -4812,6 +5516,10 @@ class MainScene extends Phaser.Scene {
       Math.sin(config.angle) * config.projectileSpeed,
     );
     this.muzzleBurst(config.x, config.y, config.angle, projectile.getData('trailColor') as number);
+    if (this.elapsedMs >= this.nextProjectileSfxAt) {
+      this.nextProjectileSfxAt = this.elapsedMs + 55;
+      this.sfxShoot(config.texture);
+    }
   }
 
   private updateProjectiles(delta: number) {
@@ -4908,6 +5616,7 @@ class MainScene extends Phaser.Scene {
     const y = projectile.y;
 
     if (aoe > 0) {
+      this.sfxExplosion();
       this.splashDamage(x, y, aoe, damage);
       this.splashDamageRemotePlayers(x, y, aoe, damage);
       this.splashDamageChests(x, y, aoe, damage);
@@ -5012,6 +5721,14 @@ class MainScene extends Phaser.Scene {
       aggro = clamp(aggro - decayRate * deltaSeconds, 0, 100);
       enemy.setData('aggro', aggro);
 
+      if ((kind === 'hopper' || kind === 'leaper') && this.updateJumpingEnemy(enemy, spec, distanceToPlayer, aggro)) {
+        hunterCount += 1;
+        enemy.setTint(this.getEnemyTint(enemy));
+        aggroTotal += aggro;
+        activeCount += 1;
+        return;
+      }
+
       if (kind === 'turret') {
         enemy.setVelocity(0, 0);
         enemy.setRotation(Phaser.Math.Angle.Between(enemy.x, enemy.y, this.player.x, this.player.y));
@@ -5075,14 +5792,13 @@ class MainScene extends Phaser.Scene {
     const maxHp = enemy.getData('maxHp') as number;
     const target = this.findBossTarget(enemy, Number.POSITIVE_INFINITY);
     const mode = enemy.getData('bossMode') as string | undefined;
-    const hasLockedTarget = Boolean(enemy.getData('bossTargetId'));
     const healCooldownUntil = (enemy.getData('bossHealCooldownUntil') as number | undefined) ?? 0;
 
     if (!target) {
       enemy.setData('bossMode', 'heal');
       enemy.setVelocity(0, 0);
       this.healBoss(enemy, deltaSeconds, this.elapsedMs >= healCooldownUntil);
-      enemy.setTint(hp < maxHp ? 0xa7e65d : BOSS_MINIMAP_COLOR);
+      enemy.setTint(hp < maxHp ? 0xa7e65d : this.getBossColor(enemy));
       return { aggro: hp < maxHp ? 48 : 18, hunting: false };
     }
 
@@ -5098,7 +5814,8 @@ class MainScene extends Phaser.Scene {
 
     const targetSince = (enemy.getData('bossTargetSince') as number | undefined) ?? this.elapsedMs;
     const fleeUntil = (enemy.getData('bossFleeUntil') as number | undefined) ?? 0;
-    if (!hasLockedTarget && this.elapsedMs >= fleeUntil && this.elapsedMs - targetSince > BOSS_FIXATION_MS) {
+    const hasRecentlyFledThisTarget = (enemy.getData('bossFleeFromId') as string | undefined) === target.id && this.elapsedMs < fleeUntil + BOSS_FIXATION_MS;
+    if (this.elapsedMs >= fleeUntil && !hasRecentlyFledThisTarget && this.elapsedMs - targetSince > BOSS_FIXATION_MS) {
       enemy.setData('bossMode', 'flee');
       enemy.setData('bossFleeUntil', this.elapsedMs + BOSS_FLEE_MS);
       enemy.setData('bossFleeFromId', target.id);
@@ -5127,8 +5844,21 @@ class MainScene extends Phaser.Scene {
     }
 
     this.updateBossSkill(enemy, spec, target, distance);
-    enemy.setTint(BOSS_MINIMAP_COLOR);
+    enemy.setTint(this.getBossColor(enemy));
     return { aggro: 100, hunting: true };
+  }
+
+  private getBossVariant(enemy: Phaser.Physics.Arcade.Sprite): BossVariantKey {
+    const variant = enemy.getData('bossVariant') as BossVariantKey | undefined;
+    return variant && BOSS_VARIANTS[variant] ? variant : 'annihilator';
+  }
+
+  private getBossColor(enemy: Phaser.Physics.Arcade.Sprite) {
+    return BOSS_VARIANTS[this.getBossVariant(enemy)].color;
+  }
+
+  private getBossName(enemy: Phaser.Physics.Arcade.Sprite) {
+    return BOSS_VARIANTS[this.getBossVariant(enemy)].name;
   }
 
   private findBossTarget(enemy: Phaser.Physics.Arcade.Sprite, range: number): BossTarget | undefined {
@@ -5154,7 +5884,7 @@ class MainScene extends Phaser.Scene {
       });
     });
 
-    const lockedTargetId = enemy.getData('bossTargetId') as string | undefined;
+      const lockedTargetId = enemy.getData('bossTargetId') as string | undefined;
     const lockedTarget = candidates.find((target) => target.id === lockedTargetId);
     if (lockedTarget) {
       return lockedTarget;
@@ -5200,17 +5930,53 @@ class MainScene extends Phaser.Scene {
       return;
     }
 
-    const bossName = ENEMIES.boss.name;
-    enemy.setData('nextSkillAt', this.elapsedMs + Phaser.Math.Between(2400, 3600));
+    const variant = this.getBossVariant(enemy);
+    const variantSpec = BOSS_VARIANTS[variant];
+    const bossName = variantSpec.name;
+    enemy.setData('nextSkillAt', this.elapsedMs + Phaser.Math.Between(variantSpec.skillDelay[0], variantSpec.skillDelay[1]));
+
+    if (variant === 'stormLord') {
+      const arcs = distance < 260 ? 4 : 3;
+      for (let i = 0; i < arcs; i += 1) {
+        const offset = (i - (arcs - 1) / 2) * 46;
+        const angle = Phaser.Math.Angle.Between(enemy.x, enemy.y, target.x, target.y) + Math.PI / 2;
+        const tx = target.x + Math.cos(angle) * offset + Phaser.Math.Between(-18, 18);
+        const ty = target.y + Math.sin(angle) * offset + Phaser.Math.Between(-18, 18);
+        this.drawArcBolt(enemy.x, enemy.y, tx, ty, variantSpec.color, 3.2, 170);
+        this.shockwave(tx, ty, 58, variantSpec.color);
+        if (target.isLocal && Phaser.Math.Distance.Between(this.player.x, this.player.y, tx, ty) < 86) {
+          this.damagePlayer((enemy.getData('damage') as number) * 0.46, bossName);
+        }
+      }
+      return;
+    }
+
+    if (variant === 'siegeCore') {
+      const radius = distance < 240 ? 230 : 150;
+      this.shockwave(enemy.x, enemy.y, radius, variantSpec.color);
+      this.flashAt(enemy.x, enemy.y, variantSpec.color, 18);
+      if (target.isLocal && Phaser.Math.Distance.Between(this.player.x, this.player.y, enemy.x, enemy.y) < radius) {
+        this.damagePlayer((enemy.getData('damage') as number) * 0.88, bossName);
+      }
+      for (let i = 0; i < 2; i += 1) {
+        const spawnAngle = Phaser.Math.FloatBetween(0, Math.PI * 2);
+        this.spawnEnemy(i % 2 === 0 ? 'leaper' : 'hopper', 'purple', {
+          x: clamp(enemy.x + Math.cos(spawnAngle) * Phaser.Math.Between(80, 150), 60, WORLD_WIDTH - 60),
+          y: clamp(enemy.y + Math.sin(spawnAngle) * Phaser.Math.Between(80, 150), 60, WORLD_HEIGHT - 60),
+        });
+      }
+      return;
+    }
+
     if (distance < 180) {
-      this.shockwave(enemy.x, enemy.y, 180, BOSS_MINIMAP_COLOR);
+      this.shockwave(enemy.x, enemy.y, 180, variantSpec.color);
       if (target.isLocal) {
         this.damagePlayer((enemy.getData('damage') as number) * 1.25, bossName);
       }
       return;
     }
 
-    this.drawArcBolt(enemy.x, enemy.y, target.x, target.y, BOSS_MINIMAP_COLOR, 4, 220);
+    this.drawArcBolt(enemy.x, enemy.y, target.x, target.y, variantSpec.color, 4, 220);
     if (target.isLocal && distance < 520) {
       this.damagePlayer((enemy.getData('damage') as number) * 0.62, bossName);
     }
@@ -5254,6 +6020,47 @@ class MainScene extends Phaser.Scene {
     }
   }
 
+  private updateJumpingEnemy(
+    enemy: Phaser.Physics.Arcade.Sprite,
+    spec: EnemySpec,
+    distanceToPlayer: number,
+    aggro: number,
+  ) {
+    const jumpUntil = (enemy.getData('jumpUntil') as number | undefined) ?? 0;
+    const landingAt = (enemy.getData('jumpLandingAt') as number | undefined) ?? 0;
+    if (jumpUntil > this.elapsedMs) {
+      enemy.setRotation(Phaser.Math.Angle.Between(enemy.x, enemy.y, this.player.x, this.player.y));
+      return true;
+    }
+
+    if (landingAt > 0 && this.elapsedMs >= landingAt) {
+      enemy.setData('jumpLandingAt', 0);
+      enemy.setScale(1);
+      const radius = spec.name === ENEMIES.leaper.name ? 84 : 58;
+      this.shockwave(enemy.x, enemy.y, radius, 0x64f5ff);
+      if (distanceToPlayer <= radius) {
+        this.damagePlayer((enemy.getData('damage') as number) * 1.1, spec.name);
+      }
+      return false;
+    }
+
+    const nextSkillAt = (enemy.getData('nextSkillAt') as number | undefined) ?? 0;
+    if (aggro < spec.chaseThreshold || this.elapsedMs < nextSkillAt || distanceToPlayer < 120 || distanceToPlayer > 560) {
+      return false;
+    }
+
+    const duration = spec.name === ENEMIES.leaper.name ? 560 : 430;
+    const speed = clamp(distanceToPlayer / (duration / 1000), 360, spec.name === ENEMIES.leaper.name ? 760 : 680);
+    const angle = Phaser.Math.Angle.Between(enemy.x, enemy.y, this.player.x, this.player.y);
+    enemy.setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
+    enemy.setData('jumpUntil', this.elapsedMs + duration);
+    enemy.setData('jumpLandingAt', this.elapsedMs + duration);
+    enemy.setData('nextSkillAt', this.elapsedMs + Phaser.Math.Between(2600, 4300));
+    enemy.setScale(1.16);
+    this.flashAt(enemy.x, enemy.y, 0x64f5ff, 8);
+    return true;
+  }
+
   private healNearbyEnemies(x: number, y: number, amount: number) {
     this.healPulse(x, y, 150);
     this.enemies.getChildren().forEach((rawEnemy) => {
@@ -5273,7 +6080,7 @@ class MainScene extends Phaser.Scene {
       const mode = enemy.getData('bossMode');
       if (mode === 'heal') return 0xa7e65d;
       if (mode === 'flee') return 0xffd166;
-      return BOSS_MINIMAP_COLOR;
+      return this.getBossColor(enemy);
     }
     const tier = enemy.getData('tier') as EnemyTier | undefined;
     return tier ? ENEMY_TIERS[tier].color : 0xe8f7f4;
@@ -5474,6 +6281,15 @@ class MainScene extends Phaser.Scene {
     const shieldMultiplier = this.isBuffActive('barrier') ? 0.55 : 1;
     const taken = amount * this.getCurrentVehicleSpec().damageTaken * shieldMultiplier;
     this.lastDefeatedBy = defeatedBy;
+    if (this.elapsedMs >= this.nextDamageSfxAt) {
+      this.nextDamageSfxAt = this.elapsedMs + 180;
+      this.sfxDamage();
+    }
+    if (taken >= 20) {
+      this.cameras.main.shake(160, 0.0055);
+    } else if (taken >= 8) {
+      this.cameras.main.shake(90, 0.0028);
+    }
     if (this.currentVehicle !== 'mech' && this.vehicleShield > 0) {
       this.vehicleShield = Math.max(0, this.vehicleShield - taken);
       this.player.setTint(0x5bc0ff);
@@ -5535,6 +6351,7 @@ class MainScene extends Phaser.Scene {
     }
 
     this.damageEnemy(enemy, damage);
+    this.sfxHit();
     this.impactBurst(hitX, hitY, impactColor, aoe > 0 ? 1.35 : 0.9);
     if (!pierce) {
       projectile.destroy();
@@ -5574,6 +6391,7 @@ class MainScene extends Phaser.Scene {
     }
 
     this.damageChest(chest, damage);
+    this.sfxHit();
     this.impactBurst(hitX, hitY, impactColor, aoe > 0 ? 1.2 : 0.8);
 
     if (aoe > 0) {
@@ -5767,12 +6585,28 @@ class MainScene extends Phaser.Scene {
     chest.setData('broken', true);
     const chestX = chest.x;
     const chestY = chest.y;
-    this.requestChestReward(chestX, chestY, (reward) => this.applyServerReward(reward, chestX, chestY));
+    this.requestChestReward(
+      chest,
+      (reward) => {
+        this.applyServerReward(reward, chestX, chestY);
+        chest.destroy();
+      },
+      () => {
+        if (chest.active) {
+          chest.setData('broken', false);
+          chest.setTint(0xff6961);
+          this.time.delayedCall(120, () => {
+            if (chest.active && !chest.getData('broken')) {
+              chest.clearTint();
+            }
+          });
+        }
+      },
+    );
     this.flashAt(chest.x, chest.y, 0xffd166, 14);
     this.shockwave(chest.x, chest.y, 86, 0xffd166);
     this.playCue('chest');
     this.addThreatNoise(chest.x, chest.y, 24, 420);
-    chest.destroy();
   }
 
   private killEnemy(enemy: Phaser.Physics.Arcade.Sprite) {
@@ -5782,92 +6616,133 @@ class MainScene extends Phaser.Scene {
     const killX = enemy.x;
     const killY = enemy.y;
     const isBoss = kind === 'boss';
-    const tierColor = isBoss ? BOSS_MINIMAP_COLOR : ENEMY_TIERS[tier].color;
+    const tierColor = isBoss ? this.getBossColor(enemy) : ENEMY_TIERS[tier].color;
     if (isBoss) {
       this.bigExplosion(killX, killY, tierColor, 60);
+      this.playCue('bossKill');
+      this.cameras.main.shake(280, 0.012);
     } else if (tier === 'red') {
       this.bigExplosion(killX, killY, tierColor, 28);
+      if (this.elapsedMs >= this.nextCritCueAt) {
+        this.nextCritCueAt = this.elapsedMs + 130;
+        this.playCue('crit');
+      }
     } else {
       this.flashAt(killX, killY, tierColor, tier === 'purple' ? 14 : 8);
       if (tier === 'purple') {
         this.shockwave(killX, killY, 105, tierColor);
+        if (this.elapsedMs >= this.nextCritCueAt) {
+          this.nextCritCueAt = this.elapsedMs + 130;
+          this.playCue('crit');
+        }
+      } else if (this.elapsedMs >= this.nextKillCueAt) {
+        this.nextKillCueAt = this.elapsedMs + 90;
+        this.playCue('kill');
       }
     }
 
-    this.requestEnemyKillReward(enemy, (reward) => {
-      this.kills += 1;
-      this.applyServerReward({ ...reward, xp: reward.xp ?? xp }, killX, killY);
-    });
-
-    enemy.destroy();
-    if (isBoss) {
-      this.time.delayedCall(1800, () => {
-        if (this.isInMultiplayerRoom && !this.isGameOver) {
-          this.ensureBossCount();
-        }
-      });
+    this.kills += 1;
+    if (xp > 0) {
+      this.spawnXpOrb(killX, killY, xp);
     }
+    const killSnapshot = {
+      id: enemy.getData('entityId'),
+      kind: enemy.getData('kind'),
+      tier: enemy.getData('tier'),
+      x: killX,
+      y: killY,
+    };
+    enemy.destroy();
+
+    this.requestEnemyKillRewardById(killSnapshot, (reward) => {
+      this.applyServerReward(reward, killX, killY, { skipXp: true });
+      if (isBoss) {
+        this.time.delayedCall(1800, () => {
+          if (this.isInMultiplayerRoom && !this.isGameOver) {
+            this.ensureBossCount();
+          }
+        });
+      }
+    });
   }
 
   private spawnXpOrb(x: number, y: number, amount: number) {
-    const orb = this.add.circle(x, y, 7, 0x36f0d2, 0.94).setDepth(66);
-    const halo = this.add.circle(x, y, 13, 0x9fffe0, 0.24).setDepth(65);
-    const startX = x;
-    const startY = y;
+    const scatterAngle = Phaser.Math.FloatBetween(0, Math.PI * 2);
+    const scatterDistance = Phaser.Math.Between(12, 54);
+    const orbX = clamp(x + Math.cos(scatterAngle) * scatterDistance, 24, WORLD_WIDTH - 24);
+    const orbY = clamp(y + Math.sin(scatterAngle) * scatterDistance, 24, WORLD_HEIGHT - 24);
+    const orb = this.physics.add.image(orbX, orbY, 'buff-core');
+    const halo = this.add.circle(orbX, orbY, 13, 0x9fffe0, 0.24).setDepth(65);
     const label = this.add
-      .text(x, y - 22, `+${amount}`, {
+      .text(orbX, orbY - 22, `+${amount}`, {
         fontFamily: 'Inter, "Segoe UI", sans-serif',
         fontSize: '13px',
         color: '#9fffe0',
       })
       .setOrigin(0.5)
       .setDepth(67);
-
-    this.tweens.addCounter({
-      from: 0,
-      to: 1,
-      duration: 560,
-      ease: 'Linear',
-      onUpdate: (tween) => {
-        if (!this.player?.active || !this.isInMultiplayerRoom) {
+    orb.setDepth(66);
+    orb.setTint(0x36f0d2);
+    orb.setScale(amount >= 120 ? 1.2 : amount >= 50 ? 1 : 0.82);
+    orb.setData('amount', amount);
+    orb.setData('halo', halo);
+    orb.setData('label', label);
+    orb.setData('expiresAt', this.elapsedMs + 45000);
+    const body = orb.body as Phaser.Physics.Arcade.Body;
+    body.setAllowGravity(false);
+    body.setCircle(11);
+    this.xpOrbs.add(orb);
+    this.tweens.add({
+      targets: [orb, halo],
+      y: orbY - 5,
+      duration: 760,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+      onUpdate: () => {
+        if (!orb.active || !label.active || !halo.active) {
           return;
         }
-        const progress = tween.getValue() ?? 1;
-        const eased = Phaser.Math.Easing.Cubic.InOut(progress);
-        const nextX = Phaser.Math.Linear(startX, this.player.x, eased);
-        const nextY = Phaser.Math.Linear(startY, this.player.y, eased);
-        orb.setPosition(nextX, nextY);
-        halo.setPosition(nextX, nextY);
-        label.setPosition(nextX, nextY - 20);
-        orb.setScale(1 - progress * 0.45);
-        halo.setScale(1 + progress * 0.6);
-        halo.setAlpha(0.24 * (1 - progress));
-        label.setAlpha(1 - progress * 0.7);
-      },
-      onComplete: () => {
-        orb.destroy();
-        halo.destroy();
-        label.destroy();
-        this.flashAt(this.player.x, this.player.y, 0x36f0d2, 5);
+        (orb.body as Phaser.Physics.Arcade.Body | undefined)?.updateFromGameObject();
+        label.setPosition(orb.x, orb.y - 22);
+        halo.setPosition(orb.x, orb.y);
       },
     });
   }
 
+  private handleXpOrbPickup(
+    _rawPlayer: ArcadeOverlapObject,
+    rawOrb: ArcadeOverlapObject,
+  ) {
+    const orb = rawOrb as Phaser.Physics.Arcade.Image;
+    if (!orb.active) {
+      return;
+    }
+
+    const amount = orb.getData('amount') as number;
+    const halo = orb.getData('halo') as Phaser.GameObjects.Arc | undefined;
+    const label = orb.getData('label') as Phaser.GameObjects.Text | undefined;
+    halo?.destroy();
+    label?.destroy();
+    orb.destroy();
+    this.gainXp(amount);
+    this.sfxPickup();
+    this.flashAt(this.player.x, this.player.y, 0x36f0d2, 5);
+  }
+
   private grantPermanentVehicle(x: number, y: number, grantedVehicle?: VehicleKey) {
     const vehicle = grantedVehicle ?? Phaser.Utils.Array.GetRandom(VEHICLE_ORDER);
-    const nextRank = clamp(
-      Math.max(this.permanentVehicleRanks[vehicle] ?? 0, this.vehicleRanks[vehicle] ?? 0) + 1,
-      1,
-      5,
-    );
+    const nextRank = PERFECT_VEHICLE_RANK;
     this.permanentVehicleRanks[vehicle] = nextRank;
     this.vehicleRanks[vehicle] = nextRank;
+    this.lockedBossVehicle = vehicle;
     this.applyVehicle(vehicle, true, false);
+    this.vehicleExpiresAt = Number.POSITIVE_INFINITY;
     this.hp = clamp(this.hp + 28, 0, this.maxHp);
     this.flashAt(x, y, BOSS_MINIMAP_COLOR, 24);
     this.shockwave(x, y, 240, BOSS_MINIMAP_COLOR);
     this.playCue('boss');
-    this.showAnnouncement(`击败 Boss，永久解锁 ${VEHICLES[vehicle].name} Lv.${nextRank}`, 4200);
+    this.showAnnouncement(`击败 Boss，永久驾驶完全体 ${VEHICLES[vehicle].name} Lv.${nextRank}`, 4200);
   }
 
   private gainXp(amount: number) {
@@ -5894,10 +6769,14 @@ class MainScene extends Phaser.Scene {
 
   private getXpRequirementForLevel(level: number) {
     if (level < 20) {
-      return Math.floor(34 + level * 7 + Math.pow(level, 1.18) * 5.2);
+      return Math.floor(30 + level * 6.4 + Math.pow(level, 1.16) * 4.6);
     }
 
-    return Math.floor(210 + (level - 20) * 36 + Math.pow(level - 19, 1.5) * 17);
+    if (level < 30) {
+      return Math.floor(210 + (level - 20) * 38 + Math.pow(level - 19, 1.42) * 16);
+    }
+
+    return Math.floor(640 + (level - 30) * 86 + Math.pow(level - 29, 1.62) * 32);
   }
 
   private showUpgradeChoices() {
@@ -5913,7 +6792,7 @@ class MainScene extends Phaser.Scene {
 
     this.isChoosingUpgrade = true;
     this.currentUpgradeChoices = choices;
-    this.upgradeChoiceExpiresAt = this.elapsedMs + 3000;
+    this.upgradeChoiceExpiresAt = this.elapsedMs + 5000;
     this.showUpgradePanel(choices);
     this.updateUpgradeChoiceTimer();
   }
@@ -5933,11 +6812,11 @@ class MainScene extends Phaser.Scene {
 
     const hint = document.createElement('div');
     hint.className = 'upgrade-hint';
-    hint.textContent = '点击选择升级，3 秒后默认选择 1';
+    hint.textContent = '点击选择升级，5 秒后默认选择 1';
 
     const countdown = document.createElement('div');
     countdown.className = 'upgrade-countdown';
-    countdown.textContent = '剩余 3.0s';
+    countdown.textContent = '剩余 5.0s';
 
     const list = document.createElement('div');
     list.className = 'upgrade-list';
@@ -6088,7 +6967,7 @@ class MainScene extends Phaser.Scene {
       const spec = WEAPONS[weapon];
       const level = this.getWeaponLevel(weapon);
 
-      if (level > 0) {
+      if (level > 0 && level < PERFECT_WEAPON_LEVEL) {
         const nextLevel = level + 1;
         upgrades.push({
           key: `weapon-upgrade-${weapon}`,
@@ -6133,6 +7012,9 @@ class MainScene extends Phaser.Scene {
     }
 
     const nextLevel = currentLevel + 1;
+    if (currentLevel >= PERFECT_WEAPON_LEVEL) {
+      return;
+    }
     this.weaponLevels[weapon] = nextLevel;
     if (nextLevel === PERFECT_WEAPON_LEVEL) {
       this.showAnnouncement(`${WEAPONS[weapon].name} 变质为完全体`, 3000);
@@ -6199,10 +7081,10 @@ class MainScene extends Phaser.Scene {
       },
       {
         key: 'magnet',
-        title: '物资牵引',
-        detail: '宝箱会缓慢靠近',
+        title: '吸铁石线圈',
+        detail: '扩大经验球、宝箱和掉落物牵引范围',
         apply: (scene) => {
-          scene.magnetRadius += 80;
+          scene.magnetRadius += 110;
         },
       },
     ];
@@ -6246,18 +7128,28 @@ class MainScene extends Phaser.Scene {
     const tier = forcedTier ?? (kind === 'boss' ? 'red' : this.pickEnemyTier());
     const tierSpec = ENEMY_TIERS[tier];
     const position = forcedPosition ?? this.pickSpawnPosition();
+    const bossVariant = kind === 'boss'
+      ? Phaser.Utils.Array.GetRandom(BOSS_VARIANT_ORDER)
+      : undefined;
+    const bossVariantSpec = bossVariant ? BOSS_VARIANTS[bossVariant] : undefined;
     const enemy = this.physics.add.sprite(position.x, position.y, spec.texture);
     enemy.setDepth(kind === 'boss' ? 19 : 18);
     enemy.setTint(tierSpec.color);
     enemy.setCollideWorldBounds(true);
     const timeHpBonus = Math.floor(this.elapsedMs / 45000) * 12;
-    const maxHp = Math.round((spec.hp + (kind === 'boss' ? timeHpBonus * 6 : timeHpBonus)) * tierSpec.hpMultiplier);
+    const lateGameMultiplier = this.getLateGameEnemyMultiplier();
+    const maxHp = Math.round(
+      (spec.hp + (kind === 'boss' ? timeHpBonus * 6 : timeHpBonus))
+      * tierSpec.hpMultiplier
+      * (bossVariantSpec?.hp ?? 1)
+      * lateGameMultiplier.hp,
+    );
     enemy.setData('kind', kind);
     enemy.setData('tier', tier);
     enemy.setData('hp', maxHp);
     enemy.setData('maxHp', maxHp);
-    enemy.setData('speed', spec.speed * tierSpec.speedMultiplier);
-    enemy.setData('damage', Math.round(spec.damage * tierSpec.damageMultiplier));
+    enemy.setData('speed', spec.speed * tierSpec.speedMultiplier * (bossVariantSpec?.speed ?? 1) * lateGameMultiplier.speed);
+    enemy.setData('damage', Math.round(spec.damage * tierSpec.damageMultiplier * (bossVariantSpec?.damage ?? 1) * lateGameMultiplier.damage));
     enemy.setData('xp', Math.max(1, Math.round(spec.xp * tierSpec.xpMultiplier)));
     enemy.setData('aggro', Phaser.Math.Between(0, 15));
     enemy.setData('anchorX', position.x);
@@ -6270,6 +7162,7 @@ class MainScene extends Phaser.Scene {
 
     if (kind === 'boss') {
       enemy.setData('isBoss', true);
+      enemy.setData('bossVariant', bossVariant ?? 'annihilator');
       enemy.setData('aggro', 100);
       enemy.setData('neutralAsleep', false);
       enemy.setData('bossMode', 'attack');
@@ -6293,9 +7186,22 @@ class MainScene extends Phaser.Scene {
       true,
     );
 
+    enemy.setData('entityId', this.makeLocalEntityId('enemy'));
     this.enemies.add(enemy);
     this.assignPatrolTarget(enemy, spec);
+    this.registerPveEntity(enemy);
     return enemy;
+  }
+
+  private getLateGameEnemyMultiplier() {
+    const overLevel = Math.max(0, this.level - 30);
+    const overMinutes = Math.max(0, this.elapsedMs / 60000 - 9);
+    const pressure = overLevel * 0.024 + overMinutes * 0.058;
+    return {
+      hp: 1 + pressure,
+      damage: 1 + pressure * 0.42,
+      speed: 1 + Math.min(0.18, pressure * 0.13),
+    };
   }
 
   private ensureBossCount() {
@@ -6321,13 +7227,19 @@ class MainScene extends Phaser.Scene {
         y: clamp(spawn.y + Phaser.Math.Between(-120, 120), 100, WORLD_HEIGHT - 100),
       });
       boss.setScale(1.12);
-      this.shockwave(boss.x, boss.y, 110, BOSS_MINIMAP_COLOR);
+      this.shockwave(boss.x, boss.y, 110, this.getBossColor(boss));
     }
   }
 
   private pickEnemyTier(): EnemyTier {
     const seconds = this.elapsedMs / 1000;
     const roll = Phaser.Math.Between(1, 100);
+    if (this.level >= 30 || seconds > 540) {
+      if (roll <= 8) return 'green';
+      if (roll <= 34) return 'blue';
+      if (roll <= 76) return 'purple';
+      return 'red';
+    }
 
     if (seconds < 30) {
       if (roll <= 78) return 'white';
@@ -6363,31 +7275,35 @@ class MainScene extends Phaser.Scene {
 
     if (seconds < 24) {
       if (roll < 58) return 'drone';
-      if (roll < 86) return 'stalker';
+      if (roll < 82) return 'stalker';
+      if (roll < 92) return 'hopper';
       return 'mender';
     }
 
     if (seconds < 70) {
-      if (roll < 30) return 'drone';
-      if (roll < 58) return 'stalker';
-      if (roll < 74) return 'mender';
-      if (roll < 84) return 'sniper';
-      if (roll < 90) return 'raider';
-      if (roll < 96) return 'turret';
+      if (roll < 24) return 'drone';
+      if (roll < 48) return 'stalker';
+      if (roll < 61) return 'hopper';
+      if (roll < 73) return 'mender';
+      if (roll < 82) return 'sniper';
+      if (roll < 89) return 'raider';
+      if (roll < 95) return 'turret';
       return 'warden';
     }
 
-    if (roll < 12) return 'drone';
-    if (roll < 30) return 'stalker';
-    if (roll < 42) return 'raider';
-    if (roll < 52) return 'spark';
-    if (roll < 63) return 'mender';
-    if (roll < 73) return 'sniper';
-    if (roll < 80) return 'mortar';
-    if (roll < 86) return 'shielder';
-    if (roll < 91) return 'turret';
-    if (roll < 96) return 'bomber';
-    if (roll < 99) return 'warden';
+    if (roll < 9) return 'drone';
+    if (roll < 24) return 'stalker';
+    if (roll < 36) return 'hopper';
+    if (roll < 45) return 'leaper';
+    if (roll < 55) return 'raider';
+    if (roll < 64) return 'spark';
+    if (roll < 72) return 'mender';
+    if (roll < 80) return 'sniper';
+    if (roll < 86) return 'mortar';
+    if (roll < 91) return 'shielder';
+    if (roll < 95) return 'turret';
+    if (roll < 98) return 'bomber';
+    if (roll < 100) return 'warden';
     return 'crusher';
   }
 
@@ -6411,13 +7327,16 @@ class MainScene extends Phaser.Scene {
 
   private updateSpawns() {
     if (this.elapsedMs >= this.nextEnemySpawnAt) {
-      const difficulty = 1 + this.elapsedMs / 52000;
-      const count = clamp(Math.floor(difficulty), 1, 5);
+      const realPlayers = this.getRealPlayerCount();
+      const playerPressure = 1 + Math.max(0, realPlayers - 1) * 0.38;
+      const lateLevelPressure = this.level >= 30 ? 1 + (this.level - 29) * 0.06 : 1;
+      const difficulty = (1 + this.elapsedMs / 68000) * playerPressure * lateLevelPressure;
+      const count = clamp(Math.floor(difficulty), 1, realPlayers >= 6 ? 9 : 6);
       for (let i = 0; i < count; i += 1) {
         this.spawnEnemy();
       }
       this.nextEnemySpawnAt =
-        this.elapsedMs + Math.max(360, 1180 - this.elapsedMs / 95);
+        this.elapsedMs + Math.max(320, (1340 - this.elapsedMs / 115) / Math.min(1.8, playerPressure));
     }
 
     if (this.elapsedMs >= this.nextChestAt) {
@@ -6426,6 +7345,16 @@ class MainScene extends Phaser.Scene {
     }
 
     this.ensureBossCount();
+  }
+
+  private getRealPlayerCount() {
+    return Math.max(
+      1,
+      this.latestRoomState?.room.players
+        ?? this.currentRoom?.players
+        ?? this.latestRoomState?.players.length
+        ?? 1,
+    );
   }
 
   private spawnChestNearPlayer(distance: number) {
@@ -6452,10 +7381,12 @@ class MainScene extends Phaser.Scene {
     chest.setData('broken', false);
     chest.setData('hp', 90 + Math.floor(this.elapsedMs / 45000) * 18);
     chest.setData('maxHp', chest.getData('hp'));
+    chest.setData('entityId', this.makeLocalEntityId('chest'));
     const body = chest.body as Phaser.Physics.Arcade.Body;
     body.setAllowGravity(false);
     body.setSize(38, 30, true);
     this.chests.add(chest);
+    this.registerChestEntity(chest);
 
     this.tweens.add({
       targets: chest,
@@ -6524,6 +7455,25 @@ class MainScene extends Phaser.Scene {
     }
 
     const vehicle = pod.getData('vehicle') as VehicleKey;
+    if (this.currentVehicle !== 'mech' && vehicle !== this.currentVehicle) {
+      if (this.lockedBossVehicle && vehicle === this.lockedBossVehicle) {
+        this.applyVehicle(vehicle, true, false);
+        this.vehicleExpiresAt = Number.POSITIVE_INFINITY;
+        this.hp = clamp(this.hp + 8, 0, this.maxHp);
+        this.flashAt(pod.x, pod.y, 0x64f5ff, 13);
+        const lockedReturnIcon = pod.getData('icon') as Phaser.GameObjects.Image | undefined;
+        lockedReturnIcon?.destroy();
+        pod.destroy();
+        return;
+      }
+      this.hp = clamp(this.hp + 8, 0, this.maxHp);
+      this.flashAt(pod.x, pod.y, 0x64f5ff, 11);
+      this.showAnnouncement(`${VEHICLES[this.currentVehicle].name} 未结束，不能替换为 ${VEHICLES[vehicle].name}`, 2200);
+      const blockedIcon = pod.getData('icon') as Phaser.GameObjects.Image | undefined;
+      blockedIcon?.destroy();
+      pod.destroy();
+      return;
+    }
     this.applyVehicle(vehicle, true);
     this.hp = clamp(this.hp + 8, 0, this.maxHp);
     this.flashAt(pod.x, pod.y, 0x36f0d2, 13);
@@ -6542,15 +7492,16 @@ class MainScene extends Phaser.Scene {
     }
 
     const buff = pickup.getData('buff') as BuffKey;
-    this.activeBuffs[buff] = this.elapsedMs + 60000;
+    this.activeBuffs[buff] = this.elapsedMs + (buff === 'magnet' ? 22000 : 60000);
     this.flashAt(pickup.x, pickup.y, BUFFS[buff].color, 12);
+    this.sfxPickup();
     pickup.destroy();
   }
 
   private applyVehicle(vehicle: VehicleKey, burst: boolean, rankUp = true) {
     const previousVehicle = this.currentVehicle;
     if (vehicle !== 'mech' && rankUp) {
-      this.vehicleRanks[vehicle] = clamp(this.vehicleRanks[vehicle] + 1, 1, 5);
+      this.vehicleRanks[vehicle] = clamp(this.vehicleRanks[vehicle] + 1, 1, PERFECT_VEHICLE_RANK);
     }
 
     this.currentVehicle = vehicle;
@@ -6570,6 +7521,13 @@ class MainScene extends Phaser.Scene {
       this.vehicleExpiresAt = 0;
       this.vehicleShield = 0;
       this.maxVehicleShield = 0;
+    } else if (this.lockedBossVehicle === vehicle) {
+      this.vehicleExpiresAt = Number.POSITIVE_INFINITY;
+      this.maxVehicleShield = spec.shield;
+      this.vehicleShield =
+        previousVehicle === vehicle
+          ? clamp(this.vehicleShield + spec.shield * 0.35, Math.min(1, spec.shield), this.maxVehicleShield)
+          : this.maxVehicleShield;
     } else {
       this.vehicleExpiresAt =
         previousVehicle === vehicle
@@ -6599,8 +7557,26 @@ class MainScene extends Phaser.Scene {
         16,
       );
       this.vehicleSwitchRing(color);
+      if (vehicle !== 'mech' && this.getVehicleRank(vehicle) >= PERFECT_VEHICLE_RANK) {
+        this.showAnnouncement(`${VEHICLES[vehicle].name} 完全体武装已解锁`, 2600);
+        this.shockwave(this.player.x, this.player.y, 155, color);
+      }
       this.cameras.main.shake(110, 0.0025);
     }
+  }
+
+  private applyPreservedBossVehicleOrMech(burst: boolean) {
+    if (this.lockedBossVehicle && (this.permanentVehicleRanks[this.lockedBossVehicle] ?? 0) >= PERFECT_VEHICLE_RANK) {
+      this.vehicleRanks[this.lockedBossVehicle] = Math.max(
+        this.vehicleRanks[this.lockedBossVehicle] ?? 0,
+        this.permanentVehicleRanks[this.lockedBossVehicle],
+      );
+      this.applyVehicle(this.lockedBossVehicle, burst, false);
+      this.vehicleExpiresAt = Number.POSITIVE_INFINITY;
+      return;
+    }
+
+    this.applyVehicle('mech', burst, false);
   }
 
   private getTerrainAt(x: number, y: number): TerrainKey {
@@ -6638,6 +7614,10 @@ class MainScene extends Phaser.Scene {
     if (this.currentVehicle === 'mech') {
       return;
     }
+    if (this.currentVehicle === this.lockedBossVehicle) {
+      this.vehicleExpiresAt = Number.POSITIVE_INFINITY;
+      return;
+    }
 
     const expiredVehicle = this.currentVehicle;
     this.applyVehicle('mech', true, false);
@@ -6650,6 +7630,14 @@ class MainScene extends Phaser.Scene {
     }
 
     const expiredVehicle = this.currentVehicle;
+    if (expiredVehicle === this.lockedBossVehicle) {
+      this.vehicleShield = Math.max(this.maxVehicleShield * 0.35, 1);
+      this.hp = Math.max(1, this.hp - this.maxHp * 0.12);
+      this.shockwave(this.player.x, this.player.y, 130, 0x64f5ff);
+      this.flashAt(this.player.x, this.player.y, 0x64f5ff, 22);
+      this.showAnnouncement(`${VEHICLES[expiredVehicle].name} 永久核心重启，生命扣除 12%`, 2400);
+      return;
+    }
     const blastColor =
       expiredVehicle === 'tank' || expiredVehicle === 'artillery' || expiredVehicle === 'flameRig'
         ? 0xffd166
@@ -6697,8 +7685,8 @@ class MainScene extends Phaser.Scene {
     return {
       ...base,
       speed: base.speed + rankBonus * 18,
-      fireDelay: Math.max(58, base.fireDelay * (1 - rankBonus * 0.08)),
-      damage: base.damage * (1 + rankBonus * 0.18),
+      fireDelay: Math.max(50, base.fireDelay * (1 - rankBonus * 0.075)),
+      damage: base.damage * (1 + rankBonus * 0.16),
       range: base.range + rankBonus * 35,
       shots: base.shots + Math.floor(rankBonus / 2),
       noise: base.noise + rankBonus * 3,
@@ -7240,6 +8228,55 @@ class MainScene extends Phaser.Scene {
     });
   }
 
+  private drawSkillChips(x: number, y: number, isCompact: boolean) {
+    const chipW = isCompact ? 64 : 86;
+    const chipH = isCompact ? 22 : 28;
+    const gap = 8;
+    SKILL_ORDER.forEach((key, index) => {
+      const spec = SKILLS[key];
+      const cx = x + index * (chipW + gap);
+      const ready = this.elapsedMs >= this.skillReadyAt[key];
+      const active = this.isSkillActive(key);
+      const cooldownMs = Math.max(0, this.skillReadyAt[key] - this.elapsedMs);
+      const progress = ready ? 1 : 1 - cooldownMs / spec.cooldownMs;
+      this.hud.fillStyle(0x050709, 0.78);
+      this.hud.fillRoundedRect(cx, y, chipW, chipH, 6);
+      this.hud.fillStyle(spec.color, ready ? 0.32 : 0.18);
+      this.hud.fillRoundedRect(cx, y, chipW * progress, chipH, 6);
+      this.hud.lineStyle(1.5, spec.color, active ? 1 : ready ? 0.85 : 0.42);
+      this.hud.strokeRoundedRect(cx, y, chipW, chipH, 6);
+
+      let label = this.skillHudTexts[key];
+      if (!label) {
+        label = this.add
+          .text(cx + chipW / 2, y + chipH / 2, '', {
+            fontFamily: 'Inter, "Segoe UI", sans-serif',
+            fontSize: isCompact ? '11px' : '13px',
+            color: '#e8f7f4',
+            fontStyle: 'bold',
+            align: 'center',
+          })
+          .setOrigin(0.5)
+          .setScrollFactor(0)
+          .setDepth(95);
+        this.skillHudTexts[key] = label;
+      }
+      label.setFontSize(isCompact ? 11 : 13);
+      label.setPosition(cx + chipW / 2, y + chipH / 2);
+      const keyLabel = key === 'sprint' ? '冲 Shift' : '炸 F';
+      if (active) {
+        label.setText(`${spec.icon} 进行中`);
+        label.setColor('#e8f7f4');
+      } else if (ready) {
+        label.setText(keyLabel);
+        label.setColor(`#${spec.color.toString(16).padStart(6, '0')}`);
+      } else {
+        label.setText(`${spec.icon} ${(cooldownMs / 1000).toFixed(1)}s`);
+        label.setColor('#a9c7c1');
+      }
+    });
+  }
+
   private drawHud() {
     if (!this.hud || !this.hudText) {
       return;
@@ -7312,10 +8349,6 @@ class MainScene extends Phaser.Scene {
       : '';
 
     this.hud.clear();
-    this.hud.fillStyle(0x050709, 0.78);
-    this.hud.fillRoundedRect(leftPanelX, leftPanelY, leftPanelWidth, leftPanelHeight, 8);
-    this.hud.lineStyle(1, 0x36f0d2, 0.52);
-    this.hud.strokeRoundedRect(leftPanelX, leftPanelY, leftPanelWidth, leftPanelHeight, 8);
 
     const barY1 = isMobileLandscape ? 48 : isMobilePortrait ? 38 : 56;
     const barY2 = isMobileLandscape ? 66 : isMobilePortrait ? 54 : 82;
@@ -7336,6 +8369,8 @@ class MainScene extends Phaser.Scene {
     this.hud.fillRect(hudTextX, barY3, barWidth, barH2);
     this.hud.fillStyle(this.areaAlert > 68 ? 0xff6961 : this.areaAlert > 34 ? 0xffd166 : 0xa7e65d, 1);
     this.hud.fillRect(hudTextX, barY3, barWidth * (this.areaAlert / 100), barH2);
+
+    this.drawSkillChips(hudTextX, barY3 + barH2 + (isMobileLandscape || isMobilePortrait ? 4 : 8), isCompact);
 
     this.drawMiniMap(minimapX, minimapY, minimapSize);
 
@@ -7393,9 +8428,11 @@ class MainScene extends Phaser.Scene {
     const rightText =
       this.currentVehicle === 'mech'
         ? '载具舱：待发现'
-        : `${vehicle.name} Lv.${vehicleRank}  ${Math.ceil(
-            (this.vehicleExpiresAt - this.elapsedMs) / 1000,
-          )}s`;
+        : this.currentVehicle === this.lockedBossVehicle
+          ? `${vehicle.name} Lv.${vehicleRank}  永久`
+          : `${vehicle.name} Lv.${vehicleRank}  ${Math.ceil(
+              (this.vehicleExpiresAt - this.elapsedMs) / 1000,
+            )}s`;
     const rightTextY = rightPanelY + (this.currentVehicle === 'mech' ? 18 : 30);
     const statTextY = rightPanelY + (isMobileLandscape ? 36 : 52);
     const controlTextY = rightPanelY + (isMobileLandscape ? 55 : 73);
@@ -7438,9 +8475,10 @@ class MainScene extends Phaser.Scene {
           : `   护盾 ${Math.ceil(this.vehicleShield)}/${Math.ceil(this.maxVehicleShield)}`;
     const actualFireDelay = Math.max(52, vehicleSpec.fireDelay * this.getFireRateMultiplier());
     const shotsPerSecond = (vehicleSpec.shots * 1000) / actualFireDelay;
+    const vehiclePerfectText = this.currentVehicle !== 'mech' && vehicleRank >= PERFECT_VEHICLE_RANK ? ' 完全体' : '';
     const statText = isMobileLandscape
-      ? `火x${this.getDamageMultiplier().toFixed(2)}  射${shotsPerSecond.toFixed(1)}/s  冷却${Math.round(actualFireDelay)}ms${shieldText}`
-      : `火力 x${this.getDamageMultiplier().toFixed(2)}   射速 ${shotsPerSecond.toFixed(
+      ? `火x${this.getDamageMultiplier().toFixed(2)}${vehiclePerfectText}  射${shotsPerSecond.toFixed(1)}/s  冷却${Math.round(actualFireDelay)}ms${shieldText}`
+      : `火力 x${this.getDamageMultiplier().toFixed(2)}${vehiclePerfectText}   射速 ${shotsPerSecond.toFixed(
           1,
         )}/s   冷却 ${Math.round(actualFireDelay)}ms${shieldText}`;
     if (stat) {
@@ -7716,7 +8754,7 @@ class MainScene extends Phaser.Scene {
         return;
       }
 
-      this.hud.fillStyle(foggy ? 0xb8bec1 : BOSS_MINIMAP_COLOR, foggy ? 0.62 : 0.95);
+      this.hud.fillStyle(foggy ? 0xb8bec1 : this.getBossColor(enemy), foggy ? 0.62 : 0.95);
       this.hud.fillCircle(toMiniX(enemy.x), toMiniY(enemy.y), 4);
     });
 
@@ -7968,6 +9006,7 @@ class MainScene extends Phaser.Scene {
     const flash = this.add.circle(x, y, 20, 0xe8f7f4, 0.8).setDepth(43);
     this.tweens.add({ targets: flash, alpha: 0, scale: 3, duration: 300, ease: 'Cubic.easeOut', onComplete: () => flash.destroy() });
     this.cameras.main.shake(80, 0.002);
+    this.playCue('levelup');
   }
 
   private flashAt(x: number, y: number, color: number, size: number) {
@@ -8151,7 +9190,7 @@ class MainScene extends Phaser.Scene {
       this.localCrown = response.player.crown ?? this.localCrown;
       this.isTeamLeader = Boolean(response.player.teamLeader);
       this.player.setPosition(response.player.x, response.player.y);
-      this.applyVehicle('mech', false);
+      this.applyPreservedBossVehicleOrMech(false);
       this.player.setTint(this.localTeamTint || 0xffffff);
       this.spawnInitialWorld();
       this.physics.resume();

@@ -62,6 +62,8 @@ const TEAM_BY_KEY = new Map(TEAM_COLORS.map((team) => [team.key, team]));
 const ENEMY_XP = {
   drone: 5,
   stalker: 9,
+  hopper: 10,
+  leaper: 20,
   warden: 14,
   crusher: 24,
   mender: 13,
@@ -82,7 +84,7 @@ const TIER_XP_MULTIPLIERS = {
   red: 5,
 };
 const VEHICLE_KEYS = ['motorcycle', 'tank', 'fighter', 'hovercraft', 'railgun', 'walker', 'artillery', 'buggy', 'laserVan', 'flameRig'];
-const BUFF_KEYS = ['overclock', 'rapid', 'barrier', 'regen'];
+const BUFF_KEYS = ['overclock', 'rapid', 'barrier', 'regen', 'magnet'];
 
 // Terrain water regions (must match client TERRAIN_REGIONS water entries)
 const WATER_REGIONS = [
@@ -126,6 +128,10 @@ function makeGuardState() {
 
 const rooms = new Map();
 const userCrowns = new Map();
+const ENTITY_TTL_MS = 90 * 1000;
+const CHEST_TTL_MS = 120 * 1000;
+const MAX_REGISTERED_PVE_PER_PLAYER = 180;
+const MAX_REGISTERED_CHESTS_PER_PLAYER = 80;
 
 function now() {
   return Date.now();
@@ -151,6 +157,8 @@ function makeRoom(index) {
     nextInvasionAt: createdAt + INVASION_INTERVAL_MS,
     nextRampageAt: createdAt + RAMPAGE_START_MS,
     players: new Map(),
+    pveEntities: new Map(),
+    chestEntities: new Map(),
     deadUserIds: new Set(),
     teamLeaders: makeTeamValueMap(null),
     teamSummonReadyAt: makeTeamValueMap(createdAt),
@@ -402,6 +410,8 @@ function restartRoomRound(room) {
   room.nextInvasionAt = createdAt + INVASION_INTERVAL_MS;
   room.nextRampageAt = createdAt + RAMPAGE_START_MS;
   room.scores = makeScoreBoard();
+  room.pveEntities?.clear();
+  room.chestEntities?.clear();
   room.deadUserIds.clear();
   room.teamSummonReadyAt = makeTeamValueMap(createdAt);
   room.settling = false;
@@ -661,6 +671,33 @@ function addRoomScore(room, teamKey, amount) {
   room.scores[teamKey] = Math.round((room.scores[teamKey] ?? 0) + score);
 }
 
+function cleanupPveRegistries(room, t = now()) {
+  for (const [id, entity] of room.pveEntities ?? []) {
+    if (entity.expiresAt <= t || !room.players.has(entity.ownerSocketId)) {
+      room.pveEntities.delete(id);
+    }
+  }
+  for (const [id, chest] of room.chestEntities ?? []) {
+    if (chest.expiresAt <= t || !room.players.has(chest.ownerSocketId)) {
+      room.chestEntities.delete(id);
+    }
+  }
+}
+
+function isValidEntityId(id) {
+  return typeof id === 'string' && id.length >= 8 && id.length <= 80 && /^[a-zA-Z0-9:_-]+$/.test(id);
+}
+
+function countOwnedEntries(map, socketId) {
+  let count = 0;
+  for (const entry of map.values()) {
+    if (entry.ownerSocketId === socketId) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
 function makeEnemyReward(payload) {
   const kind = String(payload.kind || '');
   const tier = String(payload.tier || '');
@@ -677,7 +714,7 @@ function makeEnemyReward(payload) {
     if (Math.random() <= 0.05) {
       drops.push({ type: 'chest' });
     }
-    if (tier === 'purple' || tier === 'red') {
+    if ((tier === 'purple' && Math.random() <= 0.34) || (tier === 'red' && Math.random() <= 0.48)) {
       drops.push({ type: 'buff', buff: pickFrom(BUFF_KEYS) });
     }
   }
@@ -696,7 +733,7 @@ function makeChestReward() {
   if (roll <= 0.46) {
     return { drops: [{ type: 'vehicle', vehicle: pickFrom(VEHICLE_KEYS) }] };
   }
-  if (roll <= 0.76) {
+  if (roll <= 0.64) {
     return { drops: [{ type: 'buff', buff: pickFrom(BUFF_KEYS) }] };
   }
   return { drops: [{ type: 'heal', amount: 6 }] };
@@ -965,6 +1002,89 @@ io.on('connection', (socket) => {
     io.to(room.id).emit('room:state', buildRoomState(room));
   });
 
+  socket.on('pve:entity-spawned', (payload = {}, ack) => {
+    const room = rooms.get(socket.data.roomId);
+    const player = room?.players.get(socket.id);
+    if (!room || !player || !player.alive) {
+      ack?.({ ok: false, error: '还没有加入房间。' });
+      return;
+    }
+
+    const id = String(payload.id || '');
+    if (!isValidEntityId(id)) {
+      ack?.({ ok: false, error: '敌人标识无效。' });
+      return;
+    }
+
+    cleanupPveRegistries(room);
+    if (countOwnedEntries(room.pveEntities, socket.id) >= MAX_REGISTERED_PVE_PER_PLAYER) {
+      ack?.({ ok: false, error: '敌人登记过多。' });
+      return;
+    }
+    const kind = String(payload.kind || '');
+    const tier = String(payload.tier || '');
+    if (!ENEMY_XP[kind] || !TIER_XP_MULTIPLIERS[tier]) {
+      ack?.({ ok: false, error: '敌人类型无效。' });
+      return;
+    }
+
+    const x = clampNumber(payload.x, 0, WORLD_WIDTH);
+    const y = clampNumber(payload.y, 0, WORLD_HEIGHT);
+    if (Math.hypot(x - player.x, y - player.y) > MAX_PVE_REWARD_DISTANCE) {
+      ack?.({ ok: false, error: '敌人登记距离异常。' });
+      return;
+    }
+
+    room.pveEntities.set(id, {
+      id,
+      kind,
+      tier,
+      ownerSocketId: socket.id,
+      x,
+      y,
+      createdAt: now(),
+      expiresAt: now() + (kind === 'boss' ? ENTITY_TTL_MS * 4 : ENTITY_TTL_MS),
+    });
+    ack?.({ ok: true });
+  });
+
+  socket.on('loot:chest-spawned', (payload = {}, ack) => {
+    const room = rooms.get(socket.data.roomId);
+    const player = room?.players.get(socket.id);
+    if (!room || !player || !player.alive) {
+      ack?.({ ok: false, error: '还没有加入房间。' });
+      return;
+    }
+
+    const id = String(payload.id || '');
+    if (!isValidEntityId(id)) {
+      ack?.({ ok: false, error: '宝箱标识无效。' });
+      return;
+    }
+
+    cleanupPveRegistries(room);
+    if (countOwnedEntries(room.chestEntities, socket.id) >= MAX_REGISTERED_CHESTS_PER_PLAYER) {
+      ack?.({ ok: false, error: '宝箱登记过多。' });
+      return;
+    }
+    const x = clampNumber(payload.x, 0, WORLD_WIDTH);
+    const y = clampNumber(payload.y, 0, WORLD_HEIGHT);
+    if (Math.hypot(x - player.x, y - player.y) > MAX_CHEST_REWARD_DISTANCE) {
+      ack?.({ ok: false, error: '宝箱登记距离异常。' });
+      return;
+    }
+
+    room.chestEntities.set(id, {
+      id,
+      ownerSocketId: socket.id,
+      x,
+      y,
+      createdAt: now(),
+      expiresAt: now() + CHEST_TTL_MS,
+    });
+    ack?.({ ok: true });
+  });
+
   socket.on('pve:enemy-killed', (payload = {}, ack) => {
     const room = rooms.get(socket.data.roomId);
     const player = room?.players.get(socket.id);
@@ -975,14 +1095,25 @@ io.on('connection', (socket) => {
 
     const t = now();
     const guard = getGuard(player);
+    cleanupPveRegistries(room, t);
+    const entityId = String(payload.id || '');
+    const entity = room.pveEntities.get(entityId);
+    if (!entity || entity.ownerSocketId !== socket.id) {
+      ack?.({ ok: false, error: '敌人奖励已失效。' });
+      return;
+    }
+
     const killX = clampNumber(payload.x, 0, WORLD_WIDTH);
     const killY = clampNumber(payload.y, 0, WORLD_HEIGHT);
-    if (Math.hypot(killX - player.x, killY - player.y) > MAX_PVE_REWARD_DISTANCE) {
+    if (
+      Math.hypot(killX - player.x, killY - player.y) > MAX_PVE_REWARD_DISTANCE ||
+      Math.hypot(killX - entity.x, killY - entity.y) > 520
+    ) {
       ack?.({ ok: false, error: '击杀距离异常。' });
       return;
     }
 
-    const reward = makeEnemyReward(payload);
+    const reward = makeEnemyReward(entity);
     if (!reward) {
       ack?.({ ok: false, error: '敌人奖励无效。' });
       return;
@@ -1003,6 +1134,7 @@ io.on('connection', (socket) => {
       return;
     }
 
+    room.pveEntities.delete(entityId);
     const chestDrops = reward.drops.filter((drop) => drop.type === 'chest').length;
     if (chestDrops > 0) {
       refillChestCredits(player, t);
@@ -1023,9 +1155,20 @@ io.on('connection', (socket) => {
 
     const t = now();
     const guard = getGuard(player);
+    cleanupPveRegistries(room, t);
+    const chestId = String(payload.id || '');
+    const chestEntity = room.chestEntities.get(chestId);
+    if (!chestEntity || chestEntity.ownerSocketId !== socket.id) {
+      ack?.({ ok: false, error: '宝箱奖励已失效。' });
+      return;
+    }
+
     const chestX = clampNumber(payload.x, 0, WORLD_WIDTH);
     const chestY = clampNumber(payload.y, 0, WORLD_HEIGHT);
-    if (Math.hypot(chestX - player.x, chestY - player.y) > MAX_CHEST_REWARD_DISTANCE) {
+    if (
+      Math.hypot(chestX - player.x, chestY - player.y) > MAX_CHEST_REWARD_DISTANCE ||
+      Math.hypot(chestX - chestEntity.x, chestY - chestEntity.y) > 420
+    ) {
       ack?.({ ok: false, error: '宝箱距离异常。' });
       return;
     }
@@ -1041,6 +1184,7 @@ io.on('connection', (socket) => {
     }
 
     player.chestCredits -= 1;
+    room.chestEntities.delete(chestId);
     ack?.({ ok: true, reward: makeChestReward() });
   });
 
