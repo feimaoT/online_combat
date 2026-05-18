@@ -1117,6 +1117,7 @@ class MainScene extends Phaser.Scene {
   private skillKeys!: { SHIFT: Phaser.Input.Keyboard.Key; F: Phaser.Input.Keyboard.Key };
   private upgradeHotkeys: Phaser.Input.Keyboard.Key[] = [];
   private hud!: Phaser.GameObjects.Graphics;
+  private shadowLayer!: Phaser.GameObjects.Graphics;
   private weatherOverlay!: Phaser.GameObjects.Graphics;
   private battleZoneGraphics!: Phaser.GameObjects.Graphics;
   private targetRing!: Phaser.GameObjects.Graphics;
@@ -1365,6 +1366,7 @@ class MainScene extends Phaser.Scene {
 
     this.weatherOverlay = this.add.graphics().setScrollFactor(0).setDepth(850);
     this.hud = this.add.graphics().setScrollFactor(0).setDepth(900);
+    this.shadowLayer = this.add.graphics().setDepth(15);
     this.battleZoneGraphics = this.add.graphics().setDepth(6);
     this.targetRing = this.add.graphics().setDepth(7);
     this.enemyHud = this.add.graphics().setDepth(60);
@@ -3231,28 +3233,42 @@ class MainScene extends Phaser.Scene {
   }
 
   private sfxExplosion() {
-    this.sfxNoise(0.35, 0.12, 60, 3500);
-    this.sfxSweep(120, 30, 0.4, 0.08, 'sawtooth');
+    // sub-bass rumble
+    this.sfxSweep(140, 28, 0.55, 0.1, 'sawtooth');
+    this.sfxSweep(90, 32, 0.6, 0.08, 'triangle');
+    // body of the blast
+    this.sfxNoise(0.4, 0.13, 60, 3800);
+    // delayed boom resonance
+    this.time.delayedCall(70, () => this.sfxSweep(180, 60, 0.32, 0.07, 'sawtooth'));
+    this.time.delayedCall(160, () => this.sfxNoise(0.22, 0.06, 40, 1400));
   }
 
   private sfxHit() {
-    this.sfxNoise(0.05, 0.06, 800, 5000);
-    this.sfxSweep(600, 200, 0.06, 0.04, 'square');
+    // sharp transient
+    this.sfxNoise(0.04, 0.08, 1400, 6500);
+    this.sfxSweep(820, 240, 0.06, 0.045, 'square');
+    // metallic ping body
+    this.sfxSweep(1400, 1600, 0.05, 0.025, 'sine');
   }
 
   private sfxDamage() {
-    this.sfxNoise(0.1, 0.08, 400, 3000);
-    this.sfxSweep(300, 100, 0.15, 0.06, 'sawtooth');
+    // body
+    this.sfxNoise(0.12, 0.09, 360, 2800);
+    // low impact thump
+    this.sfxSweep(320, 90, 0.18, 0.065, 'sawtooth');
+    this.sfxSweep(140, 50, 0.22, 0.05, 'triangle');
   }
 
   private sfxHeal() {
-    this.sfxSweep(400, 800, 0.15, 0.04, 'sine');
-    this.time.delayedCall(80, () => this.sfxSweep(600, 1200, 0.15, 0.035, 'sine'));
+    this.sfxSweep(440, 880, 0.18, 0.05, 'sine');
+    this.time.delayedCall(70, () => this.sfxSweep(660, 1320, 0.18, 0.04, 'sine'));
+    this.time.delayedCall(140, () => this.sfxSweep(880, 1760, 0.16, 0.03, 'triangle'));
   }
 
   private sfxPickup() {
-    this.sfxSweep(500, 900, 0.08, 0.04, 'sine');
-    this.time.delayedCall(70, () => this.sfxSweep(700, 1100, 0.12, 0.035, 'sine'));
+    this.sfxSweep(520, 980, 0.08, 0.045, 'triangle');
+    this.time.delayedCall(50, () => this.sfxSweep(780, 1320, 0.1, 0.04, 'sine'));
+    this.time.delayedCall(100, () => this.sfxNoise(0.04, 0.02, 2400, 7200));
   }
 
   private sfxShoot(texture: string) {
@@ -3304,25 +3320,33 @@ class MainScene extends Phaser.Scene {
         this.time.delayedCall(160, () => this.sfxSweep(800, 1600, 0.12, 0.035, 'sine'));
         break;
       case 'levelup':
-        this.sfxSweep(523, 784, 0.12, 0.06, 'triangle');
-        this.time.delayedCall(90, () => this.sfxSweep(659, 988, 0.14, 0.055, 'triangle'));
-        this.time.delayedCall(180, () => this.sfxSweep(784, 1318, 0.18, 0.05, 'sine'));
-        this.time.delayedCall(260, () => this.sfxSweep(1046, 1568, 0.2, 0.045, 'sine'));
+        // ascending major chord stack — C5 E5 G5 C6 — each note a brief envelope
+        this.sfxSweep(523, 784, 0.14, 0.065, 'triangle');
+        this.playTone(659, 220, 0.045, 'sine');
+        this.time.delayedCall(90, () => { this.sfxSweep(659, 988, 0.16, 0.058, 'triangle'); this.playTone(784, 220, 0.04, 'sine'); });
+        this.time.delayedCall(180, () => { this.sfxSweep(784, 1318, 0.2, 0.052, 'sine'); this.playTone(1046, 240, 0.04, 'sine'); });
+        this.time.delayedCall(280, () => { this.sfxSweep(1046, 1568, 0.22, 0.048, 'sine'); this.sfxNoise(0.06, 0.025, 2400, 7200); });
         break;
       case 'kill':
-        this.sfxSweep(720, 320, 0.06, 0.045, 'square');
-        this.sfxNoise(0.04, 0.025, 1600, 5200);
+        // crunch + metallic ping
+        this.sfxSweep(820, 280, 0.07, 0.05, 'square');
+        this.sfxNoise(0.05, 0.03, 1600, 6000);
+        this.time.delayedCall(50, () => this.playTone(1568, 110, 0.025, 'sine'));
         break;
       case 'crit':
-        this.sfxSweep(1400, 480, 0.09, 0.07, 'sawtooth');
-        this.sfxNoise(0.06, 0.05, 2200, 6000);
-        this.time.delayedCall(40, () => this.sfxSweep(900, 280, 0.08, 0.05, 'square'));
+        this.sfxSweep(1600, 520, 0.1, 0.075, 'sawtooth');
+        this.sfxNoise(0.07, 0.055, 2400, 6800);
+        this.time.delayedCall(40, () => this.sfxSweep(1000, 320, 0.09, 0.055, 'square'));
+        this.time.delayedCall(90, () => this.playTone(2093, 140, 0.03, 'sine'));
         break;
       case 'bossKill':
-        this.sfxSweep(220, 80, 0.45, 0.09, 'sawtooth');
-        this.sfxNoise(0.45, 0.11, 60, 3200);
-        this.time.delayedCall(180, () => this.sfxSweep(440, 880, 0.3, 0.07, 'triangle'));
-        this.time.delayedCall(340, () => this.sfxSweep(660, 1320, 0.34, 0.06, 'sine'));
+        // big sub drop + triumphant ascending tail
+        this.sfxSweep(240, 70, 0.5, 0.1, 'sawtooth');
+        this.sfxSweep(120, 36, 0.55, 0.08, 'triangle');
+        this.sfxNoise(0.5, 0.12, 50, 3000);
+        this.time.delayedCall(180, () => { this.sfxSweep(440, 880, 0.3, 0.075, 'triangle'); this.playTone(523, 320, 0.04, 'sine'); });
+        this.time.delayedCall(360, () => { this.sfxSweep(660, 1320, 0.34, 0.065, 'sine'); this.playTone(880, 380, 0.04, 'sine'); });
+        this.time.delayedCall(540, () => { this.playTone(1318, 360, 0.04, 'sine'); this.playTone(1568, 360, 0.03, 'sine'); });
         break;
       case 'chest':
         this.sfxSweep(300, 600, 0.08, 0.04, 'triangle');
@@ -3624,6 +3648,7 @@ class MainScene extends Phaser.Scene {
     this.autoFire();
     this.updateWeaponSystems(deltaSeconds);
     this.updateRemotePlayerViews(deltaSeconds);
+    this.drawUnitShadows();
     this.updateLocalCrownView();
     this.sendNetworkState();
     this.drawEnemyBars();
@@ -4870,6 +4895,7 @@ class MainScene extends Phaser.Scene {
     }
 
     let bobT = (sprite.getData('bobT') as number | undefined) ?? 0;
+    let idleT = (sprite.getData('idleT') as number | undefined) ?? 0;
     let psx = (sprite.getData('psx') as number | undefined) ?? 0;
     let psy = (sprite.getData('psy') as number | undefined) ?? 0;
     let flipX = (sprite.getData('flipX') as number | undefined) ?? 0;
@@ -4893,6 +4919,7 @@ class MainScene extends Phaser.Scene {
     flipY = Math.max(0, flipY - deltaSeconds / 0.24);
 
     if (moving) bobT += deltaSeconds * 9;
+    idleT += deltaSeconds * 2.4;
 
     const cosR = Math.cos(aimRotation);
     const sinR = Math.sin(aimRotation);
@@ -4904,7 +4931,14 @@ class MainScene extends Phaser.Scene {
 
     scaleX *= 1 + clamp(forwardVel * 0.00035, -0.05, 0.08);
     scaleY *= 1 - clamp(Math.abs(lateralVel) * 0.00028, 0, 0.07);
-    if (moving) scaleY *= 1 + Math.sin(bobT) * 0.03;
+    if (moving) {
+      scaleY *= 1 + Math.sin(bobT) * 0.03;
+    } else {
+      // idle hover breathing
+      const pulse = Math.sin(idleT) * 0.018;
+      scaleX *= 1 + pulse;
+      scaleY *= 1 - pulse;
+    }
 
     if (flipX > 0) {
       const f = Math.abs(Math.cos((1 - flipX) * Math.PI));
@@ -4921,11 +4955,95 @@ class MainScene extends Phaser.Scene {
     sprite.setScale(scaleX, scaleY);
     sprite.rotation = aimRotation + lean;
     sprite.setData('bobT', bobT);
+    sprite.setData('idleT', idleT);
     sprite.setData('psx', psx);
     sprite.setData('psy', psy);
     sprite.setData('flipX', flipX);
     sprite.setData('flipY', flipY);
     sprite.setData('lean', lean);
+  }
+
+  private drawUnitShadows() {
+    if (!this.shadowLayer) return;
+    this.shadowLayer.clear();
+
+    const drawShadow = (
+      sprite: Phaser.GameObjects.Sprite | Phaser.Physics.Arcade.Sprite,
+      rx: number,
+      ry: number,
+      alpha = 0.32,
+    ) => {
+      if (!sprite.active || !sprite.visible) return;
+      // shadow offset slightly down-right for low overhead light angle
+      const x = sprite.x + 3;
+      const y = sprite.y + ry * 0.7;
+      this.shadowLayer.fillStyle(0x000000, alpha * 0.55);
+      this.shadowLayer.fillEllipse(x, y, rx * 1.6, ry * 0.7);
+      this.shadowLayer.fillStyle(0x000000, alpha);
+      this.shadowLayer.fillEllipse(x, y, rx * 1.1, ry * 0.45);
+    };
+
+    // local player
+    if (this.player && this.player.active) {
+      const w = this.player.displayWidth;
+      const h = this.player.displayHeight;
+      drawShadow(this.player, w * 0.45, h * 0.4);
+    }
+    // remote players
+    this.remotePlayers.forEach((view) => {
+      const w = view.sprite.displayWidth;
+      const h = view.sprite.displayHeight;
+      drawShadow(view.sprite, w * 0.45, h * 0.4, view.sprite.alpha * 0.32);
+    });
+    // enemies (only on-screen ones for perf)
+    const cam = this.cameras.main;
+    const cx0 = cam.scrollX - 100;
+    const cy0 = cam.scrollY - 100;
+    const cx1 = cam.scrollX + cam.width / cam.zoom + 100;
+    const cy1 = cam.scrollY + cam.height / cam.zoom + 100;
+    this.enemies.getChildren().forEach((rawEnemy) => {
+      const enemy = rawEnemy as Phaser.Physics.Arcade.Sprite;
+      if (!enemy.active) return;
+      if (enemy.x < cx0 || enemy.x > cx1 || enemy.y < cy0 || enemy.y > cy1) return;
+      const w = enemy.displayWidth;
+      const h = enemy.displayHeight;
+      drawShadow(enemy, w * 0.4, h * 0.35, enemy.getData('isBoss') ? 0.4 : 0.3);
+    });
+  }
+
+  private spawnDamageText(x: number, y: number, amount: number, options?: { crit?: boolean; heal?: boolean; player?: boolean }) {
+    if (this.isLowFxMode()) return;
+    const value = Math.abs(amount);
+    if (value < 0.5) return;
+    const crit = options?.crit ?? false;
+    const heal = options?.heal ?? false;
+    const isPlayer = options?.player ?? false;
+    const color = heal ? '#b6ff3a' : isPlayer ? '#ff5d6f' : crit ? '#f5c542' : '#ffffff';
+    const fontSize = crit ? 18 : isPlayer ? 16 : 13;
+    const label = (heal ? '+' : '') + Math.round(value).toString();
+    const txt = this.add
+      .text(x + Phaser.Math.Between(-6, 6), y - 8, label, {
+        fontFamily: '"Orbitron", Inter, "Segoe UI", sans-serif',
+        fontSize: `${fontSize}px`,
+        color,
+        fontStyle: crit ? '900' : '800',
+        stroke: '#04060c',
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5)
+      .setDepth(80);
+    if (crit) {
+      txt.setShadow(0, 0, '#f5c542', 8, true, true);
+    }
+    this.tweens.add({
+      targets: txt,
+      y: txt.y - (crit ? 42 : 30),
+      alpha: 0,
+      scale: crit ? 1.35 : 1,
+      duration: crit ? 720 : 540,
+      ease: 'Cubic.easeOut',
+      onComplete: () => txt.destroy(),
+    });
   }
 
   private getMagnetPickupRadius() {
@@ -5439,6 +5557,7 @@ class MainScene extends Phaser.Scene {
   private applyLocalHeal(amount: number) {
     this.hp = clamp(this.hp + amount, 0, this.maxHp);
     this.sfxHeal();
+    this.spawnDamageText(this.player.x, this.player.y - this.player.displayHeight * 0.4, amount, { heal: true });
     if (this.currentVehicle !== 'mech' && this.maxVehicleShield > 0) {
       this.vehicleShield = clamp(this.vehicleShield + amount * 0.8, 0, this.maxVehicleShield);
     }
@@ -6794,6 +6913,7 @@ class MainScene extends Phaser.Scene {
     } else if (taken >= 8) {
       this.cameras.main.shake(90, 0.0028);
     }
+    this.spawnDamageText(this.player.x, this.player.y - this.player.displayHeight * 0.4, taken, { player: true });
     if (this.currentVehicle !== 'mech' && this.vehicleShield > 0) {
       this.vehicleShield = Math.max(0, this.vehicleShield - taken);
       this.player.setTint(0x4d8eff);
@@ -6953,11 +7073,28 @@ class MainScene extends Phaser.Scene {
       enemy.setData('bossHealCooldownUntil', this.elapsedMs + BOSS_HEAL_COOLDOWN_MS);
     }
     enemy.setTint(0xffffff);
+    // Brief hit punch — store baseline so we don't fight the body anim's scale.
+    if (enemy.getData('hitPunchUntil') === undefined) {
+      const baseSX = enemy.scaleX;
+      const baseSY = enemy.scaleY;
+      enemy.setScale(baseSX * 1.18, baseSY * 0.84);
+      enemy.setData('hitPunchUntil', this.elapsedMs + 90);
+      this.time.delayedCall(90, () => {
+        if (enemy.active) {
+          enemy.setScale(baseSX, baseSY);
+          enemy.setData('hitPunchUntil', undefined);
+        }
+      });
+    }
     this.time.delayedCall(60, () => {
       if (enemy.active) {
         enemy.setTint(this.getEnemyTint(enemy));
       }
     });
+
+    // Floating damage number — crit if damage > 1.6x raw expected
+    const crit = guardedDamage >= damage * 0.999 && damage >= maxHp * 0.18;
+    this.spawnDamageText(enemy.x, enemy.y - enemy.displayHeight * 0.4, guardedDamage, { crit });
 
     if (hp <= 0) {
       this.killEnemy(enemy);
@@ -9352,33 +9489,78 @@ class MainScene extends Phaser.Scene {
   }
 
   private muzzleBurst(x: number, y: number, angle: number, color: number) {
+    const tipX = x + Math.cos(angle) * 12;
+    const tipY = y + Math.sin(angle) * 12;
+    // bright white core flash
+    const core = this.add.circle(tipX, tipY, 8, 0xffffff, 0.95).setDepth(33);
+    this.tweens.add({
+      targets: core,
+      scale: 1.8,
+      alpha: 0,
+      duration: 90,
+      ease: 'Cubic.easeOut',
+      onComplete: () => core.destroy(),
+    });
+    // colored flame cone (elongated along barrel)
     const flame = this.add
-      .circle(x + Math.cos(angle) * 10, y + Math.sin(angle) * 10, 8, color, 0.82)
+      .ellipse(tipX, tipY, 18, 10, color, 0.88)
       .setDepth(32);
+    flame.setRotation(angle);
     this.tweens.add({
       targets: flame,
-      scaleX: 3,
-      scaleY: 0.5,
-      rotation: angle,
+      scaleX: 3.2,
+      scaleY: 0.45,
       alpha: 0,
-      duration: 140,
+      duration: 150,
       ease: 'Cubic.easeOut',
       onComplete: () => flame.destroy(),
     });
-    const sparkCount = this.isLowFxMode() ? 1 : 3;
+    // light cone (very faint)
+    if (!this.isLowFxMode()) {
+      const lightCone = this.add.triangle(
+        x, y,
+        0, 0,
+        Math.cos(angle - 0.32) * 60, Math.sin(angle - 0.32) * 60,
+        Math.cos(angle + 0.32) * 60, Math.sin(angle + 0.32) * 60,
+        color, 0.22,
+      ).setDepth(31);
+      this.tweens.add({
+        targets: lightCone,
+        alpha: 0,
+        duration: 130,
+        ease: 'Cubic.easeOut',
+        onComplete: () => lightCone.destroy(),
+      });
+    }
+    // sparks
+    const sparkCount = this.isLowFxMode() ? 2 : 5;
     for (let i = 0; i < sparkCount; i += 1) {
-      const sa = angle + Phaser.Math.FloatBetween(-0.5, 0.5);
-      const sd = Phaser.Math.Between(8, 22);
-      const spark = this.add.circle(x, y, 2, 0xe8f7f4, 0.9).setDepth(33);
+      const sa = angle + Phaser.Math.FloatBetween(-0.55, 0.55);
+      const sd = Phaser.Math.Between(14, 34);
+      const spark = this.add.circle(tipX, tipY, Phaser.Math.FloatBetween(1.4, 2.4), i % 2 ? 0xffffff : color, 0.95).setDepth(34);
       this.tweens.add({
         targets: spark,
-        x: x + Math.cos(sa) * sd,
-        y: y + Math.sin(sa) * sd,
+        x: tipX + Math.cos(sa) * sd,
+        y: tipY + Math.sin(sa) * sd,
         alpha: 0,
-        scale: 0.2,
-        duration: 120,
+        scale: 0.15,
+        duration: 160,
         ease: 'Cubic.easeOut',
         onComplete: () => spark.destroy(),
+      });
+    }
+    // shell-eject puff for ballistic types
+    if (color === 0xf5c542 || color === 0xff5d6f) {
+      const puff = this.add.circle(x, y, 4, 0x8a9199, 0.5).setDepth(31);
+      this.tweens.add({
+        targets: puff,
+        x: x + Math.cos(angle + Math.PI) * 10 + Phaser.Math.Between(-3, 3),
+        y: y + Math.sin(angle + Math.PI) * 10 + Phaser.Math.Between(-3, 3),
+        scale: 2,
+        alpha: 0,
+        duration: 280,
+        ease: 'Cubic.easeOut',
+        onComplete: () => puff.destroy(),
       });
     }
   }
@@ -9417,25 +9599,48 @@ class MainScene extends Phaser.Scene {
   }
 
   private impactBurst(x: number, y: number, color: number, scale: number) {
+    // brief white flash
+    const flash = this.add.circle(x, y, 5 * scale, 0xffffff, 0.95).setDepth(43);
+    this.tweens.add({
+      targets: flash,
+      alpha: 0,
+      scale: 1.8,
+      duration: 90,
+      ease: 'Cubic.easeOut',
+      onComplete: () => flash.destroy(),
+    });
     const core = this.add.circle(x, y, 7 * scale, color, 0.92).setDepth(42);
     this.tweens.add({
       targets: core,
       alpha: 0,
-      scale: 3.2,
-      duration: 210,
+      scale: 3.4,
+      duration: 220,
       ease: 'Cubic.easeOut',
       onComplete: () => core.destroy(),
     });
+    // expanding ring
+    const ring = this.add.circle(x, y, 4 * scale, color, 0)
+      .setStrokeStyle(2, color, 0.8)
+      .setDepth(42);
+    this.tweens.add({
+      targets: ring,
+      radius: 22 * scale,
+      alpha: 0,
+      duration: 260,
+      ease: 'Cubic.easeOut',
+      onComplete: () => ring.destroy(),
+    });
 
-    for (let i = 0; i < 5; i += 1) {
+    for (let i = 0; i < 6; i += 1) {
       const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
-      const spark = this.add.circle(x, y, 2.5 * scale, color, 0.95).setDepth(43);
+      const spark = this.add.circle(x, y, 2.4 * scale, i % 2 ? 0xffffff : color, 0.95).setDepth(43);
       this.tweens.add({
         targets: spark,
-        x: x + Math.cos(angle) * Phaser.Math.Between(18, 38) * scale,
-        y: y + Math.sin(angle) * Phaser.Math.Between(18, 38) * scale,
+        x: x + Math.cos(angle) * Phaser.Math.Between(18, 42) * scale,
+        y: y + Math.sin(angle) * Phaser.Math.Between(18, 42) * scale,
         alpha: 0,
-        duration: 240,
+        scale: 0.15,
+        duration: 250,
         ease: 'Cubic.easeOut',
         onComplete: () => spark.destroy(),
       });
@@ -9544,34 +9749,129 @@ class MainScene extends Phaser.Scene {
   }
 
   private bigExplosion(x: number, y: number, color: number, size: number) {
-    const core = this.add.circle(x, y, size * 0.3, 0xe8f7f4, 0.95).setDepth(42);
-    this.tweens.add({ targets: core, alpha: 0, scale: 3.5, duration: 250, ease: 'Cubic.easeOut', onComplete: () => core.destroy() });
-    const glow = this.add.circle(x, y, size * 0.4, color, 0.35).setDepth(40);
-    this.tweens.add({ targets: glow, alpha: 0, scale: 4, duration: 320, ease: 'Cubic.easeOut', onComplete: () => glow.destroy() });
-    const r1 = this.add.circle(x, y, 8, color, 0).setStrokeStyle(4, color, 0.9).setDepth(41);
-    this.tweens.add({ targets: r1, radius: size * 1.3, alpha: 0, duration: 440, ease: 'Cubic.easeOut', onComplete: () => r1.destroy() });
-    const r2 = this.add.circle(x, y, 6, 0xe8f7f4, 0).setStrokeStyle(2, 0xe8f7f4, 0.6).setDepth(41);
-    this.tweens.add({ targets: r2, radius: size * 0.85, alpha: 0, duration: 340, ease: 'Cubic.easeOut', onComplete: () => r2.destroy() });
-    for (let i = 0; i < 14; i += 1) {
-      const a = (i / 14) * Math.PI * 2 + Phaser.Math.FloatBetween(-0.15, 0.15);
-      const d = Phaser.Math.Between(size * 1.2, size * 3.5);
-      const sp = this.add.circle(x, y, Phaser.Math.FloatBetween(1.5, 4), i % 3 === 0 ? 0xe8f7f4 : color, 0.95).setDepth(43);
-      this.tweens.add({ targets: sp, x: x + Math.cos(a) * d, y: y + Math.sin(a) * d, alpha: 0, scale: 0.1, duration: 200 + Phaser.Math.Between(0, 280), ease: 'Cubic.easeOut', onComplete: () => sp.destroy() });
+    // bright white flash (very short)
+    const flash = this.add.circle(x, y, size * 0.35, 0xffffff, 1).setDepth(43);
+    this.tweens.add({ targets: flash, alpha: 0, scale: 2.6, duration: 130, ease: 'Cubic.easeOut', onComplete: () => flash.destroy() });
+    // hot core
+    const core = this.add.circle(x, y, size * 0.3, 0xfff1d0, 0.95).setDepth(42);
+    this.tweens.add({ targets: core, alpha: 0, scale: 3.8, duration: 260, ease: 'Cubic.easeOut', onComplete: () => core.destroy() });
+    // colored glow
+    const glow = this.add.circle(x, y, size * 0.45, color, 0.42).setDepth(40);
+    this.tweens.add({ targets: glow, alpha: 0, scale: 4.4, duration: 360, ease: 'Cubic.easeOut', onComplete: () => glow.destroy() });
+    // outer shockwave ring
+    const r1 = this.add.circle(x, y, 8, color, 0).setStrokeStyle(4, color, 0.95).setDepth(41);
+    this.tweens.add({ targets: r1, radius: size * 1.5, alpha: 0, duration: 460, ease: 'Cubic.easeOut', onComplete: () => r1.destroy() });
+    // white inner ring
+    const r2 = this.add.circle(x, y, 6, 0xffffff, 0).setStrokeStyle(2, 0xffffff, 0.7).setDepth(41);
+    this.tweens.add({ targets: r2, radius: size * 0.9, alpha: 0, duration: 340, ease: 'Cubic.easeOut', onComplete: () => r2.destroy() });
+    // delayed secondary ring
+    this.time.delayedCall(120, () => {
+      const r3 = this.add.circle(x, y, 6, color, 0).setStrokeStyle(2, color, 0.6).setDepth(41);
+      this.tweens.add({ targets: r3, radius: size * 1.8, alpha: 0, duration: 420, ease: 'Cubic.easeOut', onComplete: () => r3.destroy() });
+    });
+    // smoke puffs (3 dark puffs that linger)
+    if (!this.isLowFxMode()) {
+      for (let i = 0; i < 3; i += 1) {
+        const ang = Phaser.Math.FloatBetween(0, Math.PI * 2);
+        const dist = Phaser.Math.Between(8, size * 0.6);
+        const smoke = this.add.circle(
+          x + Math.cos(ang) * dist,
+          y + Math.sin(ang) * dist,
+          size * 0.25,
+          0x3a3e44,
+          0.55,
+        ).setDepth(39);
+        this.tweens.add({
+          targets: smoke,
+          x: smoke.x + Math.cos(ang) * size * 0.4,
+          y: smoke.y + Math.sin(ang) * size * 0.4 - 12,
+          scale: 2.2,
+          alpha: 0,
+          duration: 720,
+          ease: 'Sine.easeOut',
+          onComplete: () => smoke.destroy(),
+        });
+      }
     }
-    this.cameras.main.shake(140, 0.004);
+    // debris (radial sparks)
+    const debrisCount = this.isLowFxMode() ? 8 : 16;
+    for (let i = 0; i < debrisCount; i += 1) {
+      const a = (i / debrisCount) * Math.PI * 2 + Phaser.Math.FloatBetween(-0.18, 0.18);
+      const d = Phaser.Math.Between(size * 1.2, size * 3.6);
+      const sp = this.add.circle(x, y, Phaser.Math.FloatBetween(1.5, 4), i % 3 === 0 ? 0xffffff : color, 0.95).setDepth(43);
+      this.tweens.add({
+        targets: sp,
+        x: x + Math.cos(a) * d,
+        y: y + Math.sin(a) * d,
+        alpha: 0,
+        scale: 0.1,
+        duration: 220 + Phaser.Math.Between(0, 320),
+        ease: 'Cubic.easeOut',
+        onComplete: () => sp.destroy(),
+      });
+    }
+    this.cameras.main.shake(180, 0.0055);
   }
 
   private levelUpBurst() {
     const x = this.player.x;
     const y = this.player.y;
-    for (let i = 0; i < 16; i += 1) {
-      const a = (i / 16) * Math.PI * 2;
-      const p = this.add.circle(x, y, 3, i % 2 === 0 ? 0x4d8eff : 0xe8f7f4, 0.9).setDepth(44);
-      this.tweens.add({ targets: p, x: x + Math.cos(a) * 80, y: y + Math.sin(a) * 80, alpha: 0, scale: 0.2, duration: 400, ease: 'Cubic.easeOut', onComplete: () => p.destroy() });
+    // central flash
+    const flash = this.add.circle(x, y, 24, 0xffffff, 0.92).setDepth(44);
+    this.tweens.add({ targets: flash, alpha: 0, scale: 3.6, duration: 320, ease: 'Cubic.easeOut', onComplete: () => flash.destroy() });
+    // gold + blue dual rings
+    const ringGold = this.add.circle(x, y, 12, 0xf5c542, 0)
+      .setStrokeStyle(3, 0xf5c542, 0.95).setDepth(43);
+    this.tweens.add({ targets: ringGold, radius: 100, alpha: 0, duration: 520, ease: 'Cubic.easeOut', onComplete: () => ringGold.destroy() });
+    const ringBlue = this.add.circle(x, y, 8, 0x4d8eff, 0)
+      .setStrokeStyle(2, 0x4d8eff, 0.85).setDepth(43);
+    this.tweens.add({ targets: ringBlue, radius: 70, alpha: 0, duration: 440, ease: 'Cubic.easeOut', onComplete: () => ringBlue.destroy() });
+    // rising particles
+    for (let i = 0; i < 18; i += 1) {
+      const a = (i / 18) * Math.PI * 2;
+      const p = this.add.circle(x, y, 3.4, i % 3 === 0 ? 0xf5c542 : i % 3 === 1 ? 0xffffff : 0x4d8eff, 0.95).setDepth(44);
+      this.tweens.add({
+        targets: p,
+        x: x + Math.cos(a) * 96,
+        y: y + Math.sin(a) * 96 - 22,
+        alpha: 0,
+        scale: 0.18,
+        duration: 520,
+        ease: 'Cubic.easeOut',
+        onComplete: () => p.destroy(),
+      });
     }
-    const flash = this.add.circle(x, y, 20, 0xe8f7f4, 0.8).setDepth(43);
-    this.tweens.add({ targets: flash, alpha: 0, scale: 3, duration: 300, ease: 'Cubic.easeOut', onComplete: () => flash.destroy() });
-    this.cameras.main.shake(80, 0.002);
+    // hexagon outline pulse
+    if (!this.isLowFxMode()) {
+      const hex = this.add.graphics().setDepth(43);
+      const startR = 28;
+      hex.lineStyle(2, 0xf5c542, 0.85);
+      const drawHex = (r: number) => {
+        hex.beginPath();
+        for (let i = 0; i < 6; i += 1) {
+          const a = i * (Math.PI / 3) - Math.PI / 6;
+          const px = x + Math.cos(a) * r;
+          const py = y + Math.sin(a) * r;
+          if (i === 0) hex.moveTo(px, py); else hex.lineTo(px, py);
+        }
+        hex.closePath();
+        hex.strokePath();
+      };
+      drawHex(startR);
+      this.tweens.addCounter({
+        from: startR,
+        to: 140,
+        duration: 520,
+        ease: 'Cubic.easeOut',
+        onUpdate: (tw) => {
+          hex.clear();
+          hex.lineStyle(2, 0xf5c542, 0.85 * (1 - tw.progress));
+          drawHex(tw.getValue() ?? 0);
+        },
+        onComplete: () => hex.destroy(),
+      });
+    }
+    this.cameras.main.shake(120, 0.0032);
     this.playCue('levelup');
   }
 
