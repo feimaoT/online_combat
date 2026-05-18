@@ -1020,8 +1020,9 @@ const MAX_WEAPON_SLOTS = 5;
 const PERFECT_WEAPON_LEVEL = 6;
 const PERFECT_VEHICLE_RANK = 6;
 const TARGET_RANGE_MIN = 220;
-const TARGET_RANGE_MAX = 980;
-const TARGET_RANGE_STEP = 60;
+const TARGET_RANGE_MAX = 1400;
+const TARGET_RANGE_STEP = 80;
+const TARGET_RANGE_DEFAULT = 760;
 const BOSS_MINIMAP_COLOR = 0xff9f1c;
 const MIN_BOSS_COUNT = 5;
 const BOSS_START_MS = 5 * 60 * 1000;
@@ -1255,7 +1256,7 @@ class MainScene extends Phaser.Scene {
   private vehicleExpiresAt = 0;
   private vehicleShield = 0;
   private maxVehicleShield = 0;
-  private targetRange = 560;
+  private targetRange = TARGET_RANGE_DEFAULT;
   private areaAlert = 0;
   private isChoosingUpgrade = false;
   private isGameOver = false;
@@ -1490,7 +1491,7 @@ class MainScene extends Phaser.Scene {
     this.vehicleShield = 0;
     this.maxVehicleShield = 0;
     this.lockedBossVehicle = savedLockedBossVehicle;
-    this.targetRange = 560;
+    this.targetRange = TARGET_RANGE_DEFAULT;
     this.areaAlert = 0;
     this.isChoosingUpgrade = false;
     this.isGameOver = false;
@@ -3075,9 +3076,7 @@ class MainScene extends Phaser.Scene {
     };
     document.addEventListener('fullscreenchange', onFullscreenChange);
 
-    const target =
-      (this.game.canvas as FullscreenElement) ||
-      document.documentElement;
+    const target = document.documentElement as FullscreenElement;
 
     const requestFullscreen =
       target.requestFullscreen?.bind(target) ??
@@ -3621,196 +3620,423 @@ class MainScene extends Phaser.Scene {
 
   private createTextures() {
     this.makeTexture('grid-tile', 256, 256, (g) => {
-      g.fillStyle(0x080b10, 1);
+      // deep gradient background
+      g.fillStyle(0x040712, 1);
       g.fillRect(0, 0, 256, 256);
-      g.lineStyle(1, 0x1f3a3b, 0.7);
+      g.fillStyle(0x08152a, 0.6);
+      g.fillRect(0, 0, 256, 128);
+      // fine grid
+      g.lineStyle(1, 0x0a3a5e, 0.5);
       for (let i = 0; i <= 256; i += 32) {
         g.lineBetween(i, 0, i, 256);
         g.lineBetween(0, i, 256, i);
       }
-      g.lineStyle(2, 0x2c6e64, 0.28);
+      // strong central axes
+      g.lineStyle(1.5, 0x00f0ff, 0.32);
       g.lineBetween(0, 128, 256, 128);
       g.lineBetween(128, 0, 128, 256);
-      g.fillStyle(0x9fffe0, 0.42);
-      g.fillRect(124, 124, 8, 8);
+      // corner markers / bracket motifs
+      g.lineStyle(1.5, 0x00f0ff, 0.55);
+      const drawBracket = (x: number, y: number) => {
+        g.lineBetween(x, y, x + 12, y);
+        g.lineBetween(x, y, x, y + 12);
+      };
+      drawBracket(2, 2);
+      g.lineStyle(1.5, 0x00f0ff, 0.55);
+      g.lineBetween(254, 2, 242, 2);
+      g.lineBetween(254, 2, 254, 14);
+      g.lineBetween(2, 254, 14, 254);
+      g.lineBetween(2, 254, 2, 242);
+      g.lineBetween(254, 254, 242, 254);
+      g.lineBetween(254, 254, 254, 242);
+      // intersection nodes
+      g.fillStyle(0x00f0ff, 0.55);
+      g.fillRect(126, 126, 4, 4);
+      g.fillStyle(0xff3ad9, 0.7);
+      g.fillCircle(128, 128, 1.5);
+      // accent diagonals (subtle)
+      g.lineStyle(1, 0x9b6bff, 0.18);
+      g.lineBetween(0, 0, 256, 256);
+      g.lineBetween(256, 0, 0, 256);
     });
 
     this.makeTexture('unit-mech', 58, 44, (g) => {
-      g.fillStyle(0x111a1f, 1);
+      // base hull glow
+      g.fillStyle(0x001a26, 1);
+      g.fillRoundedRect(9, 6, 36, 32, 6);
+      // chest plate
+      g.fillStyle(0x0a2a36, 1);
       g.fillRoundedRect(11, 8, 32, 28, 5);
-      g.lineStyle(2, 0x36f0d2, 1);
+      g.lineStyle(2.5, 0x00f0ff, 1);
       g.strokeRoundedRect(11, 8, 32, 28, 5);
-      g.fillStyle(0x263238, 1);
-      g.fillRect(3, 15, 12, 7);
-      g.fillRect(3, 25, 12, 7);
-      g.fillRect(40, 17, 14, 5);
-      g.fillRect(40, 26, 14, 5);
-      g.fillStyle(0x9fffe0, 1);
-      g.fillRect(27, 18, 17, 4);
-      g.fillRect(27, 25, 17, 4);
-      g.fillStyle(0xffd166, 1);
-      g.fillRect(42, 20, 5, 9);
+      // chest emblem
+      g.fillStyle(0x00f0ff, 0.85);
+      g.fillTriangle(27, 12, 21, 32, 33, 32);
+      g.fillStyle(0xffffff, 0.9);
+      g.fillCircle(27, 22, 2.5);
+      // shoulder armor
+      g.fillStyle(0x06181f, 1);
+      g.fillRoundedRect(2, 13, 12, 9, 2);
+      g.fillRoundedRect(2, 23, 12, 9, 2);
+      g.lineStyle(1.5, 0x00f0ff, 0.85);
+      g.strokeRoundedRect(2, 13, 12, 9, 2);
+      g.strokeRoundedRect(2, 23, 12, 9, 2);
+      // arm cannons with glowing barrels
+      g.fillStyle(0x10242a, 1);
+      g.fillRoundedRect(40, 16, 16, 6, 2);
+      g.fillRoundedRect(40, 25, 16, 6, 2);
+      g.fillStyle(0xb6ff3a, 1);
+      g.fillRect(52, 18, 4, 2);
+      g.fillRect(52, 27, 4, 2);
+      // accent lines
+      g.lineStyle(1, 0xff3ad9, 0.9);
+      g.lineBetween(14, 36, 40, 36);
+      g.fillStyle(0xffcc33, 1);
+      g.fillRect(42, 21, 4, 7);
     });
 
     this.makeTexture('unit-bike', 68, 34, (g) => {
-      g.lineStyle(3, 0x36f0d2, 1);
+      // hover wheels (neon halos)
+      g.fillStyle(0x00131c, 1);
+      g.fillCircle(14, 25, 9);
+      g.fillCircle(52, 25, 9);
+      g.lineStyle(3, 0x00f0ff, 1);
       g.strokeCircle(14, 25, 8);
       g.strokeCircle(52, 25, 8);
-      g.fillStyle(0x0f181c, 1);
-      g.fillRoundedRect(18, 12, 32, 11, 4);
-      g.fillStyle(0xffd166, 1);
-      g.fillTriangle(48, 12, 65, 17, 48, 22);
-      g.lineStyle(2, 0x9fffe0, 1);
-      g.lineBetween(24, 12, 41, 4);
-      g.lineBetween(35, 22, 51, 15);
+      g.fillStyle(0xff3ad9, 1);
+      g.fillCircle(14, 25, 2.5);
+      g.fillCircle(52, 25, 2.5);
+      // chassis body
+      g.fillStyle(0x06141c, 1);
+      g.fillRoundedRect(16, 10, 36, 13, 4);
+      g.lineStyle(1.5, 0x00f0ff, 0.85);
+      g.strokeRoundedRect(16, 10, 36, 13, 4);
+      // cockpit canopy
+      g.fillStyle(0x6dfff2, 0.85);
+      g.fillTriangle(22, 10, 36, 4, 36, 10);
+      // nose / thruster
+      g.fillStyle(0xffcc33, 1);
+      g.fillTriangle(50, 11, 67, 17, 50, 23);
+      g.fillStyle(0xffffff, 0.95);
+      g.fillTriangle(54, 14, 64, 17, 54, 20);
+      // racing stripe
+      g.lineStyle(1.5, 0xff3ad9, 1);
+      g.lineBetween(18, 17, 50, 17);
     });
 
     this.makeTexture('unit-tank', 76, 54, (g) => {
-      g.fillStyle(0x151d21, 1);
-      g.fillRoundedRect(7, 8, 56, 38, 5);
-      g.lineStyle(2, 0xa7e65d, 1);
-      g.strokeRoundedRect(7, 8, 56, 38, 5);
-      g.fillStyle(0x28351e, 1);
-      g.fillRoundedRect(17, 15, 29, 24, 5);
-      g.fillStyle(0xffd166, 1);
-      g.fillRect(42, 24, 30, 6);
-      g.fillStyle(0x0a0f12, 1);
-      for (let i = 10; i <= 58; i += 12) {
-        g.fillCircle(i, 46, 3);
-        g.fillCircle(i, 8, 3);
+      // tracks
+      g.fillStyle(0x040707, 1);
+      g.fillRoundedRect(5, 4, 60, 7, 2);
+      g.fillRoundedRect(5, 43, 60, 7, 2);
+      g.fillStyle(0x14201a, 1);
+      for (let i = 8; i <= 60; i += 6) {
+        g.fillRect(i, 5, 4, 5);
+        g.fillRect(i, 44, 4, 5);
       }
+      // main hull
+      g.fillStyle(0x0c1d12, 1);
+      g.fillRoundedRect(7, 8, 56, 38, 5);
+      g.lineStyle(2.5, 0xb6ff3a, 1);
+      g.strokeRoundedRect(7, 8, 56, 38, 5);
+      // turret
+      g.fillStyle(0x18301c, 1);
+      g.fillRoundedRect(17, 15, 29, 24, 5);
+      g.lineStyle(1.5, 0xb6ff3a, 0.9);
+      g.strokeRoundedRect(17, 15, 29, 24, 5);
+      g.fillStyle(0x6dfff2, 0.95);
+      g.fillCircle(32, 27, 4);
+      // main cannon
+      g.fillStyle(0x070d09, 1);
+      g.fillRoundedRect(42, 23, 32, 8, 2);
+      g.fillStyle(0xffcc33, 1);
+      g.fillRect(70, 24, 4, 6);
+      // chevrons
+      g.lineStyle(1.5, 0xff3ad9, 1);
+      g.lineBetween(20, 19, 26, 22);
+      g.lineBetween(26, 22, 20, 25);
     });
 
     this.makeTexture('unit-fighter', 78, 58, (g) => {
-      g.fillStyle(0x10181e, 1);
+      // wing shadow
+      g.fillStyle(0x000810, 1);
+      g.fillTriangle(6, 29, 56, 6, 72, 29);
+      g.fillTriangle(6, 29, 56, 52, 72, 29);
+      // main wing
+      g.fillStyle(0x06182a, 1);
       g.fillTriangle(8, 29, 56, 8, 70, 29);
       g.fillTriangle(8, 29, 56, 50, 70, 29);
-      g.lineStyle(2, 0x36f0d2, 1);
+      g.lineStyle(2.5, 0x00f0ff, 1);
       g.strokeTriangle(8, 29, 56, 8, 70, 29);
       g.strokeTriangle(8, 29, 56, 50, 70, 29);
-      g.fillStyle(0xff6961, 1);
-      g.fillRect(33, 25, 26, 8);
-      g.fillStyle(0x9fffe0, 1);
-      g.fillRect(50, 26, 12, 6);
+      // fuselage
+      g.fillStyle(0x081f30, 1);
+      g.fillRoundedRect(28, 22, 38, 14, 4);
+      // cockpit canopy
+      g.fillStyle(0xff3ad9, 0.95);
+      g.fillTriangle(34, 26, 56, 22, 56, 36);
+      g.fillStyle(0xffffff, 0.9);
+      g.fillCircle(48, 29, 2);
+      // nose tip
+      g.fillStyle(0xffcc33, 1);
+      g.fillRect(62, 26, 14, 7);
+      g.fillStyle(0xb6ff3a, 1);
+      g.fillRect(72, 27, 4, 5);
+      // wing accents
+      g.lineStyle(1.5, 0x9b6bff, 0.95);
+      g.lineBetween(20, 18, 38, 30);
+      g.lineBetween(20, 40, 38, 28);
     });
 
     this.makeTexture('unit-hover', 74, 46, (g) => {
-      g.fillStyle(0x0f181c, 1);
-      g.fillRoundedRect(10, 13, 50, 20, 10);
-      g.lineStyle(2, 0x36f0d2, 1);
-      g.strokeRoundedRect(10, 13, 50, 20, 10);
-      g.fillStyle(0x9fffe0, 0.9);
-      g.fillCircle(16, 23, 5);
-      g.fillCircle(58, 23, 5);
-      g.fillStyle(0xffd166, 1);
-      g.fillTriangle(52, 16, 70, 23, 52, 30);
+      // hover thrust glow
+      g.fillStyle(0x00f0ff, 0.18);
+      g.fillEllipse(37, 36, 56, 10);
+      // hull
+      g.fillStyle(0x05141c, 1);
+      g.fillRoundedRect(10, 12, 50, 22, 11);
+      g.lineStyle(2.5, 0x00f0ff, 1);
+      g.strokeRoundedRect(10, 12, 50, 22, 11);
+      // canopy strip
+      g.fillStyle(0x6dfff2, 0.9);
+      g.fillRoundedRect(18, 16, 32, 6, 3);
+      g.fillStyle(0xffffff, 0.85);
+      g.fillRect(36, 17, 8, 4);
+      // hover pods
+      g.fillStyle(0x081f2a, 1);
+      g.fillCircle(16, 23, 6);
+      g.fillCircle(58, 23, 6);
+      g.lineStyle(1.5, 0xff3ad9, 0.95);
+      g.strokeCircle(16, 23, 5);
+      g.strokeCircle(58, 23, 5);
+      // nose blaster
+      g.fillStyle(0xffcc33, 1);
+      g.fillTriangle(50, 15, 72, 23, 50, 31);
+      g.fillStyle(0xffffff, 0.9);
+      g.fillTriangle(58, 19, 68, 23, 58, 27);
     });
 
     this.makeTexture('unit-railgun', 82, 44, (g) => {
-      g.fillStyle(0x12181f, 1);
+      // hull
+      g.fillStyle(0x05121f, 1);
       g.fillRoundedRect(7, 12, 52, 24, 5);
-      g.lineStyle(2, 0x5bc0ff, 1);
+      g.lineStyle(2.5, 0x6dfff2, 1);
       g.strokeRoundedRect(7, 12, 52, 24, 5);
-      g.fillStyle(0x263238, 1);
-      g.fillRect(20, 18, 34, 12);
-      g.fillStyle(0x9fffe0, 1);
-      g.fillRect(47, 19, 31, 4);
-      g.fillRect(47, 26, 31, 4);
-      g.fillStyle(0x0a0f12, 1);
+      // panel detail
+      g.fillStyle(0x0a2840, 1);
+      g.fillRoundedRect(12, 16, 18, 16, 2);
+      g.lineStyle(1, 0x00f0ff, 0.9);
+      g.strokeRoundedRect(12, 16, 18, 16, 2);
+      g.fillStyle(0xff3ad9, 1);
+      g.fillCircle(21, 24, 2.5);
+      // rail barrels
+      g.fillStyle(0x0e2030, 1);
+      g.fillRect(20, 17, 34, 12);
+      g.fillStyle(0x6dfff2, 1);
+      g.fillRect(47, 18, 32, 5);
+      g.fillRect(47, 26, 32, 5);
+      g.fillStyle(0xffffff, 0.9);
+      g.fillRect(74, 19, 4, 3);
+      g.fillRect(74, 27, 4, 3);
+      // landing struts
+      g.fillStyle(0x05101a, 1);
       g.fillCircle(18, 37, 4);
       g.fillCircle(48, 37, 4);
+      g.lineStyle(1, 0x00f0ff, 0.85);
+      g.strokeCircle(18, 37, 4);
+      g.strokeCircle(48, 37, 4);
     });
 
     this.makeTexture('unit-walker', 68, 58, (g) => {
-      g.fillStyle(0x151b1f, 1);
+      // hull
+      g.fillStyle(0x14092a, 1);
       g.fillRoundedRect(18, 13, 30, 26, 5);
-      g.lineStyle(2, 0xba7cff, 1);
+      g.lineStyle(2.5, 0x9b6bff, 1);
       g.strokeRoundedRect(18, 13, 30, 26, 5);
-      g.fillStyle(0x9fffe0, 1);
+      // canopy
+      g.fillStyle(0xff3ad9, 0.85);
+      g.fillRoundedRect(22, 16, 22, 9, 3);
+      g.fillStyle(0xffffff, 0.85);
+      g.fillCircle(38, 20, 1.8);
+      // weapon arm
+      g.fillStyle(0x0c1f10, 1);
+      g.fillRect(33, 22, 28, 8);
+      g.fillStyle(0xb6ff3a, 1);
       g.fillRect(35, 23, 24, 6);
-      g.lineStyle(3, 0x59646b, 1);
-      g.lineBetween(21, 36, 9, 51);
-      g.lineBetween(44, 36, 57, 51);
+      g.fillStyle(0xffffff, 0.95);
+      g.fillRect(56, 24, 4, 4);
+      // legs
+      g.lineStyle(3, 0x6a4ec9, 1);
+      g.lineBetween(22, 38, 9, 53);
+      g.lineBetween(44, 38, 57, 53);
       g.lineBetween(22, 16, 8, 4);
       g.lineBetween(44, 16, 58, 4);
-      g.fillStyle(0xffd166, 1);
-      g.fillCircle(40, 26, 4);
+      // foot joints
+      g.fillStyle(0xffcc33, 1);
+      g.fillCircle(9, 53, 3);
+      g.fillCircle(57, 53, 3);
+      g.fillCircle(8, 4, 3);
+      g.fillCircle(58, 4, 3);
     });
 
     this.makeTexture('unit-artillery', 82, 48, (g) => {
-      g.fillStyle(0x1e1b16, 1);
+      // hull
+      g.fillStyle(0x261d09, 1);
       g.fillRoundedRect(8, 12, 54, 26, 5);
-      g.lineStyle(2, 0xffd166, 1);
+      g.lineStyle(2.5, 0xffcc33, 1);
       g.strokeRoundedRect(8, 12, 54, 26, 5);
-      g.fillStyle(0xff6961, 1);
+      // ammo loader
+      g.fillStyle(0x140e05, 1);
+      g.fillRect(12, 16, 14, 18);
+      g.lineStyle(1, 0xff9a1f, 0.9);
+      g.strokeRect(12, 16, 14, 18);
+      g.fillStyle(0xff4663, 1);
+      g.fillCircle(19, 21, 2);
+      g.fillCircle(19, 29, 2);
+      // missile rack
+      g.fillStyle(0xff4663, 1);
       g.fillRect(34, 12, 39, 6);
       g.fillRect(34, 21, 39, 6);
       g.fillRect(34, 30, 39, 6);
-      g.fillStyle(0x0a0f12, 1);
+      g.fillStyle(0xffcc33, 1);
+      g.fillRect(70, 13, 4, 4);
+      g.fillRect(70, 22, 4, 4);
+      g.fillRect(70, 31, 4, 4);
+      // treads
+      g.fillStyle(0x040504, 1);
       g.fillCircle(20, 39, 4);
       g.fillCircle(50, 39, 4);
+      g.lineStyle(1, 0xff9a1f, 0.7);
+      g.strokeCircle(20, 39, 4);
+      g.strokeCircle(50, 39, 4);
     });
 
     this.makeTexture('unit-buggy', 74, 42, (g) => {
-      g.fillStyle(0x10181e, 1);
+      // chassis
+      g.fillStyle(0x051421, 1);
       g.fillRoundedRect(10, 13, 46, 18, 5);
-      g.lineStyle(2, 0x36f0d2, 1);
+      g.lineStyle(2.5, 0x00f0ff, 1);
       g.strokeRoundedRect(10, 13, 46, 18, 5);
-      g.fillStyle(0xffd166, 1);
-      g.fillTriangle(54, 14, 70, 22, 54, 30);
-      g.fillStyle(0x0a0f12, 1);
-      g.fillCircle(19, 33, 6);
-      g.fillCircle(50, 33, 6);
-      g.fillStyle(0x9fffe0, 1);
-      g.fillRect(31, 8, 14, 6);
+      // canopy
+      g.fillStyle(0x6dfff2, 0.92);
+      g.fillRoundedRect(28, 7, 18, 8, 3);
+      g.fillStyle(0xffffff, 0.85);
+      g.fillRect(36, 9, 6, 4);
+      // booster
+      g.fillStyle(0xffcc33, 1);
+      g.fillTriangle(54, 14, 72, 22, 54, 30);
+      g.fillStyle(0xff3ad9, 1);
+      g.fillTriangle(60, 17, 70, 22, 60, 27);
+      // wheels
+      g.fillStyle(0x040506, 1);
+      g.fillCircle(19, 33, 7);
+      g.fillCircle(50, 33, 7);
+      g.lineStyle(1.5, 0x00f0ff, 0.85);
+      g.strokeCircle(19, 33, 6);
+      g.strokeCircle(50, 33, 6);
+      g.fillStyle(0xff3ad9, 1);
+      g.fillCircle(19, 33, 2);
+      g.fillCircle(50, 33, 2);
     });
 
     this.makeTexture('unit-laser-van', 80, 48, (g) => {
-      g.fillStyle(0x111923, 1);
+      // hull
+      g.fillStyle(0x031628, 1);
       g.fillRoundedRect(9, 11, 54, 28, 6);
-      g.lineStyle(2, 0x5bc0ff, 1);
+      g.lineStyle(2.5, 0x6dfff2, 1);
       g.strokeRoundedRect(9, 11, 54, 28, 6);
-      g.fillStyle(0x263238, 1);
-      g.fillRect(20, 17, 30, 16);
-      g.fillStyle(0x5bc0ff, 1);
-      g.fillRect(48, 22, 29, 5);
-      g.fillStyle(0xba7cff, 1);
-      g.fillCircle(36, 25, 6);
+      // core glow
+      g.fillStyle(0x9b6bff, 0.45);
+      g.fillCircle(36, 25, 12);
+      g.fillStyle(0x9b6bff, 1);
+      g.fillCircle(36, 25, 7);
+      g.fillStyle(0xffffff, 0.95);
+      g.fillCircle(36, 25, 3);
+      // side vents
+      g.fillStyle(0x05223a, 1);
+      g.fillRect(13, 16, 6, 18);
+      g.lineStyle(1, 0x00f0ff, 0.85);
+      g.strokeRect(13, 16, 6, 18);
+      // laser emitter
+      g.fillStyle(0x6dfff2, 1);
+      g.fillRect(48, 22, 30, 5);
+      g.fillStyle(0xffffff, 0.95);
+      g.fillRect(72, 22, 6, 5);
+      // antenna
+      g.lineStyle(1.5, 0xff3ad9, 1);
+      g.lineBetween(20, 11, 26, 4);
     });
 
     this.makeTexture('unit-flame-rig', 84, 50, (g) => {
-      g.fillStyle(0x211612, 1);
+      // hull
+      g.fillStyle(0x2d0a08, 1);
       g.fillRoundedRect(8, 12, 56, 28, 6);
-      g.lineStyle(2, 0xff9f1c, 1);
+      g.lineStyle(2.5, 0xff9a1f, 1);
       g.strokeRoundedRect(8, 12, 56, 28, 6);
-      g.fillStyle(0xff6961, 1);
-      g.fillRect(50, 20, 29, 7);
-      g.fillStyle(0xffd166, 1);
-      g.fillTriangle(72, 16, 83, 23, 72, 31);
-      g.fillStyle(0x0a0f12, 1);
+      // canopy
+      g.fillStyle(0xffcc33, 0.55);
+      g.fillRoundedRect(14, 16, 18, 8, 3);
+      // fuel tanks
+      g.fillStyle(0x140605, 1);
+      g.fillRoundedRect(36, 16, 12, 18, 3);
+      g.lineStyle(1.5, 0xffcc33, 0.95);
+      g.strokeRoundedRect(36, 16, 12, 18, 3);
+      g.fillStyle(0xff4663, 1);
+      g.fillCircle(42, 21, 2);
+      g.fillCircle(42, 29, 2);
+      // flame nozzle
+      g.fillStyle(0xff4663, 1);
+      g.fillRect(50, 19, 28, 8);
+      g.fillStyle(0xffcc33, 1);
+      g.fillTriangle(72, 14, 83, 23, 72, 32);
+      g.fillStyle(0xffffff, 0.95);
+      g.fillTriangle(76, 19, 82, 23, 76, 27);
+      // wheels
+      g.fillStyle(0x040506, 1);
       g.fillCircle(22, 41, 4);
       g.fillCircle(54, 41, 4);
+      g.lineStyle(1, 0xff9a1f, 0.85);
+      g.strokeCircle(22, 41, 4);
+      g.strokeCircle(54, 41, 4);
     });
 
     this.makeTexture('enemy-drone', 38, 38, (g) => {
-      g.fillStyle(0x142022, 1);
-      g.fillCircle(19, 19, 13);
-      g.lineStyle(2, 0x8ddbd1, 1);
+      g.fillStyle(0x001a26, 1);
+      g.fillCircle(19, 19, 14);
+      g.fillStyle(0x062430, 1);
+      g.fillCircle(19, 19, 12);
+      g.lineStyle(2.5, 0x00f0ff, 1);
       g.strokeCircle(19, 19, 13);
-      g.fillStyle(0xff6961, 1);
-      g.fillCircle(25, 19, 4);
-      g.lineStyle(2, 0x8ddbd1, 0.7);
+      // eye
+      g.fillStyle(0xff4663, 1);
+      g.fillCircle(25, 19, 5);
+      g.fillStyle(0xffffff, 0.95);
+      g.fillCircle(26, 18, 2);
+      // antenna
+      g.lineStyle(2, 0x00f0ff, 0.85);
       g.lineBetween(2, 19, 36, 19);
+      g.fillStyle(0x6dfff2, 1);
+      g.fillCircle(3, 19, 1.6);
+      g.fillCircle(35, 19, 1.6);
     });
 
     this.makeTexture('enemy-stalker', 46, 34, (g) => {
-      g.fillStyle(0x1f1710, 1);
+      g.fillStyle(0x2a1a06, 1);
       g.fillRoundedRect(8, 9, 27, 14, 4);
-      g.lineStyle(2, 0xffbd59, 1);
+      g.lineStyle(2.5, 0xff9a1f, 1);
       g.strokeRoundedRect(8, 9, 27, 14, 4);
-      g.fillStyle(0xff6961, 1);
-      g.fillTriangle(32, 12, 43, 17, 32, 22);
-      g.lineStyle(2, 0xffbd59, 0.9);
+      // visor
+      g.fillStyle(0xff4663, 0.95);
+      g.fillRect(11, 13, 18, 5);
+      g.fillStyle(0xffffff, 0.9);
+      g.fillRect(24, 14, 4, 3);
+      // claw
+      g.fillStyle(0xff4663, 1);
+      g.fillTriangle(32, 12, 45, 17, 32, 22);
+      g.fillStyle(0xffcc33, 1);
+      g.fillTriangle(36, 14, 43, 17, 36, 20);
+      // limbs
+      g.lineStyle(2, 0xff9a1f, 0.95);
       g.lineBetween(13, 23, 6, 32);
       g.lineBetween(24, 23, 19, 32);
       g.lineBetween(14, 9, 6, 2);
@@ -3818,27 +4044,51 @@ class MainScene extends Phaser.Scene {
     });
 
     this.makeTexture('enemy-hopper', 44, 42, (g) => {
-      g.fillStyle(0x0f1c22, 1);
+      g.fillStyle(0x041a2a, 1);
       g.fillRoundedRect(10, 10, 24, 18, 5);
-      g.lineStyle(2, 0x64f5ff, 1);
+      g.lineStyle(2.5, 0x00f0ff, 1);
       g.strokeRoundedRect(10, 10, 24, 18, 5);
-      g.fillStyle(0xff6961, 1);
-      g.fillCircle(28, 18, 4);
-      g.lineStyle(3, 0x64f5ff, 0.92);
+      // eye
+      g.fillStyle(0xff4663, 1);
+      g.fillCircle(28, 18, 5);
+      g.fillStyle(0xffffff, 0.95);
+      g.fillCircle(29, 17, 2);
+      // visor stripe
+      g.fillStyle(0x6dfff2, 0.85);
+      g.fillRect(13, 14, 14, 3);
+      // legs
+      g.lineStyle(3, 0x00f0ff, 0.95);
       g.lineBetween(14, 27, 6, 40);
       g.lineBetween(30, 27, 38, 40);
       g.lineBetween(14, 10, 7, 3);
       g.lineBetween(30, 10, 37, 3);
+      g.fillStyle(0xffcc33, 1);
+      g.fillCircle(6, 40, 2);
+      g.fillCircle(38, 40, 2);
     });
 
     this.makeTexture('enemy-leaper', 58, 50, (g) => {
-      g.fillStyle(0x23121f, 1);
+      g.fillStyle(0x320a28, 1);
       g.fillRoundedRect(10, 9, 34, 26, 6);
-      g.lineStyle(3, 0xff8bd1, 1);
+      g.lineStyle(3, 0xff3ad9, 1);
       g.strokeRoundedRect(10, 9, 34, 26, 6);
-      g.fillStyle(0xffd166, 1);
+      // eyes
+      g.fillStyle(0xff4663, 1);
+      g.fillCircle(20, 18, 3);
+      g.fillCircle(33, 18, 3);
+      g.fillStyle(0xffffff, 0.95);
+      g.fillCircle(21, 17, 1.2);
+      g.fillCircle(34, 17, 1.2);
+      // mouth
+      g.fillStyle(0xffcc33, 1);
+      g.fillRect(18, 26, 18, 4);
+      // claw
+      g.fillStyle(0xffcc33, 1);
       g.fillTriangle(39, 16, 55, 25, 39, 34);
-      g.lineStyle(3, 0xff8bd1, 0.9);
+      g.fillStyle(0xff3ad9, 1);
+      g.fillTriangle(43, 19, 53, 25, 43, 31);
+      // limbs
+      g.lineStyle(3, 0xff3ad9, 0.95);
       g.lineBetween(15, 34, 4, 48);
       g.lineBetween(39, 34, 51, 48);
       g.lineBetween(18, 9, 10, 1);
@@ -3846,140 +4096,293 @@ class MainScene extends Phaser.Scene {
     });
 
     this.makeTexture('enemy-warden', 52, 52, (g) => {
-      g.fillStyle(0x132015, 1);
+      g.fillStyle(0x062213, 1);
       g.fillRoundedRect(11, 9, 30, 34, 5);
-      g.lineStyle(2, 0xa7e65d, 1);
+      g.lineStyle(2.5, 0xb6ff3a, 1);
       g.strokeRoundedRect(11, 9, 30, 34, 5);
-      g.fillStyle(0xffd166, 1);
+      // chest core
+      g.fillStyle(0xb6ff3a, 0.9);
+      g.fillCircle(26, 26, 6);
+      g.fillStyle(0xffffff, 0.95);
+      g.fillCircle(26, 26, 2.5);
+      // antennas
+      g.fillStyle(0xffcc33, 1);
       g.fillRect(26, 2, 5, 13);
       g.fillRect(26, 37, 5, 13);
-      g.fillStyle(0xa7e65d, 0.95);
-      g.fillRect(32, 23, 14, 6);
+      g.fillStyle(0xff3ad9, 1);
+      g.fillCircle(28, 3, 2);
+      g.fillCircle(28, 50, 2);
+      // weapon
+      g.fillStyle(0xb6ff3a, 0.95);
+      g.fillRect(32, 23, 16, 6);
+      g.fillStyle(0xffffff, 0.95);
+      g.fillRect(45, 24, 3, 4);
     });
 
     this.makeTexture('enemy-crusher', 62, 58, (g) => {
-      g.fillStyle(0x241615, 1);
+      g.fillStyle(0x320a08, 1);
       g.fillRoundedRect(10, 10, 38, 36, 5);
-      g.lineStyle(3, 0xff6961, 1);
+      g.lineStyle(3, 0xff4663, 1);
       g.strokeRoundedRect(10, 10, 38, 36, 5);
-      g.fillStyle(0xffd166, 1);
-      g.fillRect(38, 24, 20, 8);
-      g.fillStyle(0x0a0f12, 1);
-      g.fillCircle(22, 22, 4);
-      g.fillCircle(22, 35, 4);
+      // armor plates
+      g.fillStyle(0x1a0606, 1);
+      g.fillRect(14, 14, 10, 28);
+      g.fillRect(34, 14, 10, 28);
+      // eyes
+      g.fillStyle(0xffcc33, 1);
+      g.fillCircle(19, 22, 4);
+      g.fillCircle(19, 35, 4);
+      g.fillStyle(0xff4663, 1);
+      g.fillCircle(19, 22, 2);
+      g.fillCircle(19, 35, 2);
+      g.fillStyle(0xffcc33, 1);
+      g.fillCircle(39, 22, 3);
+      g.fillCircle(39, 35, 3);
+      // ram horn
+      g.fillStyle(0xffcc33, 1);
+      g.fillRect(38, 24, 22, 8);
+      g.fillStyle(0xff4663, 1);
+      g.fillTriangle(58, 24, 60, 28, 58, 32);
     });
 
     this.makeTexture('enemy-mender', 54, 44, (g) => {
-      g.fillStyle(0x102015, 1);
+      g.fillStyle(0x062213, 1);
       g.fillRoundedRect(10, 9, 32, 24, 5);
-      g.lineStyle(2, 0xa7e65d, 1);
+      g.lineStyle(2.5, 0xb6ff3a, 1);
       g.strokeRoundedRect(10, 9, 32, 24, 5);
-      g.fillStyle(0xa7e65d, 1);
+      // big plus icon
+      g.fillStyle(0xb6ff3a, 1);
       g.fillRect(24, 13, 5, 16);
       g.fillRect(18, 18, 17, 5);
-      g.lineStyle(2, 0x9fffe0, 0.9);
+      g.fillStyle(0xffffff, 0.85);
+      g.fillRect(25, 14, 3, 14);
+      g.fillRect(19, 19, 15, 3);
+      // healing aura ring
+      g.lineStyle(2, 0x6dfff2, 0.95);
       g.strokeCircle(26, 22, 18);
+      g.lineStyle(1, 0xb6ff3a, 0.6);
+      g.strokeCircle(26, 22, 22);
     });
 
     this.makeTexture('enemy-sniper', 62, 38, (g) => {
-      g.fillStyle(0x101923, 1);
+      g.fillStyle(0x031628, 1);
       g.fillRoundedRect(8, 10, 32, 18, 4);
-      g.lineStyle(2, 0x5bc0ff, 1);
+      g.lineStyle(2.5, 0x6dfff2, 1);
       g.strokeRoundedRect(8, 10, 32, 18, 4);
-      g.fillStyle(0x5bc0ff, 1);
-      g.fillRect(35, 16, 24, 5);
-      g.fillStyle(0xffd166, 1);
-      g.fillCircle(18, 19, 4);
+      // scope
+      g.fillStyle(0x000810, 1);
+      g.fillCircle(20, 19, 6);
+      g.lineStyle(1.5, 0x6dfff2, 0.95);
+      g.strokeCircle(20, 19, 6);
+      g.fillStyle(0xff4663, 1);
+      g.fillCircle(20, 19, 2.5);
+      // barrel
+      g.fillStyle(0x0e2438, 1);
+      g.fillRect(34, 16, 26, 5);
+      g.fillStyle(0x6dfff2, 1);
+      g.fillRect(56, 17, 4, 3);
+      // dot
+      g.fillStyle(0xffcc33, 1);
+      g.fillRect(34, 12, 4, 3);
     });
 
     this.makeTexture('enemy-bomber', 58, 48, (g) => {
-      g.fillStyle(0x241d10, 1);
+      g.fillStyle(0x301f04, 1);
       g.fillCircle(25, 24, 17);
-      g.lineStyle(3, 0xffd166, 1);
+      g.fillStyle(0x140e02, 1);
+      g.fillCircle(25, 24, 14);
+      g.lineStyle(3, 0xffcc33, 1);
       g.strokeCircle(25, 24, 17);
-      g.fillStyle(0xff6961, 1);
+      // exhaust nozzle
+      g.fillStyle(0xff4663, 1);
       g.fillTriangle(37, 17, 55, 24, 37, 31);
-      g.fillStyle(0xe8f7f4, 1);
-      g.fillCircle(25, 24, 5);
+      g.fillStyle(0xffcc33, 1);
+      g.fillTriangle(42, 20, 52, 24, 42, 28);
+      // detonator core
+      g.fillStyle(0xff3ad9, 1);
+      g.fillCircle(25, 24, 6);
+      g.fillStyle(0xffffff, 1);
+      g.fillCircle(25, 24, 2.5);
+      // rivets
+      g.fillStyle(0xffcc33, 1);
+      g.fillCircle(16, 16, 1.5);
+      g.fillCircle(16, 32, 1.5);
+      g.fillCircle(34, 14, 1.5);
+      g.fillCircle(34, 34, 1.5);
     });
 
     this.makeTexture('enemy-turret', 58, 58, (g) => {
-      g.fillStyle(0x10181b, 1);
-      g.fillCircle(29, 29, 21);
-      g.lineStyle(3, 0x9fffe0, 1);
+      g.fillStyle(0x031216, 1);
+      g.fillCircle(29, 29, 22);
+      g.lineStyle(3, 0x00f0ff, 1);
       g.strokeCircle(29, 29, 21);
-      g.fillStyle(0x263238, 1);
-      g.fillRoundedRect(25, 6, 8, 28, 3);
-      g.fillStyle(0xff6961, 1);
+      // inner ring
+      g.lineStyle(1.5, 0xff3ad9, 0.85);
+      g.strokeCircle(29, 29, 17);
+      // barrel
+      g.fillStyle(0x0a2028, 1);
+      g.fillRoundedRect(25, 4, 8, 28, 3);
+      g.lineStyle(1, 0x6dfff2, 0.85);
+      g.strokeRoundedRect(25, 4, 8, 28, 3);
+      // core
+      g.fillStyle(0xff4663, 1);
       g.fillCircle(29, 29, 7);
-      g.lineStyle(2, 0xffd166, 0.8);
+      g.fillStyle(0xffffff, 0.95);
+      g.fillCircle(29, 29, 3);
+      // pads
+      g.lineStyle(2, 0xffcc33, 0.85);
       g.lineBetween(12, 46, 46, 46);
+      g.fillStyle(0xffcc33, 1);
+      g.fillCircle(12, 46, 1.5);
+      g.fillCircle(46, 46, 1.5);
     });
 
     this.makeTexture('enemy-raider', 50, 36, (g) => {
-      g.fillStyle(0x251018, 1);
+      g.fillStyle(0x310812, 1);
       g.fillRoundedRect(8, 9, 30, 18, 5);
-      g.lineStyle(2, 0xff5a76, 1);
+      g.lineStyle(2.5, 0xff4663, 1);
       g.strokeRoundedRect(8, 9, 30, 18, 5);
-      g.fillStyle(0xffd166, 1);
-      g.fillTriangle(35, 7, 48, 18, 35, 29);
-      g.lineStyle(2, 0xff5a76, 0.8);
+      // visor strip
+      g.fillStyle(0xff3ad9, 0.95);
+      g.fillRect(11, 13, 22, 4);
+      g.fillStyle(0xffffff, 0.9);
+      g.fillRect(28, 14, 4, 2);
+      // chevron
+      g.lineStyle(1.5, 0xffcc33, 1);
+      g.lineBetween(14, 22, 18, 19);
+      g.lineBetween(18, 19, 22, 22);
+      // blade
+      g.fillStyle(0xffcc33, 1);
+      g.fillTriangle(35, 7, 49, 18, 35, 29);
+      g.fillStyle(0xffffff, 0.95);
+      g.fillTriangle(40, 13, 47, 18, 40, 23);
+      // legs
+      g.lineStyle(2, 0xff4663, 0.9);
       g.lineBetween(13, 27, 5, 35);
       g.lineBetween(28, 27, 22, 35);
     });
 
     this.makeTexture('enemy-mortar', 62, 48, (g) => {
-      g.fillStyle(0x211d14, 1);
+      g.fillStyle(0x2d2208, 1);
       g.fillRoundedRect(10, 14, 34, 24, 5);
-      g.lineStyle(2, 0xffd166, 1);
+      g.lineStyle(2.5, 0xffcc33, 1);
       g.strokeRoundedRect(10, 14, 34, 24, 5);
-      g.fillStyle(0xff6961, 1);
+      // base panel
+      g.fillStyle(0x140f04, 1);
+      g.fillRect(14, 18, 26, 16);
+      g.lineStyle(1, 0xff9a1f, 0.85);
+      g.strokeRect(14, 18, 26, 16);
+      g.fillStyle(0xff4663, 1);
+      g.fillCircle(20, 26, 2);
+      g.fillCircle(34, 26, 2);
+      // barrel
+      g.fillStyle(0xff4663, 1);
       g.fillRect(28, 4, 10, 30);
-      g.fillStyle(0x0a0f12, 1);
+      g.fillStyle(0xffcc33, 1);
+      g.fillRect(30, 4, 6, 4);
+      // wheels
+      g.fillStyle(0x050504, 1);
       g.fillCircle(19, 40, 4);
       g.fillCircle(44, 40, 4);
+      g.lineStyle(1, 0xffcc33, 0.7);
+      g.strokeCircle(19, 40, 4);
+      g.strokeCircle(44, 40, 4);
     });
 
     this.makeTexture('enemy-shielder', 56, 52, (g) => {
-      g.fillStyle(0x101923, 1);
+      g.fillStyle(0x031628, 1);
       g.fillRoundedRect(16, 10, 26, 32, 5);
-      g.lineStyle(2, 0x9ed7ff, 1);
+      g.lineStyle(2.5, 0x6dfff2, 1);
       g.strokeRoundedRect(16, 10, 26, 32, 5);
-      g.fillStyle(0x5bc0ff, 0.28);
+      // visor
+      g.fillStyle(0xff3ad9, 0.95);
+      g.fillRect(19, 16, 20, 5);
+      // shield bubble
+      g.fillStyle(0x00f0ff, 0.32);
       g.fillCircle(28, 26, 23);
-      g.fillStyle(0xffd166, 1);
+      g.lineStyle(1.5, 0x6dfff2, 0.7);
+      g.strokeCircle(28, 26, 23);
+      g.lineStyle(1, 0x00f0ff, 0.5);
+      g.strokeCircle(28, 26, 18);
+      // weapon
+      g.fillStyle(0xffcc33, 1);
       g.fillRect(36, 24, 16, 5);
+      g.fillStyle(0xffffff, 0.95);
+      g.fillRect(48, 24, 4, 5);
     });
 
     this.makeTexture('enemy-spark', 44, 44, (g) => {
-      g.fillStyle(0x1b1024, 1);
-      g.fillCircle(22, 22, 13);
-      g.lineStyle(2, 0xba7cff, 1);
+      g.fillStyle(0x1a0830, 1);
+      g.fillCircle(22, 22, 14);
+      g.fillStyle(0x0a0420, 1);
+      g.fillCircle(22, 22, 11);
+      g.lineStyle(2.5, 0x9b6bff, 1);
       g.strokeCircle(22, 22, 13);
-      g.fillStyle(0xe8f7f4, 1);
-      g.fillCircle(22, 22, 4);
-      g.lineStyle(2, 0x9fffe0, 0.82);
+      // core
+      g.fillStyle(0xffffff, 1);
+      g.fillCircle(22, 22, 5);
+      g.fillStyle(0x6dfff2, 0.85);
+      g.fillCircle(22, 22, 3);
+      // arcs
+      g.lineStyle(2.5, 0x00f0ff, 0.95);
       g.lineBetween(22, 2, 22, 12);
       g.lineBetween(22, 32, 22, 42);
       g.lineBetween(2, 22, 12, 22);
       g.lineBetween(32, 22, 42, 22);
+      g.lineStyle(1.5, 0xff3ad9, 0.85);
+      g.lineBetween(8, 8, 14, 14);
+      g.lineBetween(30, 30, 36, 36);
+      g.lineBetween(8, 36, 14, 30);
+      g.lineBetween(30, 14, 36, 8);
     });
 
     this.makeTexture('enemy-boss', 96, 84, (g) => {
-      g.fillStyle(0x241013, 1);
+      // glow halo
+      g.fillStyle(0xff3ad9, 0.18);
+      g.fillRoundedRect(8, 6, 70, 70, 12);
+      g.fillStyle(0x300508, 1);
       g.fillRoundedRect(14, 12, 58, 56, 8);
-      g.lineStyle(4, 0xff4d4d, 1);
+      g.lineStyle(4, 0xff4663, 1);
       g.strokeRoundedRect(14, 12, 58, 56, 8);
-      g.fillStyle(0x0a0f12, 1);
-      g.fillCircle(34, 34, 8);
-      g.fillCircle(54, 34, 8);
-      g.fillStyle(0xffd166, 1);
+      // inner armor
+      g.fillStyle(0x180204, 1);
+      g.fillRoundedRect(20, 18, 46, 44, 5);
+      g.lineStyle(1.5, 0xff3ad9, 0.85);
+      g.strokeRoundedRect(20, 18, 46, 44, 5);
+      // dual eyes
+      g.fillStyle(0xffcc33, 1);
+      g.fillCircle(34, 34, 9);
+      g.fillCircle(54, 34, 9);
+      g.fillStyle(0xff4663, 1);
+      g.fillCircle(34, 34, 5);
+      g.fillCircle(54, 34, 5);
+      g.fillStyle(0xffffff, 1);
+      g.fillCircle(35, 33, 2);
+      g.fillCircle(55, 33, 2);
+      // jaw / vents
+      g.fillStyle(0x9b6bff, 1);
+      g.fillRect(28, 50, 32, 5);
+      g.fillStyle(0xff3ad9, 1);
+      g.fillRect(30, 50, 4, 5);
+      g.fillRect(38, 50, 4, 5);
+      g.fillRect(46, 50, 4, 5);
+      g.fillRect(54, 50, 4, 5);
+      // mega cannon
+      g.fillStyle(0xffcc33, 1);
       g.fillRect(66, 36, 25, 10);
-      g.lineStyle(3, 0xba7cff, 0.95);
-      g.lineBetween(24, 12, 8, 2);
-      g.lineBetween(62, 12, 82, 2);
-      g.lineBetween(24, 68, 8, 82);
-      g.lineBetween(62, 68, 82, 82);
+      g.fillStyle(0xffffff, 0.95);
+      g.fillRect(86, 38, 5, 6);
+      // wing spikes
+      g.lineStyle(3, 0x9b6bff, 0.98);
+      g.lineBetween(24, 12, 6, 0);
+      g.lineBetween(62, 12, 84, 0);
+      g.lineBetween(24, 68, 6, 82);
+      g.lineBetween(62, 68, 84, 82);
+      g.fillStyle(0xff3ad9, 1);
+      g.fillCircle(6, 0, 2.5);
+      g.fillCircle(84, 0, 2.5);
+      g.fillCircle(6, 82, 2.5);
+      g.fillCircle(84, 82, 2.5);
     });
 
     this.makeTexture('shot-pulse', 18, 8, (g) => {
@@ -4112,15 +4515,27 @@ class MainScene extends Phaser.Scene {
     });
 
     this.makeTexture('chest', 48, 42, (g) => {
-      g.fillStyle(0x111a1f, 1);
+      // body
+      g.fillStyle(0x06141c, 1);
       g.fillRoundedRect(4, 10, 40, 25, 4);
-      g.lineStyle(2, 0xffd166, 1);
+      g.lineStyle(2.5, 0xffcc33, 1);
       g.strokeRoundedRect(4, 10, 40, 25, 4);
-      g.fillStyle(0x263238, 1);
+      // lid
+      g.fillStyle(0x101e2a, 1);
       g.fillRect(7, 4, 34, 10);
-      g.fillStyle(0x36f0d2, 1);
+      g.lineStyle(1.5, 0xffcc33, 0.9);
+      g.strokeRect(7, 4, 34, 10);
+      // hinges
+      g.fillStyle(0xff3ad9, 1);
+      g.fillCircle(11, 9, 1.5);
+      g.fillCircle(37, 9, 1.5);
+      // lock core
+      g.fillStyle(0x00f0ff, 1);
       g.fillRect(21, 18, 6, 9);
-      g.lineStyle(1, 0x9fffe0, 0.8);
+      g.fillStyle(0xffffff, 0.95);
+      g.fillCircle(24, 22, 1.6);
+      // accent line
+      g.lineStyle(1.5, 0x6dfff2, 0.9);
       g.lineBetween(8, 17, 40, 17);
     });
 
@@ -8350,42 +8765,94 @@ class MainScene extends Phaser.Scene {
 
     this.hud.clear();
 
+    // Left HUD panel backdrop with neon corner brackets
+    if (!isMobilePortrait) {
+      const lpX = hudTextX - 10;
+      const lpY = (isMobileLandscape ? 16 : 20);
+      const lpW = barWidth + 20;
+      const lpH = (isMobileLandscape ? 90 : 108);
+      this.hud.fillStyle(0x040712, 0.78);
+      this.hud.fillRoundedRect(lpX, lpY, lpW, lpH, 6);
+      this.hud.lineStyle(1.5, 0x00f0ff, 0.55);
+      this.hud.strokeRoundedRect(lpX, lpY, lpW, lpH, 6);
+      // corner brackets
+      const bk = 9;
+      this.hud.lineStyle(2, 0x00f0ff, 0.95);
+      this.hud.lineBetween(lpX, lpY, lpX + bk, lpY);
+      this.hud.lineBetween(lpX, lpY, lpX, lpY + bk);
+      this.hud.lineBetween(lpX + lpW, lpY, lpX + lpW - bk, lpY);
+      this.hud.lineBetween(lpX + lpW, lpY, lpX + lpW, lpY + bk);
+      this.hud.lineBetween(lpX, lpY + lpH, lpX + bk, lpY + lpH);
+      this.hud.lineBetween(lpX, lpY + lpH, lpX, lpY + lpH - bk);
+      this.hud.lineBetween(lpX + lpW, lpY + lpH, lpX + lpW - bk, lpY + lpH);
+      this.hud.lineBetween(lpX + lpW, lpY + lpH, lpX + lpW, lpY + lpH - bk);
+    }
+
     const barY1 = isMobileLandscape ? 48 : isMobilePortrait ? 38 : 56;
     const barY2 = isMobileLandscape ? 66 : isMobilePortrait ? 54 : 82;
     const barY3 = isMobileLandscape ? 84 : isMobilePortrait ? 70 : 108;
     const barH1 = isMobileLandscape ? 8 : isMobilePortrait ? 6 : 11;
     const barH2 = isMobileLandscape ? 7 : isMobilePortrait ? 5 : 9;
-    this.hud.fillStyle(0x132022, 1);
+    // HP bar
+    this.hud.fillStyle(0x040712, 0.95);
+    this.hud.fillRect(hudTextX - 1, barY1 - 1, barWidth + 2, barH1 + 2);
+    this.hud.fillStyle(0x150612, 1);
     this.hud.fillRect(hudTextX, barY1, barWidth, barH1);
-    this.hud.fillStyle(0xff6961, 1);
-    this.hud.fillRect(hudTextX, barY1, barWidth * clamp(this.hp / this.maxHp, 0, 1), barH1);
-
-    this.hud.fillStyle(0x132022, 1);
+    const hpRatio = clamp(this.hp / this.maxHp, 0, 1);
+    this.hud.fillStyle(0xff1f4f, 1);
+    this.hud.fillRect(hudTextX, barY1, barWidth * hpRatio, barH1);
+    this.hud.fillStyle(0xff8aa8, 0.85);
+    this.hud.fillRect(hudTextX, barY1, barWidth * hpRatio, Math.max(1, Math.floor(barH1 / 3)));
+    this.hud.lineStyle(1, 0xff4663, 0.85);
+    this.hud.strokeRect(hudTextX, barY1, barWidth, barH1);
+    // XP bar
+    this.hud.fillStyle(0x041820, 1);
     this.hud.fillRect(hudTextX, barY2, barWidth, barH2);
-    this.hud.fillStyle(0x36f0d2, 1);
-    this.hud.fillRect(hudTextX, barY2, barWidth * clamp(this.xp / this.xpToNext, 0, 1), barH2);
-
-    this.hud.fillStyle(0x132022, 1);
+    const xpRatio = clamp(this.xp / this.xpToNext, 0, 1);
+    this.hud.fillStyle(0x00f0ff, 1);
+    this.hud.fillRect(hudTextX, barY2, barWidth * xpRatio, barH2);
+    this.hud.fillStyle(0xffffff, 0.7);
+    this.hud.fillRect(hudTextX, barY2, barWidth * xpRatio, 1);
+    this.hud.lineStyle(1, 0x00f0ff, 0.65);
+    this.hud.strokeRect(hudTextX, barY2, barWidth, barH2);
+    // Alert bar
+    this.hud.fillStyle(0x0c1410, 1);
     this.hud.fillRect(hudTextX, barY3, barWidth, barH2);
-    this.hud.fillStyle(this.areaAlert > 68 ? 0xff6961 : this.areaAlert > 34 ? 0xffd166 : 0xa7e65d, 1);
+    const alertColor =
+      this.areaAlert > 68 ? 0xff1f4f : this.areaAlert > 34 ? 0xffcc33 : 0xb6ff3a;
+    this.hud.fillStyle(alertColor, 1);
     this.hud.fillRect(hudTextX, barY3, barWidth * (this.areaAlert / 100), barH2);
+    this.hud.lineStyle(1, alertColor, 0.65);
+    this.hud.strokeRect(hudTextX, barY3, barWidth, barH2);
 
     this.drawSkillChips(hudTextX, barY3 + barH2 + (isMobileLandscape || isMobilePortrait ? 4 : 8), isCompact);
 
     this.drawMiniMap(minimapX, minimapY, minimapSize);
 
     if (!isMobilePortrait) {
-      this.hud.fillStyle(0x050709, 0.72);
+      this.hud.fillStyle(0x030610, 0.86);
       this.hud.fillRoundedRect(rightPanelX, rightPanelY, rightPanelWidth, rightPanelHeight, 8);
-      this.hud.lineStyle(1, 0xffd166, 0.44);
+      this.hud.lineStyle(1.5, 0xffcc33, 0.6);
       this.hud.strokeRoundedRect(rightPanelX, rightPanelY, rightPanelWidth, rightPanelHeight, 8);
+      // corner ticks
+      const rb = 8;
+      this.hud.lineStyle(2, 0xffcc33, 0.95);
+      this.hud.lineBetween(rightPanelX, rightPanelY, rightPanelX + rb, rightPanelY);
+      this.hud.lineBetween(rightPanelX, rightPanelY, rightPanelX, rightPanelY + rb);
+      this.hud.lineBetween(rightPanelX + rightPanelWidth, rightPanelY + rightPanelHeight, rightPanelX + rightPanelWidth - rb, rightPanelY + rightPanelHeight);
+      this.hud.lineBetween(rightPanelX + rightPanelWidth, rightPanelY + rightPanelHeight, rightPanelX + rightPanelWidth, rightPanelY + rightPanelHeight - rb);
 
       if (this.currentVehicle !== 'mech') {
         const vehicleBarWidth = rightPanelWidth - 34;
-        this.hud.fillStyle(0x132022, 1);
+        this.hud.fillStyle(0x041820, 1);
         this.hud.fillRect(rightPanelX + 17, rightPanelY + 14, vehicleBarWidth, 10);
-        this.hud.fillStyle(this.currentVehicle === 'tank' ? 0xa7e65d : 0x36f0d2, 1);
+        const vColor = this.currentVehicle === 'tank' ? 0xb6ff3a : 0x00f0ff;
+        this.hud.fillStyle(vColor, 1);
         this.hud.fillRect(rightPanelX + 17, rightPanelY + 14, vehicleBarWidth * remainingVehicle, 10);
+        this.hud.fillStyle(0xffffff, 0.6);
+        this.hud.fillRect(rightPanelX + 17, rightPanelY + 14, vehicleBarWidth * remainingVehicle, 2);
+        this.hud.lineStyle(1, vColor, 0.7);
+        this.hud.strokeRect(rightPanelX + 17, rightPanelY + 14, vehicleBarWidth, 10);
       }
     }
 
