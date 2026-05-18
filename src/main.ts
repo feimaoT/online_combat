@@ -595,7 +595,7 @@ const ENEMIES: Record<EnemyKind, EnemySpec> = {
     noiseMultiplier: 0.55,
     decay: 12,
     patrolRadius: 260,
-    tint: 0x8ddbd1,
+    tint: 0x9ec8ff,
   },
   stalker: {
     name: '追猎机械犬',
@@ -612,7 +612,7 @@ const ENEMIES: Record<EnemyKind, EnemySpec> = {
     noiseMultiplier: 0.82,
     decay: 7,
     patrolRadius: 340,
-    tint: 0xffbd59,
+    tint: 0xf5c542,
   },
   hopper: {
     name: '跳跃侦察兵',
@@ -629,7 +629,7 @@ const ENEMIES: Record<EnemyKind, EnemySpec> = {
     noiseMultiplier: 0.8,
     decay: 6,
     patrolRadius: 330,
-    tint: 0x64f5ff,
+    tint: 0x9ec8ff,
   },
   leaper: {
     name: '重跃破甲机',
@@ -646,7 +646,7 @@ const ENEMIES: Record<EnemyKind, EnemySpec> = {
     noiseMultiplier: 0.9,
     decay: 5,
     patrolRadius: 270,
-    tint: 0xff8bd1,
+    tint: 0xb285ff,
   },
   warden: {
     name: '区域守卫者',
@@ -681,7 +681,7 @@ const ENEMIES: Record<EnemyKind, EnemySpec> = {
     noiseMultiplier: 1,
     decay: 4,
     patrolRadius: 190,
-    tint: 0xff6961,
+    tint: 0xff5d6f,
   },
   mender: {
     name: '修复蜂群',
@@ -715,7 +715,7 @@ const ENEMIES: Record<EnemyKind, EnemySpec> = {
     noiseMultiplier: 0.76,
     decay: 5,
     patrolRadius: 240,
-    tint: 0x5bc0ff,
+    tint: 0x4d8eff,
   },
   bomber: {
     name: '爆破机雷',
@@ -732,7 +732,7 @@ const ENEMIES: Record<EnemyKind, EnemySpec> = {
     noiseMultiplier: 0.9,
     decay: 5,
     patrolRadius: 280,
-    tint: 0xffd166,
+    tint: 0xf5c542,
   },
   turret: {
     name: '哨戒炮台',
@@ -749,7 +749,7 @@ const ENEMIES: Record<EnemyKind, EnemySpec> = {
     noiseMultiplier: 0.7,
     decay: 4,
     patrolRadius: 0,
-    tint: 0x9fffe0,
+    tint: 0x9ec8ff,
   },
   raider: {
     name: '狂暴突击兵',
@@ -766,7 +766,7 @@ const ENEMIES: Record<EnemyKind, EnemySpec> = {
     noiseMultiplier: 0.92,
     decay: 6,
     patrolRadius: 330,
-    tint: 0xff5a76,
+    tint: 0xff5d6f,
   },
   mortar: {
     name: '迫击炮机',
@@ -783,7 +783,7 @@ const ENEMIES: Record<EnemyKind, EnemySpec> = {
     noiseMultiplier: 0.8,
     decay: 4,
     patrolRadius: 260,
-    tint: 0xffd166,
+    tint: 0xf5c542,
   },
   shielder: {
     name: '护盾步兵',
@@ -800,7 +800,7 @@ const ENEMIES: Record<EnemyKind, EnemySpec> = {
     noiseMultiplier: 0.68,
     decay: 5,
     patrolRadius: 250,
-    tint: 0x9ed7ff,
+    tint: 0x9ec8ff,
   },
   spark: {
     name: '电磁浮雷',
@@ -817,7 +817,7 @@ const ENEMIES: Record<EnemyKind, EnemySpec> = {
     noiseMultiplier: 0.86,
     decay: 5,
     patrolRadius: 300,
-    tint: 0xba7cff,
+    tint: 0xb285ff,
   },
   boss: {
     name: '橙色歼灭者',
@@ -857,7 +857,7 @@ const ENEMY_TIERS: Record<EnemyTier, EnemyTierSpec> = {
   },
   blue: {
     name: '蓝',
-    color: 0x5bc0ff,
+    color: 0x4d8eff,
     hpMultiplier: 1.85,
     speedMultiplier: 1.08,
     damageMultiplier: 1.3,
@@ -865,7 +865,7 @@ const ENEMY_TIERS: Record<EnemyTier, EnemyTierSpec> = {
   },
   purple: {
     name: '紫',
-    color: 0xba7cff,
+    color: 0xb285ff,
     hpMultiplier: 2.65,
     speedMultiplier: 1.12,
     damageMultiplier: 1.55,
@@ -885,17 +885,17 @@ const BUFFS: Record<BuffKey, BuffSpec> = {
   overclock: {
     name: '超频火控',
     detail: '伤害提升',
-    color: 0xffd166,
+    color: 0xf5c542,
   },
   rapid: {
     name: '急速冷却',
     detail: '开火更快',
-    color: 0x36f0d2,
+    color: 0x4d8eff,
   },
   barrier: {
     name: '偏转护盾',
     detail: '减伤提升',
-    color: 0x5bc0ff,
+    color: 0x4d8eff,
   },
   regen: {
     name: '修复纳米云',
@@ -905,7 +905,7 @@ const BUFFS: Record<BuffKey, BuffSpec> = {
   magnet: {
     name: '吸铁石',
     detail: '短时间吸附远处经验球和掉落物',
-    color: 0x64f5ff,
+    color: 0x9ec8ff,
   },
 };
 
@@ -914,7 +914,7 @@ const WEAPONS: Record<WeaponKey, WeaponSpec> = {
     name: '攻击无人机',
     detail: '环绕玩家，自动射击索敌目标',
     texture: 'weapon-attack-drone',
-    color: 0x36f0d2,
+    color: 0x4d8eff,
   },
   healDrone: {
     name: '治疗无人机',
@@ -926,25 +926,25 @@ const WEAPONS: Record<WeaponKey, WeaponSpec> = {
     name: '火箭筒',
     detail: '发射高伤害火箭，命中后范围爆炸',
     texture: 'shot-missile',
-    color: 0xff6961,
+    color: 0xff5d6f,
   },
   grenadeLauncher: {
     name: '手榴弹模块',
     detail: '抛射延时爆弹，适合清理密集目标',
     texture: 'shot-grenade',
-    color: 0xffd166,
+    color: 0xf5c542,
   },
   teslaEmitter: {
     name: '电弧发生器',
     detail: '瞬发电弧连锁打击近距离目标',
     texture: 'buff-core',
-    color: 0xba7cff,
+    color: 0xb285ff,
   },
   beamCannon: {
     name: '聚束光炮',
     detail: '周期发射穿透光束，远距离打击直线目标',
     texture: 'shot-rail',
-    color: 0x5bc0ff,
+    color: 0x4d8eff,
   },
   orbitalBeacon: {
     name: '轨道信标',
@@ -962,13 +962,13 @@ const WEAPONS: Record<WeaponKey, WeaponSpec> = {
     name: '霜冻地雷',
     detail: '在附近目标脚下布置延时冰爆',
     texture: 'shot-cryo',
-    color: 0x9ed7ff,
+    color: 0x9ec8ff,
   },
   nanoSwarm: {
     name: '纳米蜂群',
     detail: '持续撕咬近距离多个目标',
     texture: 'weapon-swarm',
-    color: 0xff8bd1,
+    color: 0xb285ff,
   },
   gravityWell: {
     name: '重力井',
@@ -980,7 +980,7 @@ const WEAPONS: Record<WeaponKey, WeaponSpec> = {
     name: '离子长枪',
     detail: '蓄能后发射高速贯穿长枪',
     texture: 'shot-ion',
-    color: 0x64f5ff,
+    color: 0x9ec8ff,
   },
 };
 
@@ -1032,8 +1032,8 @@ const BOSS_HEAL_RATE = 0.055;
 const BOSS_HEAL_COOLDOWN_MS = 3600;
 const BOSS_VARIANTS: Record<BossVariantKey, { name: string; color: number; hp: number; speed: number; damage: number; skillDelay: [number, number] }> = {
   annihilator: { name: '橙色歼灭者', color: 0xff9f1c, hp: 1, speed: 1, damage: 1, skillDelay: [2400, 3600] },
-  stormLord: { name: '雷暴统御者', color: 0x64f5ff, hp: 0.86, speed: 1.18, damage: 0.92, skillDelay: [1900, 3000] },
-  siegeCore: { name: '堡垒母核', color: 0xff6961, hp: 1.25, speed: 0.78, damage: 1.14, skillDelay: [3100, 4600] },
+  stormLord: { name: '雷暴统御者', color: 0x9ec8ff, hp: 0.86, speed: 1.18, damage: 0.92, skillDelay: [1900, 3000] },
+  siegeCore: { name: '堡垒母核', color: 0xff5d6f, hp: 1.25, speed: 0.78, damage: 1.14, skillDelay: [3100, 4600] },
 };
 const BOSS_VARIANT_ORDER: BossVariantKey[] = ['annihilator', 'stormLord', 'siegeCore'];
 
@@ -1047,8 +1047,8 @@ interface SkillSpec {
   color: number;
 }
 const SKILLS: Record<SkillKey, SkillSpec> = {
-  sprint:    { key: 'sprint',    name: '急速冲刺', icon: '冲', cooldownMs: 12000, durationMs: 1600, color: 0x36f0d2 },
-  airstrike: { key: 'airstrike', name: '空袭信标', icon: '炸', cooldownMs: 32000, durationMs: 2400, color: 0xffd166 },
+  sprint:    { key: 'sprint',    name: '急速冲刺', icon: '冲', cooldownMs: 12000, durationMs: 1600, color: 0x4d8eff },
+  airstrike: { key: 'airstrike', name: '空袭信标', icon: '炸', cooldownMs: 32000, durationMs: 2400, color: 0xf5c542 },
 };
 const SKILL_ORDER: SkillKey[] = ['sprint', 'airstrike'];
 const SPRINT_SPEED_BONUS = 200;
@@ -1141,7 +1141,7 @@ class MainScene extends Phaser.Scene {
   private localTeamKey = '';
   private localTeamName = '';
   private localTeamColorCss = '#36f0d2';
-  private localTeamTint = 0x36f0d2;
+  private localTeamTint = 0x4d8eff;
   private selectedTeamKey: TeamKey = 'A';
   private latestRoomState?: RoomState;
   private roomStateSyncedAt = 0;
@@ -2445,8 +2445,8 @@ class MainScene extends Phaser.Scene {
     const strike: LightningStrike = { x, y, radius };
 
     const warning = this.add
-      .circle(x, y, radius, 0xff6961, 0.1)
-      .setStrokeStyle(3, 0xff6961, 0.82)
+      .circle(x, y, radius, 0xff5d6f, 0.1)
+      .setStrokeStyle(3, 0xff5d6f, 0.82)
       .setDepth(64);
     this.tweens.add({
       targets: warning,
@@ -2466,7 +2466,7 @@ class MainScene extends Phaser.Scene {
       return;
     }
 
-    const meteor = this.add.circle(strike.x - 80, strike.y - 280, 14, 0xffd166, 0.92).setDepth(83);
+    const meteor = this.add.circle(strike.x - 80, strike.y - 280, 14, 0xf5c542, 0.92).setDepth(83);
     this.tweens.add({
       targets: meteor,
       x: strike.x,
@@ -2475,8 +2475,8 @@ class MainScene extends Phaser.Scene {
       ease: 'Cubic.easeIn',
       onComplete: () => meteor.destroy(),
     });
-    this.shockwave(strike.x, strike.y, strike.radius, 0xff6961);
-    this.flashAt(strike.x, strike.y, 0xffd166, 18);
+    this.shockwave(strike.x, strike.y, strike.radius, 0xff5d6f);
+    this.flashAt(strike.x, strike.y, 0xf5c542, 18);
     this.splashDamage(strike.x, strike.y, strike.radius, 46);
     this.splashDamageChests(strike.x, strike.y, strike.radius, 28);
 
@@ -2496,8 +2496,8 @@ class MainScene extends Phaser.Scene {
     this.lightningStrikes.push(strike);
 
     const warning = this.add
-      .circle(x, y, radius, 0xffd166, 0.12)
-      .setStrokeStyle(3, 0xffd166, 0.88)
+      .circle(x, y, radius, 0xf5c542, 0.12)
+      .setStrokeStyle(3, 0xf5c542, 0.88)
       .setDepth(64);
     this.tweens.add({
       targets: warning,
@@ -2524,7 +2524,7 @@ class MainScene extends Phaser.Scene {
       .setLineWidth(5)
       .setDepth(82);
     const core = this.add.circle(strike.x, strike.y, 16, 0xe8f7f4, 0.95).setDepth(83);
-    this.shockwave(strike.x, strike.y, strike.radius, 0x5bc0ff);
+    this.shockwave(strike.x, strike.y, strike.radius, 0x4d8eff);
     this.flashAt(strike.x, strike.y, 0xbfefff, 15);
     this.tweens.add({
       targets: [bolt, core],
@@ -2595,7 +2595,7 @@ class MainScene extends Phaser.Scene {
     if (this.currentWeather === 'storm') {
       this.weatherOverlay.fillStyle(0x06101a, 0.24);
       this.weatherOverlay.fillRect(0, 0, width, height);
-      this.weatherOverlay.lineStyle(2, 0x9ed7ff, 0.34);
+      this.weatherOverlay.lineStyle(2, 0x9ec8ff, 0.34);
       for (let i = 0; i < 84; i += 1) {
         const x = ((i * 47 + t * 0.3) % (width + 80)) - 40;
         const y = ((i * 67 + t * 0.62) % (height + 90)) - 60;
@@ -2611,7 +2611,7 @@ class MainScene extends Phaser.Scene {
     if (this.currentWeather === 'heat') {
       this.weatherOverlay.fillStyle(0x3a1608, 0.14);
       this.weatherOverlay.fillRect(0, 0, width, height);
-      this.weatherOverlay.lineStyle(2, 0xffd166, 0.16);
+      this.weatherOverlay.lineStyle(2, 0xf5c542, 0.16);
       for (let i = 0; i < 18; i += 1) {
         const y = ((i * 41 + t * 0.026) % (height + 60)) - 30;
         this.weatherOverlay.lineBetween(0, y + Math.sin(t / 450 + i) * 4, width, y + Math.sin(t / 530 + i) * 4);
@@ -2622,7 +2622,7 @@ class MainScene extends Phaser.Scene {
     if (this.currentWeather === 'meteor') {
       this.weatherOverlay.fillStyle(0x180b10, 0.16);
       this.weatherOverlay.fillRect(0, 0, width, height);
-      this.weatherOverlay.lineStyle(2, 0xffd166, 0.22);
+      this.weatherOverlay.lineStyle(2, 0xf5c542, 0.22);
       for (let i = 0; i < 18; i += 1) {
         const x = ((i * 113 + t * 0.42) % (width + 160)) - 80;
         const y = ((i * 71 + t * 0.22) % (height + 160)) - 80;
@@ -2701,7 +2701,7 @@ class MainScene extends Phaser.Scene {
     });
   }
 
-  private updateRemotePlayerViews() {
+  private updateRemotePlayerViews(deltaSeconds = 1 / 60) {
     if (!this.latestRoomState) {
       return;
     }
@@ -2710,6 +2710,12 @@ class MainScene extends Phaser.Scene {
 
     const lerpFactor = 0.14;
     this.remotePlayers.forEach((view) => {
+      const prevLean = (view.sprite.getData('lean') as number | undefined) ?? 0;
+      // strip last frame's lean offset so rotation lerps cleanly toward aim
+      view.sprite.rotation -= prevLean;
+
+      const prevX = view.sprite.x;
+      const prevY = view.sprite.y;
       const dx = view.targetX - view.sprite.x;
       const dy = view.targetY - view.sprite.y;
       if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
@@ -2720,6 +2726,11 @@ class MainScene extends Phaser.Scene {
         view.crown.setPosition(nx, ny - 62);
       }
       view.sprite.setRotation(Phaser.Math.Angle.RotateTo(view.sprite.rotation, view.targetAngle, 0.18));
+
+      const safeDelta = Math.max(0.001, deltaSeconds);
+      const vx = (view.sprite.x - prevX) / safeDelta;
+      const vy = (view.sprite.y - prevY) / safeDelta;
+      this.updateVehicleBodyAnim(view.sprite, vx, vy, deltaSeconds);
     });
   }
 
@@ -3469,14 +3480,14 @@ class MainScene extends Phaser.Scene {
 
     this.summonReadyAt = this.elapsedMs + payload.cooldownMs;
     this.showAnnouncement(payload.message || `${payload.leaderName} 召集了队友`, 4200);
-    this.flashAt(payload.x, payload.y, this.localTeamTint || 0x36f0d2, 18);
+    this.flashAt(payload.x, payload.y, this.localTeamTint || 0x4d8eff, 18);
     if (payload.leaderSocketId !== this.localSocketId) {
       this.player.setPosition(
         clamp(payload.x + Phaser.Math.Between(-72, 72), 60, WORLD_WIDTH - 60),
         clamp(payload.y + Phaser.Math.Between(-72, 72), 60, WORLD_HEIGHT - 60),
       );
       this.moveTarget = undefined;
-      this.flashAt(this.player.x, this.player.y, this.localTeamTint || 0x36f0d2, 18);
+      this.flashAt(this.player.x, this.player.y, this.localTeamTint || 0x4d8eff, 18);
       this.sendNetworkState();
     }
     this.syncSummonButton();
@@ -3524,7 +3535,7 @@ class MainScene extends Phaser.Scene {
       .setOrigin(0.5);
     const button = this.add
       .rectangle(width / 2, height / 2 + 58, 190, 48, 0x111a1f, 1)
-      .setStrokeStyle(2, 0x36f0d2)
+      .setStrokeStyle(2, 0x4d8eff)
       .setInteractive({ useHandCursor: true });
     const label = this.add
       .text(width / 2, height / 2 + 58, '继续下一局', {
@@ -3612,7 +3623,7 @@ class MainScene extends Phaser.Scene {
     this.updateSpawns();
     this.autoFire();
     this.updateWeaponSystems(deltaSeconds);
-    this.updateRemotePlayerViews();
+    this.updateRemotePlayerViews(deltaSeconds);
     this.updateLocalCrownView();
     this.sendNetworkState();
     this.drawEnemyBars();
@@ -3632,17 +3643,17 @@ class MainScene extends Phaser.Scene {
         g.lineBetween(0, i, 256, i);
       }
       // strong central axes
-      g.lineStyle(1.5, 0x00f0ff, 0.32);
+      g.lineStyle(1.5, 0x4d8eff, 0.32);
       g.lineBetween(0, 128, 256, 128);
       g.lineBetween(128, 0, 128, 256);
       // corner markers / bracket motifs
-      g.lineStyle(1.5, 0x00f0ff, 0.55);
+      g.lineStyle(1.5, 0x4d8eff, 0.55);
       const drawBracket = (x: number, y: number) => {
         g.lineBetween(x, y, x + 12, y);
         g.lineBetween(x, y, x, y + 12);
       };
       drawBracket(2, 2);
-      g.lineStyle(1.5, 0x00f0ff, 0.55);
+      g.lineStyle(1.5, 0x4d8eff, 0.55);
       g.lineBetween(254, 2, 242, 2);
       g.lineBetween(254, 2, 254, 14);
       g.lineBetween(2, 254, 14, 254);
@@ -3650,12 +3661,12 @@ class MainScene extends Phaser.Scene {
       g.lineBetween(254, 254, 242, 254);
       g.lineBetween(254, 254, 254, 242);
       // intersection nodes
-      g.fillStyle(0x00f0ff, 0.55);
+      g.fillStyle(0x4d8eff, 0.55);
       g.fillRect(126, 126, 4, 4);
-      g.fillStyle(0xff3ad9, 0.7);
+      g.fillStyle(0xb285ff, 0.7);
       g.fillCircle(128, 128, 1.5);
       // accent diagonals (subtle)
-      g.lineStyle(1, 0x9b6bff, 0.18);
+      g.lineStyle(1, 0xb285ff, 0.18);
       g.lineBetween(0, 0, 256, 256);
       g.lineBetween(256, 0, 0, 256);
     });
@@ -3667,10 +3678,10 @@ class MainScene extends Phaser.Scene {
       // chest plate
       g.fillStyle(0x0a2a36, 1);
       g.fillRoundedRect(11, 8, 32, 28, 5);
-      g.lineStyle(2.5, 0x00f0ff, 1);
+      g.lineStyle(2.5, 0x4d8eff, 1);
       g.strokeRoundedRect(11, 8, 32, 28, 5);
       // chest emblem
-      g.fillStyle(0x00f0ff, 0.85);
+      g.fillStyle(0x4d8eff, 0.85);
       g.fillTriangle(27, 12, 21, 32, 33, 32);
       g.fillStyle(0xffffff, 0.9);
       g.fillCircle(27, 22, 2.5);
@@ -3678,7 +3689,7 @@ class MainScene extends Phaser.Scene {
       g.fillStyle(0x06181f, 1);
       g.fillRoundedRect(2, 13, 12, 9, 2);
       g.fillRoundedRect(2, 23, 12, 9, 2);
-      g.lineStyle(1.5, 0x00f0ff, 0.85);
+      g.lineStyle(1.5, 0x4d8eff, 0.85);
       g.strokeRoundedRect(2, 13, 12, 9, 2);
       g.strokeRoundedRect(2, 23, 12, 9, 2);
       // arm cannons with glowing barrels
@@ -3689,9 +3700,9 @@ class MainScene extends Phaser.Scene {
       g.fillRect(52, 18, 4, 2);
       g.fillRect(52, 27, 4, 2);
       // accent lines
-      g.lineStyle(1, 0xff3ad9, 0.9);
+      g.lineStyle(1, 0xb285ff, 0.9);
       g.lineBetween(14, 36, 40, 36);
-      g.fillStyle(0xffcc33, 1);
+      g.fillStyle(0xf5c542, 1);
       g.fillRect(42, 21, 4, 7);
     });
 
@@ -3700,27 +3711,27 @@ class MainScene extends Phaser.Scene {
       g.fillStyle(0x00131c, 1);
       g.fillCircle(14, 25, 9);
       g.fillCircle(52, 25, 9);
-      g.lineStyle(3, 0x00f0ff, 1);
+      g.lineStyle(3, 0x4d8eff, 1);
       g.strokeCircle(14, 25, 8);
       g.strokeCircle(52, 25, 8);
-      g.fillStyle(0xff3ad9, 1);
+      g.fillStyle(0xb285ff, 1);
       g.fillCircle(14, 25, 2.5);
       g.fillCircle(52, 25, 2.5);
       // chassis body
       g.fillStyle(0x06141c, 1);
       g.fillRoundedRect(16, 10, 36, 13, 4);
-      g.lineStyle(1.5, 0x00f0ff, 0.85);
+      g.lineStyle(1.5, 0x4d8eff, 0.85);
       g.strokeRoundedRect(16, 10, 36, 13, 4);
       // cockpit canopy
-      g.fillStyle(0x6dfff2, 0.85);
+      g.fillStyle(0x9ec8ff, 0.85);
       g.fillTriangle(22, 10, 36, 4, 36, 10);
       // nose / thruster
-      g.fillStyle(0xffcc33, 1);
+      g.fillStyle(0xf5c542, 1);
       g.fillTriangle(50, 11, 67, 17, 50, 23);
       g.fillStyle(0xffffff, 0.95);
       g.fillTriangle(54, 14, 64, 17, 54, 20);
       // racing stripe
-      g.lineStyle(1.5, 0xff3ad9, 1);
+      g.lineStyle(1.5, 0xb285ff, 1);
       g.lineBetween(18, 17, 50, 17);
     });
 
@@ -3744,15 +3755,15 @@ class MainScene extends Phaser.Scene {
       g.fillRoundedRect(17, 15, 29, 24, 5);
       g.lineStyle(1.5, 0xb6ff3a, 0.9);
       g.strokeRoundedRect(17, 15, 29, 24, 5);
-      g.fillStyle(0x6dfff2, 0.95);
+      g.fillStyle(0x9ec8ff, 0.95);
       g.fillCircle(32, 27, 4);
       // main cannon
       g.fillStyle(0x070d09, 1);
       g.fillRoundedRect(42, 23, 32, 8, 2);
-      g.fillStyle(0xffcc33, 1);
+      g.fillStyle(0xf5c542, 1);
       g.fillRect(70, 24, 4, 6);
       // chevrons
-      g.lineStyle(1.5, 0xff3ad9, 1);
+      g.lineStyle(1.5, 0xb285ff, 1);
       g.lineBetween(20, 19, 26, 22);
       g.lineBetween(26, 22, 20, 25);
     });
@@ -3766,39 +3777,39 @@ class MainScene extends Phaser.Scene {
       g.fillStyle(0x06182a, 1);
       g.fillTriangle(8, 29, 56, 8, 70, 29);
       g.fillTriangle(8, 29, 56, 50, 70, 29);
-      g.lineStyle(2.5, 0x00f0ff, 1);
+      g.lineStyle(2.5, 0x4d8eff, 1);
       g.strokeTriangle(8, 29, 56, 8, 70, 29);
       g.strokeTriangle(8, 29, 56, 50, 70, 29);
       // fuselage
       g.fillStyle(0x081f30, 1);
       g.fillRoundedRect(28, 22, 38, 14, 4);
       // cockpit canopy
-      g.fillStyle(0xff3ad9, 0.95);
+      g.fillStyle(0xb285ff, 0.95);
       g.fillTriangle(34, 26, 56, 22, 56, 36);
       g.fillStyle(0xffffff, 0.9);
       g.fillCircle(48, 29, 2);
       // nose tip
-      g.fillStyle(0xffcc33, 1);
+      g.fillStyle(0xf5c542, 1);
       g.fillRect(62, 26, 14, 7);
       g.fillStyle(0xb6ff3a, 1);
       g.fillRect(72, 27, 4, 5);
       // wing accents
-      g.lineStyle(1.5, 0x9b6bff, 0.95);
+      g.lineStyle(1.5, 0xb285ff, 0.95);
       g.lineBetween(20, 18, 38, 30);
       g.lineBetween(20, 40, 38, 28);
     });
 
     this.makeTexture('unit-hover', 74, 46, (g) => {
       // hover thrust glow
-      g.fillStyle(0x00f0ff, 0.18);
+      g.fillStyle(0x4d8eff, 0.18);
       g.fillEllipse(37, 36, 56, 10);
       // hull
       g.fillStyle(0x05141c, 1);
       g.fillRoundedRect(10, 12, 50, 22, 11);
-      g.lineStyle(2.5, 0x00f0ff, 1);
+      g.lineStyle(2.5, 0x4d8eff, 1);
       g.strokeRoundedRect(10, 12, 50, 22, 11);
       // canopy strip
-      g.fillStyle(0x6dfff2, 0.9);
+      g.fillStyle(0x9ec8ff, 0.9);
       g.fillRoundedRect(18, 16, 32, 6, 3);
       g.fillStyle(0xffffff, 0.85);
       g.fillRect(36, 17, 8, 4);
@@ -3806,11 +3817,11 @@ class MainScene extends Phaser.Scene {
       g.fillStyle(0x081f2a, 1);
       g.fillCircle(16, 23, 6);
       g.fillCircle(58, 23, 6);
-      g.lineStyle(1.5, 0xff3ad9, 0.95);
+      g.lineStyle(1.5, 0xb285ff, 0.95);
       g.strokeCircle(16, 23, 5);
       g.strokeCircle(58, 23, 5);
       // nose blaster
-      g.fillStyle(0xffcc33, 1);
+      g.fillStyle(0xf5c542, 1);
       g.fillTriangle(50, 15, 72, 23, 50, 31);
       g.fillStyle(0xffffff, 0.9);
       g.fillTriangle(58, 19, 68, 23, 58, 27);
@@ -3820,19 +3831,19 @@ class MainScene extends Phaser.Scene {
       // hull
       g.fillStyle(0x05121f, 1);
       g.fillRoundedRect(7, 12, 52, 24, 5);
-      g.lineStyle(2.5, 0x6dfff2, 1);
+      g.lineStyle(2.5, 0x9ec8ff, 1);
       g.strokeRoundedRect(7, 12, 52, 24, 5);
       // panel detail
       g.fillStyle(0x0a2840, 1);
       g.fillRoundedRect(12, 16, 18, 16, 2);
-      g.lineStyle(1, 0x00f0ff, 0.9);
+      g.lineStyle(1, 0x4d8eff, 0.9);
       g.strokeRoundedRect(12, 16, 18, 16, 2);
-      g.fillStyle(0xff3ad9, 1);
+      g.fillStyle(0xb285ff, 1);
       g.fillCircle(21, 24, 2.5);
       // rail barrels
       g.fillStyle(0x0e2030, 1);
       g.fillRect(20, 17, 34, 12);
-      g.fillStyle(0x6dfff2, 1);
+      g.fillStyle(0x9ec8ff, 1);
       g.fillRect(47, 18, 32, 5);
       g.fillRect(47, 26, 32, 5);
       g.fillStyle(0xffffff, 0.9);
@@ -3842,7 +3853,7 @@ class MainScene extends Phaser.Scene {
       g.fillStyle(0x05101a, 1);
       g.fillCircle(18, 37, 4);
       g.fillCircle(48, 37, 4);
-      g.lineStyle(1, 0x00f0ff, 0.85);
+      g.lineStyle(1, 0x4d8eff, 0.85);
       g.strokeCircle(18, 37, 4);
       g.strokeCircle(48, 37, 4);
     });
@@ -3851,10 +3862,10 @@ class MainScene extends Phaser.Scene {
       // hull
       g.fillStyle(0x14092a, 1);
       g.fillRoundedRect(18, 13, 30, 26, 5);
-      g.lineStyle(2.5, 0x9b6bff, 1);
+      g.lineStyle(2.5, 0xb285ff, 1);
       g.strokeRoundedRect(18, 13, 30, 26, 5);
       // canopy
-      g.fillStyle(0xff3ad9, 0.85);
+      g.fillStyle(0xb285ff, 0.85);
       g.fillRoundedRect(22, 16, 22, 9, 3);
       g.fillStyle(0xffffff, 0.85);
       g.fillCircle(38, 20, 1.8);
@@ -3872,7 +3883,7 @@ class MainScene extends Phaser.Scene {
       g.lineBetween(22, 16, 8, 4);
       g.lineBetween(44, 16, 58, 4);
       // foot joints
-      g.fillStyle(0xffcc33, 1);
+      g.fillStyle(0xf5c542, 1);
       g.fillCircle(9, 53, 3);
       g.fillCircle(57, 53, 3);
       g.fillCircle(8, 4, 3);
@@ -3883,22 +3894,22 @@ class MainScene extends Phaser.Scene {
       // hull
       g.fillStyle(0x261d09, 1);
       g.fillRoundedRect(8, 12, 54, 26, 5);
-      g.lineStyle(2.5, 0xffcc33, 1);
+      g.lineStyle(2.5, 0xf5c542, 1);
       g.strokeRoundedRect(8, 12, 54, 26, 5);
       // ammo loader
       g.fillStyle(0x140e05, 1);
       g.fillRect(12, 16, 14, 18);
-      g.lineStyle(1, 0xff9a1f, 0.9);
+      g.lineStyle(1, 0xf59a2c, 0.9);
       g.strokeRect(12, 16, 14, 18);
-      g.fillStyle(0xff4663, 1);
+      g.fillStyle(0xff5d6f, 1);
       g.fillCircle(19, 21, 2);
       g.fillCircle(19, 29, 2);
       // missile rack
-      g.fillStyle(0xff4663, 1);
+      g.fillStyle(0xff5d6f, 1);
       g.fillRect(34, 12, 39, 6);
       g.fillRect(34, 21, 39, 6);
       g.fillRect(34, 30, 39, 6);
-      g.fillStyle(0xffcc33, 1);
+      g.fillStyle(0xf5c542, 1);
       g.fillRect(70, 13, 4, 4);
       g.fillRect(70, 22, 4, 4);
       g.fillRect(70, 31, 4, 4);
@@ -3906,7 +3917,7 @@ class MainScene extends Phaser.Scene {
       g.fillStyle(0x040504, 1);
       g.fillCircle(20, 39, 4);
       g.fillCircle(50, 39, 4);
-      g.lineStyle(1, 0xff9a1f, 0.7);
+      g.lineStyle(1, 0xf59a2c, 0.7);
       g.strokeCircle(20, 39, 4);
       g.strokeCircle(50, 39, 4);
     });
@@ -3915,26 +3926,26 @@ class MainScene extends Phaser.Scene {
       // chassis
       g.fillStyle(0x051421, 1);
       g.fillRoundedRect(10, 13, 46, 18, 5);
-      g.lineStyle(2.5, 0x00f0ff, 1);
+      g.lineStyle(2.5, 0x4d8eff, 1);
       g.strokeRoundedRect(10, 13, 46, 18, 5);
       // canopy
-      g.fillStyle(0x6dfff2, 0.92);
+      g.fillStyle(0x9ec8ff, 0.92);
       g.fillRoundedRect(28, 7, 18, 8, 3);
       g.fillStyle(0xffffff, 0.85);
       g.fillRect(36, 9, 6, 4);
       // booster
-      g.fillStyle(0xffcc33, 1);
+      g.fillStyle(0xf5c542, 1);
       g.fillTriangle(54, 14, 72, 22, 54, 30);
-      g.fillStyle(0xff3ad9, 1);
+      g.fillStyle(0xb285ff, 1);
       g.fillTriangle(60, 17, 70, 22, 60, 27);
       // wheels
       g.fillStyle(0x040506, 1);
       g.fillCircle(19, 33, 7);
       g.fillCircle(50, 33, 7);
-      g.lineStyle(1.5, 0x00f0ff, 0.85);
+      g.lineStyle(1.5, 0x4d8eff, 0.85);
       g.strokeCircle(19, 33, 6);
       g.strokeCircle(50, 33, 6);
-      g.fillStyle(0xff3ad9, 1);
+      g.fillStyle(0xb285ff, 1);
       g.fillCircle(19, 33, 2);
       g.fillCircle(50, 33, 2);
     });
@@ -3943,27 +3954,27 @@ class MainScene extends Phaser.Scene {
       // hull
       g.fillStyle(0x031628, 1);
       g.fillRoundedRect(9, 11, 54, 28, 6);
-      g.lineStyle(2.5, 0x6dfff2, 1);
+      g.lineStyle(2.5, 0x9ec8ff, 1);
       g.strokeRoundedRect(9, 11, 54, 28, 6);
       // core glow
-      g.fillStyle(0x9b6bff, 0.45);
+      g.fillStyle(0xb285ff, 0.45);
       g.fillCircle(36, 25, 12);
-      g.fillStyle(0x9b6bff, 1);
+      g.fillStyle(0xb285ff, 1);
       g.fillCircle(36, 25, 7);
       g.fillStyle(0xffffff, 0.95);
       g.fillCircle(36, 25, 3);
       // side vents
       g.fillStyle(0x05223a, 1);
       g.fillRect(13, 16, 6, 18);
-      g.lineStyle(1, 0x00f0ff, 0.85);
+      g.lineStyle(1, 0x4d8eff, 0.85);
       g.strokeRect(13, 16, 6, 18);
       // laser emitter
-      g.fillStyle(0x6dfff2, 1);
+      g.fillStyle(0x9ec8ff, 1);
       g.fillRect(48, 22, 30, 5);
       g.fillStyle(0xffffff, 0.95);
       g.fillRect(72, 22, 6, 5);
       // antenna
-      g.lineStyle(1.5, 0xff3ad9, 1);
+      g.lineStyle(1.5, 0xb285ff, 1);
       g.lineBetween(20, 11, 26, 4);
     });
 
@@ -3971,23 +3982,23 @@ class MainScene extends Phaser.Scene {
       // hull
       g.fillStyle(0x2d0a08, 1);
       g.fillRoundedRect(8, 12, 56, 28, 6);
-      g.lineStyle(2.5, 0xff9a1f, 1);
+      g.lineStyle(2.5, 0xf59a2c, 1);
       g.strokeRoundedRect(8, 12, 56, 28, 6);
       // canopy
-      g.fillStyle(0xffcc33, 0.55);
+      g.fillStyle(0xf5c542, 0.55);
       g.fillRoundedRect(14, 16, 18, 8, 3);
       // fuel tanks
       g.fillStyle(0x140605, 1);
       g.fillRoundedRect(36, 16, 12, 18, 3);
-      g.lineStyle(1.5, 0xffcc33, 0.95);
+      g.lineStyle(1.5, 0xf5c542, 0.95);
       g.strokeRoundedRect(36, 16, 12, 18, 3);
-      g.fillStyle(0xff4663, 1);
+      g.fillStyle(0xff5d6f, 1);
       g.fillCircle(42, 21, 2);
       g.fillCircle(42, 29, 2);
       // flame nozzle
-      g.fillStyle(0xff4663, 1);
+      g.fillStyle(0xff5d6f, 1);
       g.fillRect(50, 19, 28, 8);
-      g.fillStyle(0xffcc33, 1);
+      g.fillStyle(0xf5c542, 1);
       g.fillTriangle(72, 14, 83, 23, 72, 32);
       g.fillStyle(0xffffff, 0.95);
       g.fillTriangle(76, 19, 82, 23, 76, 27);
@@ -3995,7 +4006,7 @@ class MainScene extends Phaser.Scene {
       g.fillStyle(0x040506, 1);
       g.fillCircle(22, 41, 4);
       g.fillCircle(54, 41, 4);
-      g.lineStyle(1, 0xff9a1f, 0.85);
+      g.lineStyle(1, 0xf59a2c, 0.85);
       g.strokeCircle(22, 41, 4);
       g.strokeCircle(54, 41, 4);
     });
@@ -4005,17 +4016,17 @@ class MainScene extends Phaser.Scene {
       g.fillCircle(19, 19, 14);
       g.fillStyle(0x062430, 1);
       g.fillCircle(19, 19, 12);
-      g.lineStyle(2.5, 0x00f0ff, 1);
+      g.lineStyle(2.5, 0x4d8eff, 1);
       g.strokeCircle(19, 19, 13);
       // eye
-      g.fillStyle(0xff4663, 1);
+      g.fillStyle(0xff5d6f, 1);
       g.fillCircle(25, 19, 5);
       g.fillStyle(0xffffff, 0.95);
       g.fillCircle(26, 18, 2);
       // antenna
-      g.lineStyle(2, 0x00f0ff, 0.85);
+      g.lineStyle(2, 0x4d8eff, 0.85);
       g.lineBetween(2, 19, 36, 19);
-      g.fillStyle(0x6dfff2, 1);
+      g.fillStyle(0x9ec8ff, 1);
       g.fillCircle(3, 19, 1.6);
       g.fillCircle(35, 19, 1.6);
     });
@@ -4023,20 +4034,20 @@ class MainScene extends Phaser.Scene {
     this.makeTexture('enemy-stalker', 46, 34, (g) => {
       g.fillStyle(0x2a1a06, 1);
       g.fillRoundedRect(8, 9, 27, 14, 4);
-      g.lineStyle(2.5, 0xff9a1f, 1);
+      g.lineStyle(2.5, 0xf59a2c, 1);
       g.strokeRoundedRect(8, 9, 27, 14, 4);
       // visor
-      g.fillStyle(0xff4663, 0.95);
+      g.fillStyle(0xff5d6f, 0.95);
       g.fillRect(11, 13, 18, 5);
       g.fillStyle(0xffffff, 0.9);
       g.fillRect(24, 14, 4, 3);
       // claw
-      g.fillStyle(0xff4663, 1);
+      g.fillStyle(0xff5d6f, 1);
       g.fillTriangle(32, 12, 45, 17, 32, 22);
-      g.fillStyle(0xffcc33, 1);
+      g.fillStyle(0xf5c542, 1);
       g.fillTriangle(36, 14, 43, 17, 36, 20);
       // limbs
-      g.lineStyle(2, 0xff9a1f, 0.95);
+      g.lineStyle(2, 0xf59a2c, 0.95);
       g.lineBetween(13, 23, 6, 32);
       g.lineBetween(24, 23, 19, 32);
       g.lineBetween(14, 9, 6, 2);
@@ -4046,23 +4057,23 @@ class MainScene extends Phaser.Scene {
     this.makeTexture('enemy-hopper', 44, 42, (g) => {
       g.fillStyle(0x041a2a, 1);
       g.fillRoundedRect(10, 10, 24, 18, 5);
-      g.lineStyle(2.5, 0x00f0ff, 1);
+      g.lineStyle(2.5, 0x4d8eff, 1);
       g.strokeRoundedRect(10, 10, 24, 18, 5);
       // eye
-      g.fillStyle(0xff4663, 1);
+      g.fillStyle(0xff5d6f, 1);
       g.fillCircle(28, 18, 5);
       g.fillStyle(0xffffff, 0.95);
       g.fillCircle(29, 17, 2);
       // visor stripe
-      g.fillStyle(0x6dfff2, 0.85);
+      g.fillStyle(0x9ec8ff, 0.85);
       g.fillRect(13, 14, 14, 3);
       // legs
-      g.lineStyle(3, 0x00f0ff, 0.95);
+      g.lineStyle(3, 0x4d8eff, 0.95);
       g.lineBetween(14, 27, 6, 40);
       g.lineBetween(30, 27, 38, 40);
       g.lineBetween(14, 10, 7, 3);
       g.lineBetween(30, 10, 37, 3);
-      g.fillStyle(0xffcc33, 1);
+      g.fillStyle(0xf5c542, 1);
       g.fillCircle(6, 40, 2);
       g.fillCircle(38, 40, 2);
     });
@@ -4070,25 +4081,25 @@ class MainScene extends Phaser.Scene {
     this.makeTexture('enemy-leaper', 58, 50, (g) => {
       g.fillStyle(0x320a28, 1);
       g.fillRoundedRect(10, 9, 34, 26, 6);
-      g.lineStyle(3, 0xff3ad9, 1);
+      g.lineStyle(3, 0xb285ff, 1);
       g.strokeRoundedRect(10, 9, 34, 26, 6);
       // eyes
-      g.fillStyle(0xff4663, 1);
+      g.fillStyle(0xff5d6f, 1);
       g.fillCircle(20, 18, 3);
       g.fillCircle(33, 18, 3);
       g.fillStyle(0xffffff, 0.95);
       g.fillCircle(21, 17, 1.2);
       g.fillCircle(34, 17, 1.2);
       // mouth
-      g.fillStyle(0xffcc33, 1);
+      g.fillStyle(0xf5c542, 1);
       g.fillRect(18, 26, 18, 4);
       // claw
-      g.fillStyle(0xffcc33, 1);
+      g.fillStyle(0xf5c542, 1);
       g.fillTriangle(39, 16, 55, 25, 39, 34);
-      g.fillStyle(0xff3ad9, 1);
+      g.fillStyle(0xb285ff, 1);
       g.fillTriangle(43, 19, 53, 25, 43, 31);
       // limbs
-      g.lineStyle(3, 0xff3ad9, 0.95);
+      g.lineStyle(3, 0xb285ff, 0.95);
       g.lineBetween(15, 34, 4, 48);
       g.lineBetween(39, 34, 51, 48);
       g.lineBetween(18, 9, 10, 1);
@@ -4106,10 +4117,10 @@ class MainScene extends Phaser.Scene {
       g.fillStyle(0xffffff, 0.95);
       g.fillCircle(26, 26, 2.5);
       // antennas
-      g.fillStyle(0xffcc33, 1);
+      g.fillStyle(0xf5c542, 1);
       g.fillRect(26, 2, 5, 13);
       g.fillRect(26, 37, 5, 13);
-      g.fillStyle(0xff3ad9, 1);
+      g.fillStyle(0xb285ff, 1);
       g.fillCircle(28, 3, 2);
       g.fillCircle(28, 50, 2);
       // weapon
@@ -4122,26 +4133,26 @@ class MainScene extends Phaser.Scene {
     this.makeTexture('enemy-crusher', 62, 58, (g) => {
       g.fillStyle(0x320a08, 1);
       g.fillRoundedRect(10, 10, 38, 36, 5);
-      g.lineStyle(3, 0xff4663, 1);
+      g.lineStyle(3, 0xff5d6f, 1);
       g.strokeRoundedRect(10, 10, 38, 36, 5);
       // armor plates
       g.fillStyle(0x1a0606, 1);
       g.fillRect(14, 14, 10, 28);
       g.fillRect(34, 14, 10, 28);
       // eyes
-      g.fillStyle(0xffcc33, 1);
+      g.fillStyle(0xf5c542, 1);
       g.fillCircle(19, 22, 4);
       g.fillCircle(19, 35, 4);
-      g.fillStyle(0xff4663, 1);
+      g.fillStyle(0xff5d6f, 1);
       g.fillCircle(19, 22, 2);
       g.fillCircle(19, 35, 2);
-      g.fillStyle(0xffcc33, 1);
+      g.fillStyle(0xf5c542, 1);
       g.fillCircle(39, 22, 3);
       g.fillCircle(39, 35, 3);
       // ram horn
-      g.fillStyle(0xffcc33, 1);
+      g.fillStyle(0xf5c542, 1);
       g.fillRect(38, 24, 22, 8);
-      g.fillStyle(0xff4663, 1);
+      g.fillStyle(0xff5d6f, 1);
       g.fillTriangle(58, 24, 60, 28, 58, 32);
     });
 
@@ -4158,7 +4169,7 @@ class MainScene extends Phaser.Scene {
       g.fillRect(25, 14, 3, 14);
       g.fillRect(19, 19, 15, 3);
       // healing aura ring
-      g.lineStyle(2, 0x6dfff2, 0.95);
+      g.lineStyle(2, 0x9ec8ff, 0.95);
       g.strokeCircle(26, 22, 18);
       g.lineStyle(1, 0xb6ff3a, 0.6);
       g.strokeCircle(26, 22, 22);
@@ -4167,22 +4178,22 @@ class MainScene extends Phaser.Scene {
     this.makeTexture('enemy-sniper', 62, 38, (g) => {
       g.fillStyle(0x031628, 1);
       g.fillRoundedRect(8, 10, 32, 18, 4);
-      g.lineStyle(2.5, 0x6dfff2, 1);
+      g.lineStyle(2.5, 0x9ec8ff, 1);
       g.strokeRoundedRect(8, 10, 32, 18, 4);
       // scope
       g.fillStyle(0x000810, 1);
       g.fillCircle(20, 19, 6);
-      g.lineStyle(1.5, 0x6dfff2, 0.95);
+      g.lineStyle(1.5, 0x9ec8ff, 0.95);
       g.strokeCircle(20, 19, 6);
-      g.fillStyle(0xff4663, 1);
+      g.fillStyle(0xff5d6f, 1);
       g.fillCircle(20, 19, 2.5);
       // barrel
       g.fillStyle(0x0e2438, 1);
       g.fillRect(34, 16, 26, 5);
-      g.fillStyle(0x6dfff2, 1);
+      g.fillStyle(0x9ec8ff, 1);
       g.fillRect(56, 17, 4, 3);
       // dot
-      g.fillStyle(0xffcc33, 1);
+      g.fillStyle(0xf5c542, 1);
       g.fillRect(34, 12, 4, 3);
     });
 
@@ -4191,20 +4202,20 @@ class MainScene extends Phaser.Scene {
       g.fillCircle(25, 24, 17);
       g.fillStyle(0x140e02, 1);
       g.fillCircle(25, 24, 14);
-      g.lineStyle(3, 0xffcc33, 1);
+      g.lineStyle(3, 0xf5c542, 1);
       g.strokeCircle(25, 24, 17);
       // exhaust nozzle
-      g.fillStyle(0xff4663, 1);
+      g.fillStyle(0xff5d6f, 1);
       g.fillTriangle(37, 17, 55, 24, 37, 31);
-      g.fillStyle(0xffcc33, 1);
+      g.fillStyle(0xf5c542, 1);
       g.fillTriangle(42, 20, 52, 24, 42, 28);
       // detonator core
-      g.fillStyle(0xff3ad9, 1);
+      g.fillStyle(0xb285ff, 1);
       g.fillCircle(25, 24, 6);
       g.fillStyle(0xffffff, 1);
       g.fillCircle(25, 24, 2.5);
       // rivets
-      g.fillStyle(0xffcc33, 1);
+      g.fillStyle(0xf5c542, 1);
       g.fillCircle(16, 16, 1.5);
       g.fillCircle(16, 32, 1.5);
       g.fillCircle(34, 14, 1.5);
@@ -4214,25 +4225,25 @@ class MainScene extends Phaser.Scene {
     this.makeTexture('enemy-turret', 58, 58, (g) => {
       g.fillStyle(0x031216, 1);
       g.fillCircle(29, 29, 22);
-      g.lineStyle(3, 0x00f0ff, 1);
+      g.lineStyle(3, 0x4d8eff, 1);
       g.strokeCircle(29, 29, 21);
       // inner ring
-      g.lineStyle(1.5, 0xff3ad9, 0.85);
+      g.lineStyle(1.5, 0xb285ff, 0.85);
       g.strokeCircle(29, 29, 17);
       // barrel
       g.fillStyle(0x0a2028, 1);
       g.fillRoundedRect(25, 4, 8, 28, 3);
-      g.lineStyle(1, 0x6dfff2, 0.85);
+      g.lineStyle(1, 0x9ec8ff, 0.85);
       g.strokeRoundedRect(25, 4, 8, 28, 3);
       // core
-      g.fillStyle(0xff4663, 1);
+      g.fillStyle(0xff5d6f, 1);
       g.fillCircle(29, 29, 7);
       g.fillStyle(0xffffff, 0.95);
       g.fillCircle(29, 29, 3);
       // pads
-      g.lineStyle(2, 0xffcc33, 0.85);
+      g.lineStyle(2, 0xf5c542, 0.85);
       g.lineBetween(12, 46, 46, 46);
-      g.fillStyle(0xffcc33, 1);
+      g.fillStyle(0xf5c542, 1);
       g.fillCircle(12, 46, 1.5);
       g.fillCircle(46, 46, 1.5);
     });
@@ -4240,24 +4251,24 @@ class MainScene extends Phaser.Scene {
     this.makeTexture('enemy-raider', 50, 36, (g) => {
       g.fillStyle(0x310812, 1);
       g.fillRoundedRect(8, 9, 30, 18, 5);
-      g.lineStyle(2.5, 0xff4663, 1);
+      g.lineStyle(2.5, 0xff5d6f, 1);
       g.strokeRoundedRect(8, 9, 30, 18, 5);
       // visor strip
-      g.fillStyle(0xff3ad9, 0.95);
+      g.fillStyle(0xb285ff, 0.95);
       g.fillRect(11, 13, 22, 4);
       g.fillStyle(0xffffff, 0.9);
       g.fillRect(28, 14, 4, 2);
       // chevron
-      g.lineStyle(1.5, 0xffcc33, 1);
+      g.lineStyle(1.5, 0xf5c542, 1);
       g.lineBetween(14, 22, 18, 19);
       g.lineBetween(18, 19, 22, 22);
       // blade
-      g.fillStyle(0xffcc33, 1);
+      g.fillStyle(0xf5c542, 1);
       g.fillTriangle(35, 7, 49, 18, 35, 29);
       g.fillStyle(0xffffff, 0.95);
       g.fillTriangle(40, 13, 47, 18, 40, 23);
       // legs
-      g.lineStyle(2, 0xff4663, 0.9);
+      g.lineStyle(2, 0xff5d6f, 0.9);
       g.lineBetween(13, 27, 5, 35);
       g.lineBetween(28, 27, 22, 35);
     });
@@ -4265,26 +4276,26 @@ class MainScene extends Phaser.Scene {
     this.makeTexture('enemy-mortar', 62, 48, (g) => {
       g.fillStyle(0x2d2208, 1);
       g.fillRoundedRect(10, 14, 34, 24, 5);
-      g.lineStyle(2.5, 0xffcc33, 1);
+      g.lineStyle(2.5, 0xf5c542, 1);
       g.strokeRoundedRect(10, 14, 34, 24, 5);
       // base panel
       g.fillStyle(0x140f04, 1);
       g.fillRect(14, 18, 26, 16);
-      g.lineStyle(1, 0xff9a1f, 0.85);
+      g.lineStyle(1, 0xf59a2c, 0.85);
       g.strokeRect(14, 18, 26, 16);
-      g.fillStyle(0xff4663, 1);
+      g.fillStyle(0xff5d6f, 1);
       g.fillCircle(20, 26, 2);
       g.fillCircle(34, 26, 2);
       // barrel
-      g.fillStyle(0xff4663, 1);
+      g.fillStyle(0xff5d6f, 1);
       g.fillRect(28, 4, 10, 30);
-      g.fillStyle(0xffcc33, 1);
+      g.fillStyle(0xf5c542, 1);
       g.fillRect(30, 4, 6, 4);
       // wheels
       g.fillStyle(0x050504, 1);
       g.fillCircle(19, 40, 4);
       g.fillCircle(44, 40, 4);
-      g.lineStyle(1, 0xffcc33, 0.7);
+      g.lineStyle(1, 0xf5c542, 0.7);
       g.strokeCircle(19, 40, 4);
       g.strokeCircle(44, 40, 4);
     });
@@ -4292,20 +4303,20 @@ class MainScene extends Phaser.Scene {
     this.makeTexture('enemy-shielder', 56, 52, (g) => {
       g.fillStyle(0x031628, 1);
       g.fillRoundedRect(16, 10, 26, 32, 5);
-      g.lineStyle(2.5, 0x6dfff2, 1);
+      g.lineStyle(2.5, 0x9ec8ff, 1);
       g.strokeRoundedRect(16, 10, 26, 32, 5);
       // visor
-      g.fillStyle(0xff3ad9, 0.95);
+      g.fillStyle(0xb285ff, 0.95);
       g.fillRect(19, 16, 20, 5);
       // shield bubble
-      g.fillStyle(0x00f0ff, 0.32);
+      g.fillStyle(0x4d8eff, 0.32);
       g.fillCircle(28, 26, 23);
-      g.lineStyle(1.5, 0x6dfff2, 0.7);
+      g.lineStyle(1.5, 0x9ec8ff, 0.7);
       g.strokeCircle(28, 26, 23);
-      g.lineStyle(1, 0x00f0ff, 0.5);
+      g.lineStyle(1, 0x4d8eff, 0.5);
       g.strokeCircle(28, 26, 18);
       // weapon
-      g.fillStyle(0xffcc33, 1);
+      g.fillStyle(0xf5c542, 1);
       g.fillRect(36, 24, 16, 5);
       g.fillStyle(0xffffff, 0.95);
       g.fillRect(48, 24, 4, 5);
@@ -4316,20 +4327,20 @@ class MainScene extends Phaser.Scene {
       g.fillCircle(22, 22, 14);
       g.fillStyle(0x0a0420, 1);
       g.fillCircle(22, 22, 11);
-      g.lineStyle(2.5, 0x9b6bff, 1);
+      g.lineStyle(2.5, 0xb285ff, 1);
       g.strokeCircle(22, 22, 13);
       // core
       g.fillStyle(0xffffff, 1);
       g.fillCircle(22, 22, 5);
-      g.fillStyle(0x6dfff2, 0.85);
+      g.fillStyle(0x9ec8ff, 0.85);
       g.fillCircle(22, 22, 3);
       // arcs
-      g.lineStyle(2.5, 0x00f0ff, 0.95);
+      g.lineStyle(2.5, 0x4d8eff, 0.95);
       g.lineBetween(22, 2, 22, 12);
       g.lineBetween(22, 32, 22, 42);
       g.lineBetween(2, 22, 12, 22);
       g.lineBetween(32, 22, 42, 22);
-      g.lineStyle(1.5, 0xff3ad9, 0.85);
+      g.lineStyle(1.5, 0xb285ff, 0.85);
       g.lineBetween(8, 8, 14, 14);
       g.lineBetween(30, 30, 36, 36);
       g.lineBetween(8, 36, 14, 30);
@@ -4338,47 +4349,47 @@ class MainScene extends Phaser.Scene {
 
     this.makeTexture('enemy-boss', 96, 84, (g) => {
       // glow halo
-      g.fillStyle(0xff3ad9, 0.18);
+      g.fillStyle(0xb285ff, 0.18);
       g.fillRoundedRect(8, 6, 70, 70, 12);
       g.fillStyle(0x300508, 1);
       g.fillRoundedRect(14, 12, 58, 56, 8);
-      g.lineStyle(4, 0xff4663, 1);
+      g.lineStyle(4, 0xff5d6f, 1);
       g.strokeRoundedRect(14, 12, 58, 56, 8);
       // inner armor
       g.fillStyle(0x180204, 1);
       g.fillRoundedRect(20, 18, 46, 44, 5);
-      g.lineStyle(1.5, 0xff3ad9, 0.85);
+      g.lineStyle(1.5, 0xb285ff, 0.85);
       g.strokeRoundedRect(20, 18, 46, 44, 5);
       // dual eyes
-      g.fillStyle(0xffcc33, 1);
+      g.fillStyle(0xf5c542, 1);
       g.fillCircle(34, 34, 9);
       g.fillCircle(54, 34, 9);
-      g.fillStyle(0xff4663, 1);
+      g.fillStyle(0xff5d6f, 1);
       g.fillCircle(34, 34, 5);
       g.fillCircle(54, 34, 5);
       g.fillStyle(0xffffff, 1);
       g.fillCircle(35, 33, 2);
       g.fillCircle(55, 33, 2);
       // jaw / vents
-      g.fillStyle(0x9b6bff, 1);
+      g.fillStyle(0xb285ff, 1);
       g.fillRect(28, 50, 32, 5);
-      g.fillStyle(0xff3ad9, 1);
+      g.fillStyle(0xb285ff, 1);
       g.fillRect(30, 50, 4, 5);
       g.fillRect(38, 50, 4, 5);
       g.fillRect(46, 50, 4, 5);
       g.fillRect(54, 50, 4, 5);
       // mega cannon
-      g.fillStyle(0xffcc33, 1);
+      g.fillStyle(0xf5c542, 1);
       g.fillRect(66, 36, 25, 10);
       g.fillStyle(0xffffff, 0.95);
       g.fillRect(86, 38, 5, 6);
       // wing spikes
-      g.lineStyle(3, 0x9b6bff, 0.98);
+      g.lineStyle(3, 0xb285ff, 0.98);
       g.lineBetween(24, 12, 6, 0);
       g.lineBetween(62, 12, 84, 0);
       g.lineBetween(24, 68, 6, 82);
       g.lineBetween(62, 68, 84, 82);
-      g.fillStyle(0xff3ad9, 1);
+      g.fillStyle(0xb285ff, 1);
       g.fillCircle(6, 0, 2.5);
       g.fillCircle(84, 0, 2.5);
       g.fillCircle(6, 82, 2.5);
@@ -4386,52 +4397,52 @@ class MainScene extends Phaser.Scene {
     });
 
     this.makeTexture('shot-pulse', 18, 8, (g) => {
-      g.fillStyle(0x9fffe0, 1);
+      g.fillStyle(0x9ec8ff, 1);
       g.fillRoundedRect(0, 2, 15, 4, 2);
       g.fillStyle(0xffffff, 1);
       g.fillRect(11, 3, 5, 2);
     });
 
     this.makeTexture('shot-shell', 24, 10, (g) => {
-      g.fillStyle(0xffd166, 1);
+      g.fillStyle(0xf5c542, 1);
       g.fillRoundedRect(1, 2, 18, 6, 3);
-      g.fillStyle(0xff6961, 1);
+      g.fillStyle(0xff5d6f, 1);
       g.fillTriangle(18, 1, 24, 5, 18, 9);
     });
 
     this.makeTexture('shot-missile', 24, 9, (g) => {
       g.fillStyle(0xe8f7f4, 1);
       g.fillRoundedRect(0, 2, 17, 5, 2);
-      g.fillStyle(0x36f0d2, 1);
+      g.fillStyle(0x4d8eff, 1);
       g.fillTriangle(16, 0, 24, 4.5, 16, 9);
-      g.fillStyle(0xff6961, 1);
+      g.fillStyle(0xff5d6f, 1);
       g.fillRect(0, 2, 4, 5);
     });
 
     this.makeTexture('shot-rail', 32, 8, (g) => {
-      g.fillStyle(0x5bc0ff, 1);
+      g.fillStyle(0x4d8eff, 1);
       g.fillRoundedRect(0, 2, 28, 4, 2);
       g.fillStyle(0xe8f7f4, 1);
       g.fillRect(18, 3, 11, 2);
-      g.fillStyle(0xba7cff, 1);
+      g.fillStyle(0xb285ff, 1);
       g.fillTriangle(28, 0, 32, 4, 28, 8);
     });
 
     this.makeTexture('shot-grenade', 18, 18, (g) => {
       g.fillStyle(0x1b2422, 1);
       g.fillCircle(9, 10, 7);
-      g.lineStyle(2, 0xffd166, 1);
+      g.lineStyle(2, 0xf5c542, 1);
       g.strokeCircle(9, 10, 7);
-      g.fillStyle(0xff6961, 1);
+      g.fillStyle(0xff5d6f, 1);
       g.fillRect(7, 2, 5, 5);
-      g.fillStyle(0x9fffe0, 1);
+      g.fillStyle(0x9ec8ff, 1);
       g.fillCircle(12, 8, 2);
     });
 
     this.makeTexture('shot-flame', 22, 14, (g) => {
-      g.fillStyle(0xffd166, 1);
+      g.fillStyle(0xf5c542, 1);
       g.fillEllipse(9, 7, 18, 10);
-      g.fillStyle(0xff6961, 0.9);
+      g.fillStyle(0xff5d6f, 0.9);
       g.fillEllipse(6, 7, 12, 8);
       g.fillStyle(0xe8f7f4, 0.85);
       g.fillEllipse(13, 7, 7, 4);
@@ -4454,35 +4465,35 @@ class MainScene extends Phaser.Scene {
     this.makeTexture('shot-cryo', 22, 22, (g) => {
       g.fillStyle(0x10202a, 1);
       g.fillCircle(11, 11, 8);
-      g.lineStyle(2, 0x9ed7ff, 1);
+      g.lineStyle(2, 0x9ec8ff, 1);
       g.strokeCircle(11, 11, 8);
       g.lineBetween(11, 2, 11, 20);
       g.lineBetween(2, 11, 20, 11);
     });
 
     this.makeTexture('shot-ion', 34, 8, (g) => {
-      g.fillStyle(0x64f5ff, 1);
+      g.fillStyle(0x9ec8ff, 1);
       g.fillRoundedRect(0, 2, 28, 4, 2);
       g.fillStyle(0xe8f7f4, 1);
       g.fillTriangle(25, 0, 34, 4, 25, 8);
     });
 
     this.makeTexture('enemy-bullet', 12, 12, (g) => {
-      g.fillStyle(0xff6961, 1);
+      g.fillStyle(0xff5d6f, 1);
       g.fillCircle(6, 6, 5);
-      g.fillStyle(0xffd166, 0.9);
+      g.fillStyle(0xf5c542, 0.9);
       g.fillCircle(6, 6, 2);
     });
 
     this.makeTexture('weapon-attack-drone', 34, 34, (g) => {
       g.fillStyle(0x10181e, 1);
       g.fillCircle(17, 17, 10);
-      g.lineStyle(2, 0x36f0d2, 1);
+      g.lineStyle(2, 0x4d8eff, 1);
       g.strokeCircle(17, 17, 10);
-      g.lineStyle(2, 0x9fffe0, 0.8);
+      g.lineStyle(2, 0x9ec8ff, 0.8);
       g.lineBetween(2, 17, 32, 17);
       g.lineBetween(17, 2, 17, 32);
-      g.fillStyle(0xffd166, 1);
+      g.fillStyle(0xf5c542, 1);
       g.fillCircle(21, 17, 3);
     });
 
@@ -4494,23 +4505,23 @@ class MainScene extends Phaser.Scene {
       g.fillStyle(0xa7e65d, 1);
       g.fillRect(15, 8, 4, 18);
       g.fillRect(8, 15, 18, 4);
-      g.lineStyle(2, 0x9fffe0, 0.75);
+      g.lineStyle(2, 0x9ec8ff, 0.75);
       g.strokeCircle(17, 17, 15);
     });
 
     this.makeTexture('weapon-swarm', 34, 34, (g) => {
       g.fillStyle(0x22121d, 1);
       g.fillCircle(17, 17, 10);
-      g.lineStyle(2, 0xff8bd1, 1);
+      g.lineStyle(2, 0xb285ff, 1);
       g.strokeCircle(17, 17, 10);
-      g.fillStyle(0xff8bd1, 1);
+      g.fillStyle(0xb285ff, 1);
       g.fillCircle(11, 13, 3);
       g.fillCircle(22, 16, 3);
       g.fillCircle(16, 23, 3);
     });
 
     this.makeTexture('spark', 10, 10, (g) => {
-      g.fillStyle(0xffd166, 1);
+      g.fillStyle(0xf5c542, 1);
       g.fillCircle(5, 5, 4);
     });
 
@@ -4518,31 +4529,31 @@ class MainScene extends Phaser.Scene {
       // body
       g.fillStyle(0x06141c, 1);
       g.fillRoundedRect(4, 10, 40, 25, 4);
-      g.lineStyle(2.5, 0xffcc33, 1);
+      g.lineStyle(2.5, 0xf5c542, 1);
       g.strokeRoundedRect(4, 10, 40, 25, 4);
       // lid
       g.fillStyle(0x101e2a, 1);
       g.fillRect(7, 4, 34, 10);
-      g.lineStyle(1.5, 0xffcc33, 0.9);
+      g.lineStyle(1.5, 0xf5c542, 0.9);
       g.strokeRect(7, 4, 34, 10);
       // hinges
-      g.fillStyle(0xff3ad9, 1);
+      g.fillStyle(0xb285ff, 1);
       g.fillCircle(11, 9, 1.5);
       g.fillCircle(37, 9, 1.5);
       // lock core
-      g.fillStyle(0x00f0ff, 1);
+      g.fillStyle(0x4d8eff, 1);
       g.fillRect(21, 18, 6, 9);
       g.fillStyle(0xffffff, 0.95);
       g.fillCircle(24, 22, 1.6);
       // accent line
-      g.lineStyle(1.5, 0x6dfff2, 0.9);
+      g.lineStyle(1.5, 0x9ec8ff, 0.9);
       g.lineBetween(8, 17, 40, 17);
     });
 
     this.makeTexture('vehicle-bubble', 70, 70, (g) => {
-      g.fillStyle(0x36f0d2, 0.12);
+      g.fillStyle(0x4d8eff, 0.12);
       g.fillCircle(35, 35, 31);
-      g.lineStyle(3, 0x36f0d2, 0.92);
+      g.lineStyle(3, 0x4d8eff, 0.92);
       g.strokeCircle(35, 35, 31);
       g.lineStyle(1, 0xe8f7f4, 0.7);
       g.strokeCircle(35, 35, 24);
@@ -4757,8 +4768,8 @@ class MainScene extends Phaser.Scene {
 
     // Circuit decorations
     const circuits = this.add.graphics().setDepth(-10);
-    circuits.lineStyle(2, 0x36f0d2, 0.22);
-    circuits.fillStyle(0xffd166, 0.38);
+    circuits.lineStyle(2, 0x4d8eff, 0.22);
+    circuits.fillStyle(0xf5c542, 0.38);
 
     for (let i = 0; i < 150; i += 1) {
       const x = Phaser.Math.Between(80, WORLD_WIDTH - 160);
@@ -4834,9 +4845,87 @@ class MainScene extends Phaser.Scene {
     if (target) {
       this.lastAimAngle = Phaser.Math.Angle.Between(this.player.x, this.player.y, target.x, target.y);
     }
+    const prevLean = (this.player.getData('lean') as number | undefined) ?? 0;
+    this.player.rotation -= prevLean;
+    this.player.setData('lean', 0);
     this.player.setRotation(Phaser.Math.Angle.RotateTo(this.player.rotation, this.lastAimAngle, Math.PI * deltaSeconds * 10));
 
+    const body = this.player.body as Phaser.Physics.Arcade.Body | null;
+    this.updateVehicleBodyAnim(this.player, body?.velocity.x ?? 0, body?.velocity.y ?? 0, deltaSeconds);
+
     this.pullLoot(deltaSeconds);
+  }
+
+  private updateVehicleBodyAnim(
+    sprite: Phaser.GameObjects.Sprite,
+    vx: number,
+    vy: number,
+    deltaSeconds: number,
+  ) {
+    const baseX = (sprite.getData('baseScaleX') as number | undefined) ?? sprite.scaleX;
+    const baseY = (sprite.getData('baseScaleY') as number | undefined) ?? sprite.scaleY;
+    if (sprite.getData('baseScaleX') === undefined) {
+      sprite.setData('baseScaleX', sprite.scaleX || 1);
+      sprite.setData('baseScaleY', sprite.scaleY || 1);
+    }
+
+    let bobT = (sprite.getData('bobT') as number | undefined) ?? 0;
+    let psx = (sprite.getData('psx') as number | undefined) ?? 0;
+    let psy = (sprite.getData('psy') as number | undefined) ?? 0;
+    let flipX = (sprite.getData('flipX') as number | undefined) ?? 0;
+    let flipY = (sprite.getData('flipY') as number | undefined) ?? 0;
+    let lean = (sprite.getData('lean') as number | undefined) ?? 0;
+
+    // Strip last frame's applied lean so we read the true aim rotation
+    const aimRotation = sprite.rotation - lean;
+
+    const speed = Math.hypot(vx, vy);
+    const moving = speed > 6;
+
+    const sx = Math.abs(vx) > 10 ? Math.sign(vx) : 0;
+    const sy = Math.abs(vy) > 10 ? Math.sign(vy) : 0;
+    if (sx !== 0 && psx !== 0 && sx !== psx) flipX = 1;
+    if (sy !== 0 && psy !== 0 && sy !== psy) flipY = 1;
+    if (sx !== 0) psx = sx;
+    if (sy !== 0) psy = sy;
+
+    flipX = Math.max(0, flipX - deltaSeconds / 0.24);
+    flipY = Math.max(0, flipY - deltaSeconds / 0.24);
+
+    if (moving) bobT += deltaSeconds * 9;
+
+    const cosR = Math.cos(aimRotation);
+    const sinR = Math.sin(aimRotation);
+    const forwardVel = vx * cosR + vy * sinR;
+    const lateralVel = -vx * sinR + vy * cosR;
+
+    let scaleX = baseX;
+    let scaleY = baseY;
+
+    scaleX *= 1 + clamp(forwardVel * 0.00035, -0.05, 0.08);
+    scaleY *= 1 - clamp(Math.abs(lateralVel) * 0.00028, 0, 0.07);
+    if (moving) scaleY *= 1 + Math.sin(bobT) * 0.03;
+
+    if (flipX > 0) {
+      const f = Math.abs(Math.cos((1 - flipX) * Math.PI));
+      scaleX *= Math.max(0.18, f);
+    }
+    if (flipY > 0) {
+      const f = Math.abs(Math.cos((1 - flipY) * Math.PI));
+      scaleY *= Math.max(0.18, f);
+    }
+
+    const targetLean = clamp(lateralVel * 0.00035, -0.16, 0.16);
+    lean += (targetLean - lean) * Math.min(1, deltaSeconds * 6);
+
+    sprite.setScale(scaleX, scaleY);
+    sprite.rotation = aimRotation + lean;
+    sprite.setData('bobT', bobT);
+    sprite.setData('psx', psx);
+    sprite.setData('psy', psy);
+    sprite.setData('flipX', flipX);
+    sprite.setData('flipY', flipY);
+    sprite.setData('lean', lean);
   }
 
   private getMagnetPickupRadius() {
@@ -5174,11 +5263,11 @@ class MainScene extends Phaser.Scene {
         aoe: perfect ? 42 : level >= 5 ? 18 : 0,
         scale: perfect ? 1.05 : 0.8,
         tint: WEAPONS.attackDrone.color,
-        trailColor: 0x36f0d2,
-        impactColor: 0x9fffe0,
+        trailColor: 0x4d8eff,
+        impactColor: 0x9ec8ff,
       });
     }
-    this.drawArcBolt(visual.x, visual.y, target.x, target.y, perfect ? 0xe8f7f4 : 0x36f0d2, perfect ? 3 : 1.4, 110);
+    this.drawArcBolt(visual.x, visual.y, target.x, target.y, perfect ? 0xe8f7f4 : 0x4d8eff, perfect ? 3 : 1.4, 110);
     if (perfect) {
       this.shockwave(target.x, target.y, 46, WEAPONS.attackDrone.color);
     }
@@ -5382,8 +5471,8 @@ class MainScene extends Phaser.Scene {
         aoe: 64 + level * 17 + (perfect ? 36 : 0),
         scale: perfect ? 1.28 : 1.08,
         tint: WEAPONS.rocketLauncher.color,
-        trailColor: 0xff6961,
-        impactColor: perfect ? 0xe8f7f4 : 0xffd166,
+        trailColor: 0xff5d6f,
+        impactColor: perfect ? 0xe8f7f4 : 0xf5c542,
       });
     }
     this.cameras.main.shake(perfect ? 110 : 70, perfect ? 0.004 : 0.0025);
@@ -5422,8 +5511,8 @@ class MainScene extends Phaser.Scene {
         scale: perfect ? 1.28 : 1.05,
         explodeOnExpire: true,
         tint: WEAPONS.grenadeLauncher.color,
-        trailColor: perfect ? 0xe8f7f4 : 0xffd166,
-        impactColor: 0xffd166,
+        trailColor: perfect ? 0xe8f7f4 : 0xf5c542,
+        impactColor: 0xf5c542,
       });
     }
 
@@ -5756,7 +5845,7 @@ class MainScene extends Phaser.Scene {
         aoe: perfect ? 46 : 18,
         scale: perfect ? 1.3 : 1.05,
         tint: WEAPONS.ionLance.color,
-        trailColor: 0x64f5ff,
+        trailColor: 0x9ec8ff,
         impactColor: 0xe8f7f4,
       });
     }
@@ -5801,9 +5890,9 @@ class MainScene extends Phaser.Scene {
             ttl: 760,
             aoe: 0,
             scale: 0.72,
-            tint: 0x64f5ff,
-            trailColor: 0x64f5ff,
-            impactColor: 0x64f5ff,
+            tint: 0x9ec8ff,
+            trailColor: 0x9ec8ff,
+            impactColor: 0x9ec8ff,
           });
         });
         break;
@@ -5838,9 +5927,9 @@ class MainScene extends Phaser.Scene {
             ttl: 1180,
             aoe: 54,
             scale: 0.82,
-            tint: 0xffd166,
-            trailColor: 0xffd166,
-            impactColor: 0xffd166,
+            tint: 0xf5c542,
+            trailColor: 0xf5c542,
+            impactColor: 0xf5c542,
           });
         }
         break;
@@ -5864,10 +5953,10 @@ class MainScene extends Phaser.Scene {
         this.splashDamageRemotePlayers(this.player.x + Math.cos(angle) * 420, this.player.y + Math.sin(angle) * 420, 90, vehicle.damage * 0.32 * this.getDamageMultiplier());
         break;
       case 'walker':
-        this.shockwave(this.player.x, this.player.y, 112, 0xba7cff);
+        this.shockwave(this.player.x, this.player.y, 112, 0xb285ff);
         this.getTargetsInRange(240, 4).forEach((target, index) => {
           this.damageTarget(target, vehicle.damage * (0.22 - index * 0.025) * this.getDamageMultiplier());
-          this.drawArcBolt(this.player.x, this.player.y, target.x, target.y, 0xba7cff, 2.2, 130);
+          this.drawArcBolt(this.player.x, this.player.y, target.x, target.y, 0xb285ff, 2.2, 130);
         });
         break;
     }
@@ -5980,7 +6069,7 @@ class MainScene extends Phaser.Scene {
       const lastTrailAt = (projectile.getData('lastTrailAt') as number | undefined) ?? 0;
       if (this.elapsedMs - lastTrailAt > (this.isLowFxMode() ? 90 : 45)) {
         projectile.setData('lastTrailAt', this.elapsedMs);
-        const trail = this.add.circle(projectile.x, projectile.y, 4, 0xff6961, 0.35).setDepth(22);
+        const trail = this.add.circle(projectile.x, projectile.y, 4, 0xff5d6f, 0.35).setDepth(22);
         this.tweens.add({
           targets: trail,
           alpha: 0,
@@ -6016,7 +6105,7 @@ class MainScene extends Phaser.Scene {
 
     const damage = projectile.getData('damage') as number;
     this.damagePlayer(damage, ENEMIES.turret.name);
-    this.flashAt(projectile.x, projectile.y, 0xff6961, 8);
+    this.flashAt(projectile.x, projectile.y, 0xff5d6f, 8);
     projectile.destroy();
   }
 
@@ -6240,7 +6329,7 @@ class MainScene extends Phaser.Scene {
     if ((enemy.getData('bossMode') as string) === 'flee') {
       if (this.elapsedMs < ((enemy.getData('bossFleeUntil') as number | undefined) ?? 0)) {
         this.moveBossAway(enemy, target, spec.speed * 1.35);
-        enemy.setTint(0xffd166);
+        enemy.setTint(0xf5c542);
         return { aggro: 100, hunting: true };
       }
       enemy.setData('bossMode', 'attack');
@@ -6417,14 +6506,14 @@ class MainScene extends Phaser.Scene {
     }
 
     if (kind === 'sniper' && distanceToPlayer < 620) {
-      this.drawArcBolt(enemy.x, enemy.y, this.player.x, this.player.y, 0x5bc0ff, tier === 'red' ? 3.5 : 2.5, 160);
+      this.drawArcBolt(enemy.x, enemy.y, this.player.x, this.player.y, 0x4d8eff, tier === 'red' ? 3.5 : 2.5, 160);
       this.damagePlayer(spec.damage * (tier === 'red' ? 0.9 : 0.62), spec.name);
       return;
     }
 
     if ((kind === 'bomber' || kind === 'crusher') && distanceToPlayer < 150) {
       const radius = tier === 'red' ? 150 : 105;
-      this.shockwave(enemy.x, enemy.y, radius, 0xffd166);
+      this.shockwave(enemy.x, enemy.y, radius, 0xf5c542);
       this.damagePlayer(spec.damage * (tier === 'red' ? 1.1 : 0.72), spec.name);
       return;
     }
@@ -6452,7 +6541,7 @@ class MainScene extends Phaser.Scene {
       enemy.setData('jumpLandingAt', 0);
       enemy.setScale(1);
       const radius = spec.name === ENEMIES.leaper.name ? 84 : 58;
-      this.shockwave(enemy.x, enemy.y, radius, 0x64f5ff);
+      this.shockwave(enemy.x, enemy.y, radius, 0x9ec8ff);
       if (distanceToPlayer <= radius) {
         this.damagePlayer((enemy.getData('damage') as number) * 1.1, spec.name);
       }
@@ -6472,7 +6561,7 @@ class MainScene extends Phaser.Scene {
     enemy.setData('jumpLandingAt', this.elapsedMs + duration);
     enemy.setData('nextSkillAt', this.elapsedMs + Phaser.Math.Between(2600, 4300));
     enemy.setScale(1.16);
-    this.flashAt(enemy.x, enemy.y, 0x64f5ff, 8);
+    this.flashAt(enemy.x, enemy.y, 0x9ec8ff, 8);
     return true;
   }
 
@@ -6494,7 +6583,7 @@ class MainScene extends Phaser.Scene {
     if (enemy.getData('isBoss')) {
       const mode = enemy.getData('bossMode');
       if (mode === 'heal') return 0xa7e65d;
-      if (mode === 'flee') return 0xffd166;
+      if (mode === 'flee') return 0xf5c542;
       return this.getBossColor(enemy);
     }
     const tier = enemy.getData('tier') as EnemyTier | undefined;
@@ -6593,7 +6682,7 @@ class MainScene extends Phaser.Scene {
     enemy.setData('nextAttackAt', this.elapsedMs + spec.attackDelay);
     enemy.setData('aggro', clamp((enemy.getData('aggro') as number) + 9, 0, 100));
     this.damagePlayer(enemy.getData('damage') as number, spec.name);
-    this.flashAt(enemy.x, enemy.y, 0xff6961, 5);
+    this.flashAt(enemy.x, enemy.y, 0xff5d6f, 5);
   }
 
   private turretAttack(enemy: Phaser.Physics.Arcade.Sprite, spec: EnemySpec) {
@@ -6616,7 +6705,7 @@ class MainScene extends Phaser.Scene {
         245 + shots * 20,
       );
     }
-    this.muzzleBurst(enemy.x, enemy.y, angle, 0xff6961);
+    this.muzzleBurst(enemy.x, enemy.y, angle, 0xff5d6f);
   }
 
   private mortarAttack(enemy: Phaser.Physics.Arcade.Sprite, spec: EnemySpec) {
@@ -6630,8 +6719,8 @@ class MainScene extends Phaser.Scene {
     const targetY = this.player.y + Phaser.Math.Between(-42, 42);
     const radius = 74;
     const warning = this.add
-      .circle(targetX, targetY, radius, 0xffd166, 0.1)
-      .setStrokeStyle(2, 0xffd166, 0.74)
+      .circle(targetX, targetY, radius, 0xf5c542, 0.1)
+      .setStrokeStyle(2, 0xf5c542, 0.74)
       .setDepth(33);
     this.tweens.add({
       targets: warning,
@@ -6647,14 +6736,14 @@ class MainScene extends Phaser.Scene {
       if (!enemy.active || this.isGameOver) {
         return;
       }
-      this.shockwave(targetX, targetY, radius, 0xffd166);
-      this.flashAt(targetX, targetY, 0xffd166, 13);
+      this.shockwave(targetX, targetY, radius, 0xf5c542);
+      this.flashAt(targetX, targetY, 0xf5c542, 13);
       const distance = Phaser.Math.Distance.Between(this.player.x, this.player.y, targetX, targetY);
       if (distance <= radius) {
         this.damagePlayer((enemy.getData('damage') as number) * (1 - distance / radius * 0.45), spec.name);
       }
     });
-    this.muzzleBurst(enemy.x, enemy.y, enemy.rotation, 0xffd166);
+    this.muzzleBurst(enemy.x, enemy.y, enemy.rotation, 0xf5c542);
   }
 
   private sparkAttack(enemy: Phaser.Physics.Arcade.Sprite, spec: EnemySpec) {
@@ -6664,10 +6753,10 @@ class MainScene extends Phaser.Scene {
     }
 
     enemy.setData('nextAttackAt', this.elapsedMs + spec.attackDelay);
-    this.shockwave(enemy.x, enemy.y, 92, 0xba7cff);
-    this.drawArcBolt(enemy.x, enemy.y, this.player.x, this.player.y, 0xba7cff, 2.4, 130);
+    this.shockwave(enemy.x, enemy.y, 92, 0xb285ff);
+    this.drawArcBolt(enemy.x, enemy.y, this.player.x, this.player.y, 0xb285ff, 2.4, 130);
     this.damagePlayer(enemy.getData('damage') as number, spec.name);
-    this.flashAt(enemy.x, enemy.y, 0xba7cff, 10);
+    this.flashAt(enemy.x, enemy.y, 0xb285ff, 10);
   }
 
   private spawnEnemyProjectile(x: number, y: number, angle: number, damage: number, speed: number) {
@@ -6707,7 +6796,7 @@ class MainScene extends Phaser.Scene {
     }
     if (this.currentVehicle !== 'mech' && this.vehicleShield > 0) {
       this.vehicleShield = Math.max(0, this.vehicleShield - taken);
-      this.player.setTint(0x5bc0ff);
+      this.player.setTint(0x4d8eff);
       this.time.delayedCall(90, () => {
         if (!this.isGameOver) {
           this.player.setTint(this.localTeamTint || 0xffffff);
@@ -6720,7 +6809,7 @@ class MainScene extends Phaser.Scene {
     }
 
     this.hp = clamp(this.hp - taken, 0, this.maxHp);
-    this.player.setTint(0xff6961);
+    this.player.setTint(0xff5d6f);
     this.time.delayedCall(90, () => {
       if (!this.isGameOver) {
         this.player.setTint(this.localTeamTint || 0xffffff);
@@ -6740,7 +6829,7 @@ class MainScene extends Phaser.Scene {
     this.lastDefeatedBy = defeatedBy;
     this.vehicleShield = 0;
     this.hp = 0;
-    this.shockwave(this.player.x, this.player.y, 170, 0x5bc0ff);
+    this.shockwave(this.player.x, this.player.y, 170, 0x4d8eff);
     this.flashAt(this.player.x, this.player.y, 0xcfefff, 24);
     this.showGameOver();
   }
@@ -6989,7 +7078,7 @@ class MainScene extends Phaser.Scene {
       targetSocketId: target.socketId,
       amount,
     });
-    this.flashAt(target.x, target.y, 0xff6961, 8);
+    this.flashAt(target.x, target.y, 0xff5d6f, 8);
   }
 
   private breakChest(chest: Phaser.Physics.Arcade.Image) {
@@ -7009,7 +7098,7 @@ class MainScene extends Phaser.Scene {
       () => {
         if (chest.active) {
           chest.setData('broken', false);
-          chest.setTint(0xff6961);
+          chest.setTint(0xff5d6f);
           this.time.delayedCall(120, () => {
             if (chest.active && !chest.getData('broken')) {
               chest.clearTint();
@@ -7018,8 +7107,8 @@ class MainScene extends Phaser.Scene {
         }
       },
     );
-    this.flashAt(chest.x, chest.y, 0xffd166, 14);
-    this.shockwave(chest.x, chest.y, 86, 0xffd166);
+    this.flashAt(chest.x, chest.y, 0xf5c542, 14);
+    this.shockwave(chest.x, chest.y, 86, 0xf5c542);
     this.playCue('chest');
     this.addThreatNoise(chest.x, chest.y, 24, 420);
   }
@@ -7087,7 +7176,7 @@ class MainScene extends Phaser.Scene {
     const orbX = clamp(x + Math.cos(scatterAngle) * scatterDistance, 24, WORLD_WIDTH - 24);
     const orbY = clamp(y + Math.sin(scatterAngle) * scatterDistance, 24, WORLD_HEIGHT - 24);
     const orb = this.physics.add.image(orbX, orbY, 'buff-core');
-    const halo = this.add.circle(orbX, orbY, 13, 0x9fffe0, 0.24).setDepth(65);
+    const halo = this.add.circle(orbX, orbY, 13, 0x9ec8ff, 0.24).setDepth(65);
     const label = this.add
       .text(orbX, orbY - 22, `+${amount}`, {
         fontFamily: 'Inter, "Segoe UI", sans-serif',
@@ -7097,7 +7186,7 @@ class MainScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(67);
     orb.setDepth(66);
-    orb.setTint(0x36f0d2);
+    orb.setTint(0x4d8eff);
     orb.setScale(amount >= 120 ? 1.2 : amount >= 50 ? 1 : 0.82);
     orb.setData('amount', amount);
     orb.setData('halo', halo);
@@ -7142,7 +7231,7 @@ class MainScene extends Phaser.Scene {
     orb.destroy();
     this.gainXp(amount);
     this.sfxPickup();
-    this.flashAt(this.player.x, this.player.y, 0x36f0d2, 5);
+    this.flashAt(this.player.x, this.player.y, 0x4d8eff, 5);
   }
 
   private grantPermanentVehicle(x: number, y: number, grantedVehicle?: VehicleKey) {
@@ -7875,14 +7964,14 @@ class MainScene extends Phaser.Scene {
         this.applyVehicle(vehicle, true, false);
         this.vehicleExpiresAt = Number.POSITIVE_INFINITY;
         this.hp = clamp(this.hp + 8, 0, this.maxHp);
-        this.flashAt(pod.x, pod.y, 0x64f5ff, 13);
+        this.flashAt(pod.x, pod.y, 0x9ec8ff, 13);
         const lockedReturnIcon = pod.getData('icon') as Phaser.GameObjects.Image | undefined;
         lockedReturnIcon?.destroy();
         pod.destroy();
         return;
       }
       this.hp = clamp(this.hp + 8, 0, this.maxHp);
-      this.flashAt(pod.x, pod.y, 0x64f5ff, 11);
+      this.flashAt(pod.x, pod.y, 0x9ec8ff, 11);
       this.showAnnouncement(`${VEHICLES[this.currentVehicle].name} 未结束，不能替换为 ${VEHICLES[vehicle].name}`, 2200);
       const blockedIcon = pod.getData('icon') as Phaser.GameObjects.Image | undefined;
       blockedIcon?.destroy();
@@ -7891,7 +7980,7 @@ class MainScene extends Phaser.Scene {
     }
     this.applyVehicle(vehicle, true);
     this.hp = clamp(this.hp + 8, 0, this.maxHp);
-    this.flashAt(pod.x, pod.y, 0x36f0d2, 13);
+    this.flashAt(pod.x, pod.y, 0x4d8eff, 13);
     const icon = pod.getData('icon') as Phaser.GameObjects.Image | undefined;
     icon?.destroy();
     pod.destroy();
@@ -7923,6 +8012,16 @@ class MainScene extends Phaser.Scene {
     const baseSpec = VEHICLES[vehicle];
     const spec = this.getVehicleSpec(vehicle);
     this.player.setTexture(baseSpec.texture);
+    // Reset body-anim transients on vehicle swap so the new vehicle starts neutral.
+    this.player.setData('baseScaleX', undefined);
+    this.player.setData('baseScaleY', undefined);
+    this.player.setData('bobT', 0);
+    this.player.setData('psx', 0);
+    this.player.setData('psy', 0);
+    this.player.setData('flipX', 0);
+    this.player.setData('flipY', 0);
+    this.player.setData('lean', 0);
+    this.player.setScale(1, 1);
     const body = this.player.body as Phaser.Physics.Arcade.Body;
     body.setSize(baseSpec.bodyWidth, baseSpec.bodyHeight, true);
     body.setAllowGravity(false);
@@ -7961,10 +8060,10 @@ class MainScene extends Phaser.Scene {
         vehicle === 'tank' || vehicle === 'artillery'
           ? 0xa7e65d
           : vehicle === 'railgun'
-            ? 0x5bc0ff
+            ? 0x4d8eff
             : vehicle === 'walker'
-              ? 0xba7cff
-              : 0x36f0d2;
+              ? 0xb285ff
+              : 0x4d8eff;
       this.flashAt(
         this.player.x,
         this.player.y,
@@ -8048,17 +8147,17 @@ class MainScene extends Phaser.Scene {
     if (expiredVehicle === this.lockedBossVehicle) {
       this.vehicleShield = Math.max(this.maxVehicleShield * 0.35, 1);
       this.hp = Math.max(1, this.hp - this.maxHp * 0.12);
-      this.shockwave(this.player.x, this.player.y, 130, 0x64f5ff);
-      this.flashAt(this.player.x, this.player.y, 0x64f5ff, 22);
+      this.shockwave(this.player.x, this.player.y, 130, 0x9ec8ff);
+      this.flashAt(this.player.x, this.player.y, 0x9ec8ff, 22);
       this.showAnnouncement(`${VEHICLES[expiredVehicle].name} 永久核心重启，生命扣除 12%`, 2400);
       return;
     }
     const blastColor =
       expiredVehicle === 'tank' || expiredVehicle === 'artillery' || expiredVehicle === 'flameRig'
-        ? 0xffd166
+        ? 0xf5c542
         : expiredVehicle === 'railgun' || expiredVehicle === 'laserVan'
-          ? 0x5bc0ff
-          : 0xff6961;
+          ? 0x4d8eff
+          : 0xff5d6f;
     this.shockwave(this.player.x, this.player.y, 120, blastColor);
     this.flashAt(this.player.x, this.player.y, blastColor, 24);
     this.cameras.main.shake(160, 0.005);
@@ -8555,7 +8654,7 @@ class MainScene extends Phaser.Scene {
     }
 
     this.targetRing.clear();
-    this.targetRing.lineStyle(2, 0x36f0d2, 0.42);
+    this.targetRing.lineStyle(2, 0x4d8eff, 0.42);
     this.targetRing.strokeCircle(this.player.x, this.player.y, this.targetRange);
     this.targetRing.lineStyle(1, 0xe8f7f4, 0.18);
     this.targetRing.strokeCircle(this.player.x, this.player.y, Math.max(12, this.targetRange - 8));
@@ -8577,7 +8676,7 @@ class MainScene extends Phaser.Scene {
     }
 
     const locked = zone.radius <= zone.minRadius + 2;
-    const ringColor = locked ? 0xffd166 : 0x5bc0ff;
+    const ringColor = locked ? 0xf5c542 : 0x4d8eff;
     this.battleZoneGraphics.lineStyle(18, 0x06101a, 0.36);
     this.battleZoneGraphics.strokeCircle(zone.centerX, zone.centerY, zone.radius + 8);
     this.battleZoneGraphics.lineStyle(5, ringColor, 0.88);
@@ -8620,7 +8719,7 @@ class MainScene extends Phaser.Scene {
       this.enemyHud.fillRect(x - 6, y, 4, isBoss ? 18 : 12);
       this.enemyHud.fillStyle(0x050709, 0.82);
       this.enemyHud.fillRect(x, y, barWidth, isBoss ? 6 : 4);
-      this.enemyHud.fillStyle(aggro > 62 ? 0xff6961 : aggro > 24 ? 0xffd166 : 0x36f0d2, 1);
+      this.enemyHud.fillStyle(aggro > 62 ? 0xff5d6f : aggro > 24 ? 0xf5c542 : 0x4d8eff, 1);
       this.enemyHud.fillRect(x, y, barWidth * (aggro / 100), isBoss ? 6 : 4);
       this.enemyHud.fillStyle(0xa7e65d, 0.95);
       this.enemyHud.fillRect(x, y + (isBoss ? 8 : 5), barWidth * clamp(hp / maxHp, 0, 1), isBoss ? 5 : 3);
@@ -8638,7 +8737,7 @@ class MainScene extends Phaser.Scene {
       const y = chest.y - chest.displayHeight / 2 - 10;
       this.enemyHud.fillStyle(0x050709, 0.82);
       this.enemyHud.fillRect(x, y, 42, 5);
-      this.enemyHud.fillStyle(0xffd166, 1);
+      this.enemyHud.fillStyle(0xf5c542, 1);
       this.enemyHud.fillRect(x, y, 42 * clamp(hp / maxHp, 0, 1), 5);
     });
   }
@@ -8773,11 +8872,11 @@ class MainScene extends Phaser.Scene {
       const lpH = (isMobileLandscape ? 90 : 108);
       this.hud.fillStyle(0x040712, 0.78);
       this.hud.fillRoundedRect(lpX, lpY, lpW, lpH, 6);
-      this.hud.lineStyle(1.5, 0x00f0ff, 0.55);
+      this.hud.lineStyle(1.5, 0x4d8eff, 0.55);
       this.hud.strokeRoundedRect(lpX, lpY, lpW, lpH, 6);
       // corner brackets
       const bk = 9;
-      this.hud.lineStyle(2, 0x00f0ff, 0.95);
+      this.hud.lineStyle(2, 0x4d8eff, 0.95);
       this.hud.lineBetween(lpX, lpY, lpX + bk, lpY);
       this.hud.lineBetween(lpX, lpY, lpX, lpY + bk);
       this.hud.lineBetween(lpX + lpW, lpY, lpX + lpW - bk, lpY);
@@ -8799,27 +8898,27 @@ class MainScene extends Phaser.Scene {
     this.hud.fillStyle(0x150612, 1);
     this.hud.fillRect(hudTextX, barY1, barWidth, barH1);
     const hpRatio = clamp(this.hp / this.maxHp, 0, 1);
-    this.hud.fillStyle(0xff1f4f, 1);
+    this.hud.fillStyle(0xff5d6f, 1);
     this.hud.fillRect(hudTextX, barY1, barWidth * hpRatio, barH1);
-    this.hud.fillStyle(0xff8aa8, 0.85);
+    this.hud.fillStyle(0xff9ea8, 0.85);
     this.hud.fillRect(hudTextX, barY1, barWidth * hpRatio, Math.max(1, Math.floor(barH1 / 3)));
-    this.hud.lineStyle(1, 0xff4663, 0.85);
+    this.hud.lineStyle(1, 0xff5d6f, 0.85);
     this.hud.strokeRect(hudTextX, barY1, barWidth, barH1);
     // XP bar
     this.hud.fillStyle(0x041820, 1);
     this.hud.fillRect(hudTextX, barY2, barWidth, barH2);
     const xpRatio = clamp(this.xp / this.xpToNext, 0, 1);
-    this.hud.fillStyle(0x00f0ff, 1);
+    this.hud.fillStyle(0x4d8eff, 1);
     this.hud.fillRect(hudTextX, barY2, barWidth * xpRatio, barH2);
     this.hud.fillStyle(0xffffff, 0.7);
     this.hud.fillRect(hudTextX, barY2, barWidth * xpRatio, 1);
-    this.hud.lineStyle(1, 0x00f0ff, 0.65);
+    this.hud.lineStyle(1, 0x4d8eff, 0.65);
     this.hud.strokeRect(hudTextX, barY2, barWidth, barH2);
     // Alert bar
     this.hud.fillStyle(0x0c1410, 1);
     this.hud.fillRect(hudTextX, barY3, barWidth, barH2);
     const alertColor =
-      this.areaAlert > 68 ? 0xff1f4f : this.areaAlert > 34 ? 0xffcc33 : 0xb6ff3a;
+      this.areaAlert > 68 ? 0xff5d6f : this.areaAlert > 34 ? 0xf5c542 : 0xb6ff3a;
     this.hud.fillStyle(alertColor, 1);
     this.hud.fillRect(hudTextX, barY3, barWidth * (this.areaAlert / 100), barH2);
     this.hud.lineStyle(1, alertColor, 0.65);
@@ -8832,11 +8931,11 @@ class MainScene extends Phaser.Scene {
     if (!isMobilePortrait) {
       this.hud.fillStyle(0x030610, 0.86);
       this.hud.fillRoundedRect(rightPanelX, rightPanelY, rightPanelWidth, rightPanelHeight, 8);
-      this.hud.lineStyle(1.5, 0xffcc33, 0.6);
+      this.hud.lineStyle(1.5, 0xf5c542, 0.6);
       this.hud.strokeRoundedRect(rightPanelX, rightPanelY, rightPanelWidth, rightPanelHeight, 8);
       // corner ticks
       const rb = 8;
-      this.hud.lineStyle(2, 0xffcc33, 0.95);
+      this.hud.lineStyle(2, 0xf5c542, 0.95);
       this.hud.lineBetween(rightPanelX, rightPanelY, rightPanelX + rb, rightPanelY);
       this.hud.lineBetween(rightPanelX, rightPanelY, rightPanelX, rightPanelY + rb);
       this.hud.lineBetween(rightPanelX + rightPanelWidth, rightPanelY + rightPanelHeight, rightPanelX + rightPanelWidth - rb, rightPanelY + rightPanelHeight);
@@ -8846,7 +8945,7 @@ class MainScene extends Phaser.Scene {
         const vehicleBarWidth = rightPanelWidth - 34;
         this.hud.fillStyle(0x041820, 1);
         this.hud.fillRect(rightPanelX + 17, rightPanelY + 14, vehicleBarWidth, 10);
-        const vColor = this.currentVehicle === 'tank' ? 0xb6ff3a : 0x00f0ff;
+        const vColor = this.currentVehicle === 'tank' ? 0xb6ff3a : 0x4d8eff;
         this.hud.fillStyle(vColor, 1);
         this.hud.fillRect(rightPanelX + 17, rightPanelY + 14, vehicleBarWidth * remainingVehicle, 10);
         this.hud.fillStyle(0xffffff, 0.6);
@@ -9048,7 +9147,7 @@ class MainScene extends Phaser.Scene {
     }
 
     const vignetteAlpha = clamp(this.areaAlert / 100, 0, 0.34);
-    this.hud.lineStyle(4, this.areaAlert > 65 ? 0xff6961 : 0xffd166, vignetteAlpha);
+    this.hud.lineStyle(4, this.areaAlert > 65 ? 0xff5d6f : 0xf5c542, vignetteAlpha);
     this.hud.strokeRect(2, 2, width - 4, height - 4);
 
     if (this.invasionMessage && Number.isFinite(this.invasionMessageUntil) && this.elapsedMs >= this.invasionMessageUntil) {
@@ -9116,7 +9215,7 @@ class MainScene extends Phaser.Scene {
     if (showTransient) {
       this.hud.fillStyle(0x050709, 0.76);
       this.hud.fillRoundedRect(announcementCenterX - tranW / 2, tranY, tranW, tranH, 8);
-      this.hud.lineStyle(1, 0xff6961, 0.85);
+      this.hud.lineStyle(1, 0xff5d6f, 0.85);
       this.hud.strokeRoundedRect(announcementCenterX - tranW / 2, tranY, tranW, tranH, 8);
     }
 
@@ -9185,7 +9284,7 @@ class MainScene extends Phaser.Scene {
     const foggy = this.currentWeather === 'fog';
     this.hud.fillStyle(foggy ? 0x23282b : 0x050709, foggy ? 0.86 : 0.78);
     this.hud.fillRoundedRect(x, y, size, size, 8);
-    this.hud.lineStyle(1, foggy ? 0x8f989b : 0x36f0d2, foggy ? 0.55 : 0.5);
+    this.hud.lineStyle(1, foggy ? 0x8f989b : 0x4d8eff, foggy ? 0.55 : 0.5);
     this.hud.strokeRoundedRect(x, y, size, size, 8);
 
     const toMiniX = (worldX: number) => x + clamp(worldX / WORLD_WIDTH, 0, 1) * size;
@@ -9209,7 +9308,7 @@ class MainScene extends Phaser.Scene {
       const zoneY = toMiniY(zone.centerY);
       const zoneWidth = clamp((zone.radius * 2 / WORLD_WIDTH) * size, 3, size * 1.6);
       const zoneHeight = clamp((zone.radius * 2 / WORLD_HEIGHT) * size, 3, size * 1.6);
-      this.hud.lineStyle(2, zone.radius <= zone.minRadius + 2 ? 0xffd166 : 0x5bc0ff, foggy ? 0.62 : 0.9);
+      this.hud.lineStyle(2, zone.radius <= zone.minRadius + 2 ? 0xf5c542 : 0x4d8eff, foggy ? 0.62 : 0.9);
       this.hud.strokeEllipse(zoneX, zoneY, zoneWidth, zoneHeight);
       this.hud.lineStyle(1, 0xcfefff, foggy ? 0.2 : 0.38);
       this.hud.strokeEllipse(zoneX, zoneY, Math.max(3, zoneWidth - 5), Math.max(3, zoneHeight - 5));
@@ -9231,11 +9330,11 @@ class MainScene extends Phaser.Scene {
       }
 
       const isAlly = player.teamKey === this.localTeamKey;
-      this.hud.fillStyle(foggy ? 0xb8bec1 : isAlly ? 0x5bc0ff : 0xff4d4d, foggy ? 0.58 : 0.92);
+      this.hud.fillStyle(foggy ? 0xb8bec1 : isAlly ? 0x4d8eff : 0xff4d4d, foggy ? 0.58 : 0.92);
       this.hud.fillCircle(toMiniX(player.x), toMiniY(player.y), isAlly ? 3.2 : 2.8);
     });
 
-    this.hud.fillStyle(foggy ? 0xe0e5e5 : 0x5bc0ff, 1);
+    this.hud.fillStyle(foggy ? 0xe0e5e5 : 0x4d8eff, 1);
     this.hud.fillCircle(toMiniX(this.player.x), toMiniY(this.player.y), 4.4);
 
     this.hud.lineStyle(1, foggy ? 0xc4cbcc : 0xe8f7f4, foggy ? 0.14 : 0.22);
@@ -9244,12 +9343,12 @@ class MainScene extends Phaser.Scene {
   }
 
   private getProjectileColor(texture: string) {
-    if (texture === 'shot-shell') return 0xffd166;
-    if (texture === 'shot-missile') return 0xff6961;
-    if (texture === 'shot-rail') return 0x5bc0ff;
-    if (texture === 'shot-grenade') return 0xffd166;
+    if (texture === 'shot-shell') return 0xf5c542;
+    if (texture === 'shot-missile') return 0xff5d6f;
+    if (texture === 'shot-rail') return 0x4d8eff;
+    if (texture === 'shot-grenade') return 0xf5c542;
     if (texture === 'shot-flame') return 0xff9f1c;
-    return 0x36f0d2;
+    return 0x4d8eff;
   }
 
   private muzzleBurst(x: number, y: number, angle: number, color: number) {
@@ -9298,7 +9397,7 @@ class MainScene extends Phaser.Scene {
     const by = projectile.y + Math.sin(angle) * 8;
 
     if (texture === 'shot-flame') {
-      const ember = this.add.circle(bx + Phaser.Math.Between(-4, 4), by + Phaser.Math.Between(-4, 4), Phaser.Math.FloatBetween(3, 6), Phaser.Math.Between(0, 1) ? 0xff6961 : 0xffd166, 0.7).setDepth(24);
+      const ember = this.add.circle(bx + Phaser.Math.Between(-4, 4), by + Phaser.Math.Between(-4, 4), Phaser.Math.FloatBetween(3, 6), Phaser.Math.Between(0, 1) ? 0xff5d6f : 0xf5c542, 0.7).setDepth(24);
       this.tweens.add({ targets: ember, alpha: 0, scale: 2, duration: 200, ease: 'Cubic.easeOut', onComplete: () => ember.destroy() });
     } else if (texture === 'shot-missile') {
       const smoke = this.add.circle(bx, by, Phaser.Math.FloatBetween(3, 5), 0x8a9199, 0.35).setDepth(24);
@@ -9467,7 +9566,7 @@ class MainScene extends Phaser.Scene {
     const y = this.player.y;
     for (let i = 0; i < 16; i += 1) {
       const a = (i / 16) * Math.PI * 2;
-      const p = this.add.circle(x, y, 3, i % 2 === 0 ? 0x36f0d2 : 0xe8f7f4, 0.9).setDepth(44);
+      const p = this.add.circle(x, y, 3, i % 2 === 0 ? 0x4d8eff : 0xe8f7f4, 0.9).setDepth(44);
       this.tweens.add({ targets: p, x: x + Math.cos(a) * 80, y: y + Math.sin(a) * 80, alpha: 0, scale: 0.2, duration: 400, ease: 'Cubic.easeOut', onComplete: () => p.destroy() });
     }
     const flash = this.add.circle(x, y, 20, 0xe8f7f4, 0.8).setDepth(43);
@@ -9555,7 +9654,7 @@ class MainScene extends Phaser.Scene {
     const exitY = stacked ? height / 2 + 142 : continueY;
     const continueButton = this.add
       .rectangle(continueX, continueY, buttonWidth, 48, 0x111a1f, 1)
-      .setStrokeStyle(2, 0x36f0d2)
+      .setStrokeStyle(2, 0x4d8eff)
       .setInteractive({ useHandCursor: true });
     const continueLabel = this.add
       .text(continueX, continueY, canRevive ? '复活' : '等待结算', {
@@ -9566,7 +9665,7 @@ class MainScene extends Phaser.Scene {
       .setOrigin(0.5);
     const exitButton = this.add
       .rectangle(exitX, exitY, buttonWidth, 48, 0x111a1f, 1)
-      .setStrokeStyle(2, 0xff6961)
+      .setStrokeStyle(2, 0xff5d6f)
       .setInteractive({ useHandCursor: true });
     const exitLabel = this.add
       .text(exitX, exitY, '退出房间', {
@@ -9676,7 +9775,7 @@ class MainScene extends Phaser.Scene {
     this.localTeamKey = '';
     this.localTeamName = '';
     this.localTeamColorCss = '#36f0d2';
-    this.localTeamTint = 0x36f0d2;
+    this.localTeamTint = 0x4d8eff;
     this.currentRoom = undefined;
     this.latestRoomState = undefined;
     this.onlineButton?.remove();

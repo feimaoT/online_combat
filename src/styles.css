@@ -1,23 +1,27 @@
 :root {
-  --neon-cyan: #00f0ff;
-  --neon-cyan-soft: #6dfff2;
-  --neon-magenta: #ff3ad9;
-  --neon-violet: #9b6bff;
-  --neon-gold: #ffcc33;
-  --neon-amber: #ff9a1f;
-  --neon-red: #ff4663;
+  --neon-cyan: #4d8eff;
+  --neon-cyan-soft: #9ec8ff;
+  --neon-magenta: #b285ff;
+  --neon-violet: #b285ff;
+  --neon-gold: #f5c542;
+  --neon-amber: #f59a2c;
+  --neon-red: #ff5d6f;
   --neon-lime: #b6ff3a;
-  --hud-bg: rgba(8, 12, 22, 0.92);
-  --hud-bg-strong: rgba(6, 9, 16, 0.96);
-  --hud-edge: rgba(0, 240, 255, 0.55);
-  --hud-edge-soft: rgba(0, 240, 255, 0.18);
+  --hex-deep: #0a1633;
+  --hex-mid: #14224c;
+  --hud-bg: rgba(10, 22, 51, 0.92);
+  --hud-bg-strong: rgba(6, 12, 30, 0.96);
+  --hud-edge: rgba(77, 142, 255, 0.6);
+  --hud-edge-soft: rgba(77, 142, 255, 0.2);
   --panel-clip: polygon(
-    14px 0,
-    100% 0,
-    100% calc(100% - 14px),
-    calc(100% - 14px) 100%,
-    0 100%,
-    0 14px
+    18px 0,
+    calc(100% - 6px) 0,
+    100% 6px,
+    100% calc(100% - 18px),
+    calc(100% - 18px) 100%,
+    6px 100%,
+    0 calc(100% - 6px),
+    0 18px
   );
 }
 
@@ -29,9 +33,10 @@ body,
   margin: 0;
   overflow: hidden;
   background:
-    radial-gradient(ellipse at 20% 10%, rgba(0, 240, 255, 0.06), transparent 50%),
-    radial-gradient(ellipse at 80% 90%, rgba(255, 58, 217, 0.06), transparent 55%),
-    #04060c;
+    radial-gradient(ellipse at 20% 10%, rgba(77, 142, 255, 0.1), transparent 50%),
+    radial-gradient(ellipse at 80% 90%, rgba(178, 133, 255, 0.08), transparent 55%),
+    radial-gradient(ellipse at 50% 50%, rgba(245, 197, 66, 0.04), transparent 65%),
+    #050a1c;
   touch-action: none;
 }
 
@@ -74,7 +79,7 @@ canvas {
   padding: 18px;
   pointer-events: auto;
   background:
-    radial-gradient(ellipse at center, rgba(0, 240, 255, 0.08), transparent 65%),
+    radial-gradient(ellipse at center, rgba(77, 142, 255, 0.08), transparent 65%),
     rgba(3, 6, 12, 0.55);
   backdrop-filter: blur(6px);
 }
@@ -92,8 +97,8 @@ canvas {
   text-transform: uppercase;
   text-shadow:
     0 0 6px var(--neon-cyan),
-    0 0 18px rgba(0, 240, 255, 0.5),
-    0 0 36px rgba(0, 240, 255, 0.2);
+    0 0 18px rgba(77, 142, 255, 0.5),
+    0 0 36px rgba(77, 142, 255, 0.2);
 }
 
 .upgrade-hint {
@@ -111,7 +116,7 @@ canvas {
   font: 900 15px "Orbitron", Inter, sans-serif;
   letter-spacing: 2px;
   text-align: center;
-  text-shadow: 0 0 10px rgba(255, 204, 51, 0.55);
+  text-shadow: 0 0 10px rgba(245, 197, 66, 0.55);
 }
 
 .upgrade-list {
@@ -128,16 +133,16 @@ canvas {
   border-radius: 0;
   clip-path: var(--panel-clip);
   background:
-    linear-gradient(135deg, rgba(0, 240, 255, 0.12), rgba(0, 0, 0, 0)) padding-box,
+    linear-gradient(135deg, rgba(77, 142, 255, 0.12), rgba(0, 0, 0, 0)) padding-box,
     linear-gradient(180deg, rgba(18, 28, 46, 0.98), rgba(8, 12, 22, 0.98)) padding-box;
   color: #e8f7ff;
   padding: 16px 14px 14px;
   cursor: pointer;
   touch-action: manipulation;
   box-shadow:
-    inset 0 0 0 2px rgba(0, 240, 255, 0.85),
-    inset 0 0 24px rgba(0, 240, 255, 0.18),
-    0 0 24px rgba(0, 240, 255, 0.18);
+    inset 0 0 0 2px rgba(77, 142, 255, 0.85),
+    inset 0 0 24px rgba(77, 142, 255, 0.18),
+    0 0 24px rgba(77, 142, 255, 0.18);
   transition: transform 120ms ease, box-shadow 180ms ease;
 }
 
@@ -147,18 +152,18 @@ canvas {
   inset: 0;
   pointer-events: none;
   background:
-    linear-gradient(90deg, transparent 0, rgba(0, 240, 255, 0.5) 50%, transparent 100%) top / 100% 1px no-repeat,
-    linear-gradient(90deg, transparent 0, rgba(0, 240, 255, 0.5) 50%, transparent 100%) bottom / 100% 1px no-repeat;
+    linear-gradient(90deg, transparent 0, rgba(77, 142, 255, 0.5) 50%, transparent 100%) top / 100% 1px no-repeat,
+    linear-gradient(90deg, transparent 0, rgba(77, 142, 255, 0.5) 50%, transparent 100%) bottom / 100% 1px no-repeat;
   opacity: 0.7;
 }
 
 .upgrade-card:nth-child(2) {
   box-shadow:
-    inset 0 0 0 2px rgba(255, 204, 51, 0.9),
-    inset 0 0 24px rgba(255, 154, 31, 0.16),
-    0 0 24px rgba(255, 154, 31, 0.22);
+    inset 0 0 0 2px rgba(245, 197, 66, 0.9),
+    inset 0 0 24px rgba(245, 154, 44, 0.16),
+    0 0 24px rgba(245, 154, 44, 0.22);
   background:
-    linear-gradient(135deg, rgba(255, 204, 51, 0.14), rgba(0, 0, 0, 0)) padding-box,
+    linear-gradient(135deg, rgba(245, 197, 66, 0.14), rgba(0, 0, 0, 0)) padding-box,
     linear-gradient(180deg, rgba(34, 24, 12, 0.98), rgba(14, 10, 6, 0.98)) padding-box;
 }
 
@@ -192,7 +197,7 @@ canvas {
   font: 900 13px "Orbitron", Inter, sans-serif;
   letter-spacing: 3px;
   text-transform: uppercase;
-  text-shadow: 0 0 8px rgba(0, 240, 255, 0.7);
+  text-shadow: 0 0 8px rgba(77, 142, 255, 0.7);
 }
 
 .upgrade-name {
@@ -216,7 +221,7 @@ canvas {
   font: 900 12px "Orbitron", Inter, sans-serif;
   letter-spacing: 3px;
   text-transform: uppercase;
-  text-shadow: 0 0 8px rgba(255, 204, 51, 0.7);
+  text-shadow: 0 0 8px rgba(245, 197, 66, 0.7);
 }
 
 /* ---------- Bottom Action Buttons ---------- */
@@ -252,9 +257,9 @@ canvas {
   color: #ffe28a;
   box-shadow:
     inset 0 0 0 2px var(--neon-gold),
-    inset 0 0 16px rgba(255, 204, 51, 0.22),
-    0 0 18px rgba(255, 204, 51, 0.28);
-  text-shadow: 0 0 8px rgba(255, 204, 51, 0.65);
+    inset 0 0 16px rgba(245, 197, 66, 0.22),
+    0 0 18px rgba(245, 197, 66, 0.28);
+  text-shadow: 0 0 8px rgba(245, 197, 66, 0.65);
 }
 
 .summon-button:disabled {
@@ -270,9 +275,9 @@ canvas {
   color: #c7f6ff;
   box-shadow:
     inset 0 0 0 2px var(--neon-cyan),
-    inset 0 0 16px rgba(0, 240, 255, 0.22),
-    0 0 18px rgba(0, 240, 255, 0.28);
-  text-shadow: 0 0 8px rgba(0, 240, 255, 0.7);
+    inset 0 0 16px rgba(77, 142, 255, 0.22),
+    0 0 18px rgba(77, 142, 255, 0.28);
+  text-shadow: 0 0 8px rgba(77, 142, 255, 0.7);
 }
 
 .exit-button {
@@ -282,9 +287,9 @@ canvas {
   color: #ffd1d6;
   box-shadow:
     inset 0 0 0 2px var(--neon-red),
-    inset 0 0 16px rgba(255, 70, 99, 0.22),
-    0 0 18px rgba(255, 70, 99, 0.28);
-  text-shadow: 0 0 8px rgba(255, 70, 99, 0.7);
+    inset 0 0 16px rgba(255, 93, 111, 0.22),
+    0 0 18px rgba(255, 93, 111, 0.28);
+  text-shadow: 0 0 8px rgba(255, 93, 111, 0.7);
 }
 
 /* ---------- Top Mobile Controls ---------- */
@@ -313,9 +318,9 @@ canvas {
   text-transform: uppercase;
   cursor: pointer;
   box-shadow:
-    inset 0 0 0 1.5px rgba(0, 240, 255, 0.75),
-    inset 0 0 12px rgba(0, 240, 255, 0.18),
-    0 0 12px rgba(0, 240, 255, 0.22);
+    inset 0 0 0 1.5px rgba(77, 142, 255, 0.75),
+    inset 0 0 12px rgba(77, 142, 255, 0.18),
+    0 0 12px rgba(77, 142, 255, 0.22);
   transition: filter 140ms ease;
 }
 
@@ -342,9 +347,9 @@ canvas {
   width: 88px;
   height: 88px;
   border-radius: 50%;
-  border: 2px solid rgba(0, 240, 255, 0.85);
+  border: 2px solid rgba(77, 142, 255, 0.85);
   background:
-    radial-gradient(circle at 35% 30%, rgba(0, 240, 255, 0.22), transparent 60%),
+    radial-gradient(circle at 35% 30%, rgba(77, 142, 255, 0.22), transparent 60%),
     radial-gradient(circle at center, rgba(10, 22, 32, 0.92), rgba(4, 8, 14, 0.95));
   color: #e8f7ff;
   display: flex;
@@ -357,8 +362,8 @@ canvas {
   cursor: pointer;
   pointer-events: auto;
   box-shadow:
-    inset 0 0 16px rgba(0, 240, 255, 0.28),
-    0 0 18px rgba(0, 240, 255, 0.32),
+    inset 0 0 16px rgba(77, 142, 255, 0.28),
+    0 0 18px rgba(77, 142, 255, 0.32),
     0 12px 28px rgba(0, 0, 0, 0.5);
 }
 
@@ -367,14 +372,14 @@ canvas {
   position: absolute;
   inset: 4px;
   border-radius: 50%;
-  border: 1px dashed rgba(0, 240, 255, 0.32);
+  border: 1px dashed rgba(77, 142, 255, 0.32);
   pointer-events: none;
 }
 
 .mobile-skill-icon {
   font-size: 28px;
   line-height: 1;
-  filter: drop-shadow(0 0 6px rgba(0, 240, 255, 0.6));
+  filter: drop-shadow(0 0 6px rgba(77, 142, 255, 0.6));
 }
 
 .mobile-skill-label {
@@ -391,20 +396,20 @@ canvas {
 .mobile-skill-airstrike {
   border-color: var(--neon-gold);
   background:
-    radial-gradient(circle at 35% 30%, rgba(255, 204, 51, 0.22), transparent 60%),
+    radial-gradient(circle at 35% 30%, rgba(245, 197, 66, 0.22), transparent 60%),
     radial-gradient(circle at center, rgba(32, 22, 8, 0.92), rgba(14, 10, 4, 0.95));
   box-shadow:
-    inset 0 0 16px rgba(255, 204, 51, 0.28),
-    0 0 18px rgba(255, 204, 51, 0.32),
+    inset 0 0 16px rgba(245, 197, 66, 0.28),
+    0 0 18px rgba(245, 197, 66, 0.32),
     0 12px 28px rgba(0, 0, 0, 0.5);
 }
 
 .mobile-skill-airstrike::before {
-  border-color: rgba(255, 204, 51, 0.35);
+  border-color: rgba(245, 197, 66, 0.35);
 }
 
 .mobile-skill-airstrike .mobile-skill-icon {
-  filter: drop-shadow(0 0 6px rgba(255, 204, 51, 0.65));
+  filter: drop-shadow(0 0 6px rgba(245, 197, 66, 0.65));
 }
 
 .mobile-skill.is-ready {
@@ -418,14 +423,14 @@ canvas {
 @keyframes skill-ready-pulse {
   0%, 100% {
     box-shadow:
-      inset 0 0 16px rgba(0, 240, 255, 0.28),
-      0 0 14px rgba(0, 240, 255, 0.32),
+      inset 0 0 16px rgba(77, 142, 255, 0.28),
+      0 0 14px rgba(77, 142, 255, 0.32),
       0 12px 28px rgba(0, 0, 0, 0.5);
   }
   50% {
     box-shadow:
-      inset 0 0 22px rgba(0, 240, 255, 0.42),
-      0 0 28px rgba(0, 240, 255, 0.7),
+      inset 0 0 22px rgba(77, 142, 255, 0.42),
+      0 0 28px rgba(77, 142, 255, 0.7),
       0 12px 28px rgba(0, 0, 0, 0.5);
   }
 }
@@ -433,14 +438,14 @@ canvas {
 @keyframes skill-ready-pulse-gold {
   0%, 100% {
     box-shadow:
-      inset 0 0 16px rgba(255, 204, 51, 0.28),
-      0 0 14px rgba(255, 204, 51, 0.32),
+      inset 0 0 16px rgba(245, 197, 66, 0.28),
+      0 0 14px rgba(245, 197, 66, 0.32),
       0 12px 28px rgba(0, 0, 0, 0.5);
   }
   50% {
     box-shadow:
-      inset 0 0 22px rgba(255, 204, 51, 0.42),
-      0 0 28px rgba(255, 204, 51, 0.78),
+      inset 0 0 22px rgba(245, 197, 66, 0.42),
+      0 0 28px rgba(245, 197, 66, 0.78),
       0 12px 28px rgba(0, 0, 0, 0.5);
   }
 }
@@ -452,7 +457,7 @@ canvas {
 
 .mobile-skill.is-active {
   background:
-    radial-gradient(circle at center, rgba(0, 240, 255, 0.45), rgba(0, 100, 120, 0.4));
+    radial-gradient(circle at center, rgba(77, 142, 255, 0.45), rgba(0, 100, 120, 0.4));
   border-color: #ffffff;
 }
 
@@ -487,13 +492,13 @@ canvas {
 .virtual-joystick-base {
   width: 126px;
   height: 126px;
-  border: 1.5px solid rgba(0, 240, 255, 0.55);
+  border: 1.5px solid rgba(77, 142, 255, 0.55);
   background:
-    radial-gradient(circle at center, rgba(0, 240, 255, 0.08), transparent 70%),
+    radial-gradient(circle at center, rgba(77, 142, 255, 0.08), transparent 70%),
     rgba(4, 8, 14, 0.4);
   box-shadow:
-    inset 0 0 28px rgba(0, 240, 255, 0.18),
-    0 0 16px rgba(0, 240, 255, 0.22);
+    inset 0 0 28px rgba(77, 142, 255, 0.18),
+    0 0 16px rgba(77, 142, 255, 0.22);
 }
 
 .virtual-joystick-base::after {
@@ -501,7 +506,7 @@ canvas {
   position: absolute;
   inset: 8px;
   border-radius: 50%;
-  border: 1px dashed rgba(0, 240, 255, 0.25);
+  border: 1px dashed rgba(77, 142, 255, 0.25);
   pointer-events: none;
 }
 
@@ -510,11 +515,11 @@ canvas {
   height: 58px;
   border: 1.5px solid var(--neon-gold);
   background:
-    radial-gradient(circle at 35% 30%, rgba(255, 204, 51, 0.45), transparent 60%),
+    radial-gradient(circle at 35% 30%, rgba(245, 197, 66, 0.45), transparent 60%),
     radial-gradient(circle at center, rgba(32, 22, 8, 0.92), rgba(14, 10, 4, 0.95));
   box-shadow:
-    inset 0 0 14px rgba(255, 204, 51, 0.32),
-    0 0 18px rgba(255, 204, 51, 0.4),
+    inset 0 0 14px rgba(245, 197, 66, 0.32),
+    0 0 18px rgba(245, 197, 66, 0.4),
     0 10px 28px rgba(0, 0, 0, 0.5);
 }
 
@@ -529,7 +534,7 @@ canvas {
   justify-content: center;
   padding: 18px;
   background:
-    radial-gradient(ellipse at center, rgba(255, 70, 99, 0.12), transparent 60%),
+    radial-gradient(ellipse at center, rgba(255, 93, 111, 0.12), transparent 60%),
     rgba(3, 4, 8, 0.62);
   color: #ffe8ec;
   pointer-events: auto;
@@ -544,8 +549,8 @@ canvas {
   text-align: center;
   box-shadow:
     inset 0 0 0 2px var(--neon-red),
-    inset 0 0 28px rgba(255, 70, 99, 0.22),
-    0 0 50px rgba(255, 70, 99, 0.35);
+    inset 0 0 28px rgba(255, 93, 111, 0.22),
+    0 0 50px rgba(255, 93, 111, 0.35);
 }
 
 .game-over-title {
@@ -555,7 +560,7 @@ canvas {
   text-transform: uppercase;
   text-shadow:
     0 0 10px var(--neon-red),
-    0 0 30px rgba(255, 70, 99, 0.65);
+    0 0 30px rgba(255, 93, 111, 0.65);
 }
 
 .game-over-stats {
@@ -601,17 +606,17 @@ canvas {
 .game-over-revive {
   box-shadow:
     inset 0 0 0 2px var(--neon-cyan),
-    inset 0 0 14px rgba(0, 240, 255, 0.22),
-    0 0 14px rgba(0, 240, 255, 0.32);
-  text-shadow: 0 0 8px rgba(0, 240, 255, 0.7);
+    inset 0 0 14px rgba(77, 142, 255, 0.22),
+    0 0 14px rgba(77, 142, 255, 0.32);
+  text-shadow: 0 0 8px rgba(77, 142, 255, 0.7);
 }
 
 .game-over-exit {
   box-shadow:
     inset 0 0 0 2px var(--neon-red),
-    inset 0 0 14px rgba(255, 70, 99, 0.22),
-    0 0 14px rgba(255, 70, 99, 0.32);
-  text-shadow: 0 0 8px rgba(255, 70, 99, 0.7);
+    inset 0 0 14px rgba(255, 93, 111, 0.22),
+    0 0 14px rgba(255, 93, 111, 0.32);
+  text-shadow: 0 0 8px rgba(255, 93, 111, 0.7);
 }
 
 .game-over-actions button:disabled {
@@ -635,8 +640,8 @@ canvas {
     linear-gradient(180deg, rgba(10, 18, 30, 0.98), rgba(4, 8, 14, 0.98));
   color: #e8f7ff;
   box-shadow:
-    inset 0 0 0 1.5px rgba(0, 240, 255, 0.55),
-    inset 0 0 30px rgba(0, 240, 255, 0.1),
+    inset 0 0 0 1.5px rgba(77, 142, 255, 0.55),
+    inset 0 0 30px rgba(77, 142, 255, 0.1),
     0 24px 80px rgba(0, 0, 0, 0.55);
 }
 
@@ -646,8 +651,8 @@ canvas {
   justify-content: space-between;
   gap: 12px;
   padding: 14px 18px 12px;
-  border-bottom: 1px solid rgba(0, 240, 255, 0.22);
-  background: linear-gradient(180deg, rgba(0, 240, 255, 0.06), transparent);
+  border-bottom: 1px solid rgba(77, 142, 255, 0.22);
+  background: linear-gradient(180deg, rgba(77, 142, 255, 0.06), transparent);
 }
 
 .online-title,
@@ -659,7 +664,7 @@ canvas {
 
 .online-title {
   color: var(--neon-cyan);
-  text-shadow: 0 0 10px rgba(0, 240, 255, 0.6);
+  text-shadow: 0 0 10px rgba(77, 142, 255, 0.6);
 }
 
 .online-head button {
@@ -673,7 +678,7 @@ canvas {
   letter-spacing: 1.5px;
   text-transform: uppercase;
   cursor: pointer;
-  box-shadow: inset 0 0 0 1.5px rgba(0, 240, 255, 0.6), 0 0 10px rgba(0, 240, 255, 0.22);
+  box-shadow: inset 0 0 0 1.5px rgba(77, 142, 255, 0.6), 0 0 10px rgba(77, 142, 255, 0.22);
 }
 
 .online-grid {
@@ -691,17 +696,17 @@ canvas {
   background: linear-gradient(180deg, rgba(14, 24, 36, 0.95), rgba(6, 10, 16, 0.95));
   overflow: hidden;
   box-shadow:
-    inset 0 0 0 1.5px color-mix(in srgb, var(--team-color, #00f0ff) 55%, transparent),
-    inset 0 0 18px color-mix(in srgb, var(--team-color, #00f0ff) 12%, transparent);
+    inset 0 0 0 1.5px color-mix(in srgb, var(--team-color, #4d8eff) 55%, transparent),
+    inset 0 0 18px color-mix(in srgb, var(--team-color, #4d8eff) 12%, transparent);
 }
 
 .online-team-title {
   padding: 10px 12px;
   color: var(--team-color, var(--neon-cyan));
-  text-shadow: 0 0 8px color-mix(in srgb, var(--team-color, #00f0ff) 70%, transparent);
-  border-bottom: 1px solid color-mix(in srgb, var(--team-color, #00f0ff) 30%, transparent);
+  text-shadow: 0 0 8px color-mix(in srgb, var(--team-color, #4d8eff) 70%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--team-color, #4d8eff) 30%, transparent);
   background: linear-gradient(180deg,
-    color-mix(in srgb, var(--team-color, #00f0ff) 14%, transparent),
+    color-mix(in srgb, var(--team-color, #4d8eff) 14%, transparent),
     transparent);
 }
 
@@ -719,7 +724,7 @@ canvas {
 }
 
 .online-player + .online-player {
-  border-top: 1px solid rgba(0, 240, 255, 0.08);
+  border-top: 1px solid rgba(77, 142, 255, 0.08);
 }
 
 .online-player.is-dead {
@@ -736,7 +741,7 @@ canvas {
 .online-crown,
 .online-empty {
   color: var(--neon-gold);
-  text-shadow: 0 0 8px rgba(255, 204, 51, 0.55);
+  text-shadow: 0 0 8px rgba(245, 197, 66, 0.55);
 }
 
 /* ---------- Lobby Overlay ---------- */
@@ -750,8 +755,8 @@ canvas {
   justify-content: center;
   padding: 24px;
   background:
-    radial-gradient(ellipse at 30% 20%, rgba(0, 240, 255, 0.1), transparent 55%),
-    radial-gradient(ellipse at 70% 80%, rgba(255, 58, 217, 0.1), transparent 55%),
+    radial-gradient(ellipse at 30% 20%, rgba(77, 142, 255, 0.1), transparent 55%),
+    radial-gradient(ellipse at 70% 80%, rgba(178, 133, 255, 0.1), transparent 55%),
     rgba(3, 4, 8, 0.92);
   color: #e8f7ff;
   backdrop-filter: blur(4px);
@@ -767,8 +772,8 @@ canvas {
   background:
     linear-gradient(180deg, rgba(10, 18, 30, 0.98), rgba(4, 8, 14, 0.98));
   box-shadow:
-    inset 0 0 0 2px rgba(0, 240, 255, 0.55),
-    inset 0 0 40px rgba(0, 240, 255, 0.1),
+    inset 0 0 0 2px rgba(77, 142, 255, 0.55),
+    inset 0 0 40px rgba(77, 142, 255, 0.1),
     0 24px 90px rgba(0, 0, 0, 0.6);
   position: relative;
 }
@@ -782,8 +787,8 @@ canvas {
     linear-gradient(180deg,
       transparent 0,
       transparent 1px,
-      rgba(0, 240, 255, 0.04) 1px,
-      rgba(0, 240, 255, 0.04) 2px) 0 0 / 100% 4px;
+      rgba(77, 142, 255, 0.04) 1px,
+      rgba(77, 142, 255, 0.04) 2px) 0 0 / 100% 4px;
   opacity: 0.4;
   mix-blend-mode: screen;
 }
@@ -799,7 +804,7 @@ canvas {
 
 .lobby-head {
   padding: 22px 24px 16px;
-  border-bottom: 1px solid rgba(0, 240, 255, 0.18);
+  border-bottom: 1px solid rgba(77, 142, 255, 0.18);
 }
 
 .lobby-actions,
@@ -816,7 +821,7 @@ canvas {
   color: #ffffff;
   text-shadow:
     0 0 8px var(--neon-cyan),
-    0 0 22px rgba(0, 240, 255, 0.55);
+    0 0 22px rgba(77, 142, 255, 0.55);
 }
 
 .lobby-subtitle,
@@ -852,15 +857,15 @@ canvas {
   font: 700 14px "Rajdhani", Inter, sans-serif;
   letter-spacing: 1px;
   box-shadow:
-    inset 0 0 0 1.5px rgba(0, 240, 255, 0.45),
-    inset 0 0 12px rgba(0, 240, 255, 0.1);
+    inset 0 0 0 1.5px rgba(77, 142, 255, 0.45),
+    inset 0 0 12px rgba(77, 142, 255, 0.1);
 }
 
 .lobby-name:focus {
   outline: none;
   box-shadow:
     inset 0 0 0 1.5px var(--neon-cyan),
-    inset 0 0 18px rgba(0, 240, 255, 0.22);
+    inset 0 0 18px rgba(77, 142, 255, 0.22);
 }
 
 .lobby-status {
@@ -872,14 +877,14 @@ canvas {
   clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
   background: rgba(4, 8, 14, 0.96);
   overflow: hidden;
-  box-shadow: inset 0 0 0 1.5px rgba(0, 240, 255, 0.35);
+  box-shadow: inset 0 0 0 1.5px rgba(77, 142, 255, 0.35);
 }
 
 .guide-head {
   justify-content: space-between;
   padding: 12px 16px;
-  border-bottom: 1px solid rgba(0, 240, 255, 0.18);
-  background: linear-gradient(180deg, rgba(0, 240, 255, 0.06), transparent);
+  border-bottom: 1px solid rgba(77, 142, 255, 0.18);
+  background: linear-gradient(180deg, rgba(77, 142, 255, 0.06), transparent);
 }
 
 .guide-title {
@@ -887,7 +892,7 @@ canvas {
   letter-spacing: 2px;
   text-transform: uppercase;
   color: var(--neon-gold);
-  text-shadow: 0 0 8px rgba(255, 204, 51, 0.55);
+  text-shadow: 0 0 8px rgba(245, 197, 66, 0.55);
 }
 
 .guide-grid {
@@ -945,7 +950,7 @@ canvas {
   clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
   background: linear-gradient(180deg, rgba(14, 24, 36, 0.95), rgba(6, 10, 16, 0.95));
   padding: 14px 16px;
-  box-shadow: inset 0 0 0 1.5px rgba(255, 204, 51, 0.32);
+  box-shadow: inset 0 0 0 1.5px rgba(245, 197, 66, 0.32);
   transition: filter 140ms ease, transform 120ms ease;
 }
 
@@ -956,7 +961,7 @@ canvas {
 .lobby-room:hover {
   filter: brightness(1.15) saturate(1.2);
   transform: translateY(-1px);
-  box-shadow: inset 0 0 0 1.5px var(--neon-gold), 0 0 14px rgba(255, 204, 51, 0.32);
+  box-shadow: inset 0 0 0 1.5px var(--neon-gold), 0 0 14px rgba(245, 197, 66, 0.32);
 }
 
 .lobby-room-title {
@@ -964,7 +969,7 @@ canvas {
   letter-spacing: 1.5px;
   margin-bottom: 6px;
   color: #ffffff;
-  text-shadow: 0 0 6px rgba(0, 240, 255, 0.35);
+  text-shadow: 0 0 6px rgba(77, 142, 255, 0.35);
 }
 
 .lobby-overlay button {
@@ -980,8 +985,8 @@ canvas {
   cursor: pointer;
   box-shadow:
     inset 0 0 0 1.5px var(--neon-cyan),
-    inset 0 0 14px rgba(0, 240, 255, 0.18),
-    0 0 14px rgba(0, 240, 255, 0.24);
+    inset 0 0 14px rgba(77, 142, 255, 0.18),
+    0 0 14px rgba(77, 142, 255, 0.24);
   transition: filter 140ms ease, transform 120ms ease;
 }
 
@@ -998,20 +1003,20 @@ canvas {
 
 .lobby-overlay .lobby-team-option {
   box-shadow:
-    inset 0 0 0 1.5px color-mix(in srgb, var(--team-color, #00f0ff) 80%, transparent),
-    inset 0 0 14px color-mix(in srgb, var(--team-color, #00f0ff) 18%, transparent),
-    0 0 14px color-mix(in srgb, var(--team-color, #00f0ff) 22%, transparent);
+    inset 0 0 0 1.5px color-mix(in srgb, var(--team-color, #4d8eff) 80%, transparent),
+    inset 0 0 14px color-mix(in srgb, var(--team-color, #4d8eff) 18%, transparent),
+    0 0 14px color-mix(in srgb, var(--team-color, #4d8eff) 22%, transparent);
 }
 
 .lobby-overlay .lobby-team-option.is-active {
   background:
     linear-gradient(180deg,
-      color-mix(in srgb, var(--team-color, #00f0ff) 28%, rgba(8, 14, 22, 0.96)),
-      color-mix(in srgb, var(--team-color, #00f0ff) 12%, rgba(4, 8, 14, 0.96)));
+      color-mix(in srgb, var(--team-color, #4d8eff) 28%, rgba(8, 14, 22, 0.96)),
+      color-mix(in srgb, var(--team-color, #4d8eff) 12%, rgba(4, 8, 14, 0.96)));
   box-shadow:
-    inset 0 0 0 2px var(--team-color, #00f0ff),
-    inset 0 0 22px color-mix(in srgb, var(--team-color, #00f0ff) 30%, transparent),
-    0 0 22px color-mix(in srgb, var(--team-color, #00f0ff) 40%, transparent);
+    inset 0 0 0 2px var(--team-color, #4d8eff),
+    inset 0 0 22px color-mix(in srgb, var(--team-color, #4d8eff) 30%, transparent),
+    0 0 22px color-mix(in srgb, var(--team-color, #4d8eff) 40%, transparent);
   color: #ffffff;
   font-weight: 800;
 }
@@ -1023,9 +1028,9 @@ canvas {
   font-weight: 900;
   box-shadow:
     inset 0 0 0 1.5px var(--neon-gold),
-    inset 0 0 14px rgba(255, 204, 51, 0.22),
-    0 0 14px rgba(255, 204, 51, 0.3);
-  text-shadow: 0 0 8px rgba(255, 204, 51, 0.6);
+    inset 0 0 14px rgba(245, 197, 66, 0.22),
+    0 0 14px rgba(245, 197, 66, 0.3);
+  text-shadow: 0 0 8px rgba(245, 197, 66, 0.6);
 }
 
 /* ---------- Responsive ---------- */
@@ -1466,14 +1471,14 @@ canvas {
   cursor: pointer;
   box-shadow:
     inset 0 0 0 1.5px var(--neon-cyan),
-    inset 0 0 16px rgba(0, 240, 255, 0.22),
-    0 0 18px rgba(0, 240, 255, 0.4);
+    inset 0 0 16px rgba(77, 142, 255, 0.22),
+    0 0 18px rgba(77, 142, 255, 0.4);
   animation: portrait-hint-pulse 2.4s ease-in-out infinite;
 }
 
 .portrait-hint-icon {
   font-size: 22px;
-  filter: drop-shadow(0 0 6px rgba(0, 240, 255, 0.6));
+  filter: drop-shadow(0 0 6px rgba(77, 142, 255, 0.6));
   animation: portrait-hint-rotate 2.4s ease-in-out infinite;
 }
 
